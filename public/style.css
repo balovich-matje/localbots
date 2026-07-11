@@ -98,7 +98,7 @@ textarea:focus, input:focus, select:focus {
 
 .options-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px 14px;
 }
 .options-grid label {
@@ -107,8 +107,11 @@ textarea:focus, input:focus, select:focus {
   gap: 4px;
   font-size: 13px;
   color: var(--muted);
+  min-width: 0;
 }
 .options-grid select, .options-grid input {
+  width: 100%;
+  min-width: 0;
   background: var(--panel-2);
   color: var(--text);
   border: 1px solid var(--border);

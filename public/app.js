@@ -21,7 +21,8 @@ $('fight-style').addEventListener('change', () => {
   const style = $('fight-style').value;
   const fixedTargets = style === 'Patchwerk' || style === 'Dummy';
   $('num-enemies').disabled = !fixedTargets;
-  $('fight-length').value = style === 'Dummy' ? 600 : 300;
+  // Defaults that match Raidbots: 5 min Patchwerk, 6 min DungeonSlice, long dummy parse
+  $('fight-length').value = style === 'Dummy' ? 600 : style === 'DungeonSlice' ? 360 : 300;
 });
 
 $('sim-button').addEventListener('click', startSim);
