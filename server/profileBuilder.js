@@ -10,6 +10,9 @@ const CONSUMABLE_DEFAULTS = JSON.parse(readFileSync(join(DATA_DIR, 'consumables.
 const FIGHT_STYLES = new Set(['Patchwerk', 'DungeonSlice', 'HecticAddCleave']);
 
 // Raid-buff override names accepted by simc (validated against the midnight branch).
+// These are the user-facing toggles; optimal_raid=1 additionally enables
+// mortal_wounds, bleeding and blessing_of_the_bronze, which we leave on
+// (Raidbots does the same — turning them off cost ~3% DPS in testing).
 export const RAID_BUFF_OVERRIDES = [
   'bloodlust',
   'arcane_intellect',
@@ -19,6 +22,7 @@ export const RAID_BUFF_OVERRIDES = [
   'mystic_touch',
   'chaos_brand',
   'skyfury',
+  'hunters_mark',
 ];
 
 export const CONSUMABLE_KEYS = ['flask', 'food', 'potion', 'augmentation', 'temporary_enchant'];
@@ -79,9 +83,10 @@ export function buildInput(profileText, options = {}) {
     lines.push(`target_error=${opts.targetError}`);
   }
 
-  lines.push('optimal_raid=0');
+  // Start from "everything on" (like Raidbots), then switch off what the user unticked.
+  lines.push('optimal_raid=1');
   for (const buff of RAID_BUFF_OVERRIDES) {
-    lines.push(`override.${buff}=${opts.buffs[buff] ? 1 : 0}`);
+    if (!opts.buffs[buff]) lines.push(`override.${buff}=0`);
   }
 
   lines.push('');

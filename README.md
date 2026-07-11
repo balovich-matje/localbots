@@ -81,7 +81,7 @@ Open **http://localhost:4747**, paste your `/simc` export, hit **Sim it**.
 | Enemies | `desired_targets=` 1–10 targets (Patchwerk/dummy) |
 | Fight length | `max_time=` in seconds |
 | Precision | `target_error=` — Fast 0.5% / Normal 0.2% / High 0.1% / Extreme 0.05% (≈ Raidbots Smart Sim), or a fixed iteration count |
-| Raid buffs | `override.bloodlust=`, `override.arcane_intellect=`, etc. |
+| Raid buffs | starts from `optimal_raid=1` (everything on, like Raidbots), unticking a buff adds `override.<buff>=0` |
 | Consumables | flask / food / potion / augment rune / weapon oil. On = current-season defaults for your spec (from simc's own profiles), Off = `disabled` |
 
 ## Sanity-checking against Raidbots
