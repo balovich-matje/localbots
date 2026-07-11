@@ -25,6 +25,7 @@ const TABLES = {
   JournalEncounterItem: ['ID', 'JournalEncounterID', 'ItemID', 'DifficultyMask', 'Flags'],
   MythicPlusSeasonTrackedMap: ['MapChallengeModeID', 'DisplaySeasonID'],
   MapChallengeMode: ['ID', 'Name_lang', 'MapID'],
+  Map: ['ID', 'InstanceType'],
   Item: ['ID', 'ClassID', 'SubclassID', 'InventoryType', 'IconFileDataID'],
   ItemSparse: [
     'ID', 'Display_lang', 'ItemLevel', 'AllowableClass', 'InventoryType', 'OverallQualityID',
@@ -105,14 +106,15 @@ export function buildLootDb(mplusDungeonNames = []) {
     picked.push({ inst, bosses, kind });
   };
 
+  // Map.InstanceType is the game's own raid/dungeon marker (2 = raid, 1 = dungeon)
+  const instanceTypeByMap = new Map(loadTable('Map').map((r) => [r.ID, Number(r.InstanceType)]));
+
   for (const t of txi) {
     const inst = instById.get(t.JournalInstanceID);
     if (!inst) continue;
-    const bosses = encByInstance.get(inst.ID) ?? [];
     const kind = Number(inst.Flags) & 2 ? 'worldboss'
-      : bosses.length >= 6 ? 'raid'
-      : bosses.length <= 2 ? 'outdoor'
-      : null; // 3-5 boss dungeons in this tier are a future M+ pool — skip
+      : instanceTypeByMap.get(inst.MapID) === 2 ? 'raid'
+      : null; // tier dungeons not in the configured M+ pool are future content — skip
     if (kind) addInstance(inst, kind);
   }
   for (const inst of dungeonInstances) addInstance(inst, 'dungeon');

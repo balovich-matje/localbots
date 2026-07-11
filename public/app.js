@@ -245,22 +245,26 @@ async function refreshDroptimizer() {
 
 function renderDroptSources(tree, season) {
   const html = [];
+  const hidden = []; // unreleased sources (in game data, not in simc yet)
+  const avail = (list) => list.filter((s) => (s.available ? true : (hidden.push(s.name), false)));
 
-  if (tree.raids.length) {
+  const raids = avail(tree.raids);
+  if (raids.length) {
     html.push('<div class="dropt-group"><h3>Raids</h3>');
-    for (const raid of tree.raids) {
+    for (const raid of raids) {
       const diffs = Object.keys(season.raidDifficulties);
-      html.push(`<div class="dropt-row ${raid.available ? '' : 'unavailable'}">
-        <span class="src-name">${esc(raid.name)} <span class="hint-inline">${raid.available ? raid.usable + ' items' : 'not in your simc build yet'}</span></span>
+      html.push(`<div class="dropt-row">
+        <span class="src-name">${esc(raid.name)} <span class="hint-inline">${raid.usable} items</span></span>
         <span class="diff-boxes">${diffs.map((d) => `
           <label><input type="checkbox" data-raid="${raid.instanceId}" data-diff="${d}"
-            ${raid.available && d === 'Heroic' ? 'checked' : ''} ${raid.available ? '' : 'disabled'}> ${d}</label>`).join('')}
+            ${d === 'Heroic' ? 'checked' : ''}> ${d}</label>`).join('')}
         </span></div>`);
     }
     html.push('</div>');
   }
 
-  if (tree.dungeons.length) {
+  const dungeons = avail(tree.dungeons);
+  if (dungeons.length) {
     const keys = Object.keys(season.mythicPlus.endOfDungeon);
     html.push(`<div class="dropt-group"><h3>Mythic+</h3>
       <div class="dropt-row">
@@ -270,33 +274,39 @@ function renderDroptSources(tree, season) {
         <label><input type="radio" name="dropt-reward" value="end"> End of dungeon</label>
         <label><input type="radio" name="dropt-reward" value="vault" checked> Great Vault</label>
       </div>`);
-    for (const d of tree.dungeons) {
-      html.push(`<div class="dropt-row ${d.available ? '' : 'unavailable'}">
-        <label><input type="checkbox" data-dungeon="${d.instanceId}" ${d.available ? 'checked' : 'disabled'}>
-          ${esc(d.name)} <span class="hint-inline">${d.available ? d.usable + ' items' : 'not in your simc build yet'}</span></label></div>`);
+    for (const d of dungeons) {
+      html.push(`<div class="dropt-row">
+        <label><input type="checkbox" data-dungeon="${d.instanceId}" checked>
+          ${esc(d.name)} <span class="hint-inline">${d.usable} items</span></label></div>`);
     }
     html.push('</div>');
   }
 
-  if (tree.worldBosses.length) {
-    const wb = tree.worldBosses[0];
+  const worldBosses = avail(tree.worldBosses);
+  if (worldBosses.length) {
+    const wb = worldBosses[0];
     html.push(`<div class="dropt-group"><h3>World bosses</h3>
-      <div class="dropt-row ${wb.available ? '' : 'unavailable'}">
-        <label><input type="checkbox" id="dropt-wb" ${wb.available ? 'checked' : 'disabled'}>
+      <div class="dropt-row">
+        <label><input type="checkbox" id="dropt-wb" checked>
           ${esc(wb.name)} <span class="hint-inline">${wb.usable} items</span></label>
         <label>ilvl <input type="number" id="dropt-wb-ilvl" value="${season.worldBossIlvl}" min="200" max="320"></label>
       </div></div>`);
   }
 
-  if (tree.outdoor.length) {
+  const outdoor = avail(tree.outdoor);
+  if (outdoor.length) {
     html.push('<div class="dropt-group"><h3>Outdoor / events</h3>');
     html.push(`<div class="dropt-row"><label>ilvl <input type="number" id="dropt-outdoor-ilvl" value="${season.outdoorIlvl}" min="200" max="320"></label></div>`);
-    for (const o of tree.outdoor) {
-      html.push(`<div class="dropt-row ${o.available ? '' : 'unavailable'}">
-        <label><input type="checkbox" data-outdoor="${o.instanceId}" ${o.available ? 'checked' : 'disabled'}>
-          ${esc(o.name)} <span class="hint-inline">${o.available ? o.usable + ' items' : 'not in your simc build yet'}</span></label></div>`);
+    for (const o of outdoor) {
+      html.push(`<div class="dropt-row">
+        <label><input type="checkbox" data-outdoor="${o.instanceId}" checked>
+          ${esc(o.name)} <span class="hint-inline">${o.usable} items</span></label></div>`);
     }
     html.push('</div>');
+  }
+
+  if (hidden.length) {
+    html.push(`<p class="hint">Not yet released (found in game data, but not live): ${hidden.map(esc).join(', ')} — these appear automatically once the patch drops and simc is updated.</p>`);
   }
 
   html.push('<div class="dropt-group"><h3>Delves</h3>');
