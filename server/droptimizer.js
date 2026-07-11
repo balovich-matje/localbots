@@ -154,9 +154,11 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
     } else if (source.kind === 'delves') {
       const d = selection.delves;
       if (!d?.enabled) continue;
-      const table = d.reward === 'vault' ? season.delves.vault : season.delves.endOfDelve;
+      const table = season.delves[d.reward === 'vault' ? 'vault' : d.reward === 'trovehunter' ? 'trovehunter' : 'endOfDelve'];
       const ilvl = table[String(d.tier)] ?? table['8'];
-      const label = d.reward === 'vault' ? `Delve T${d.tier} Vault` : `Delve T${d.tier}`;
+      const label = d.reward === 'vault' ? `Delve T${d.tier} Vault`
+        : d.reward === 'trovehunter' ? `Trovehunter T${d.tier}`
+        : `Delve T${d.tier} Coffer`;
       for (const boss of source.bosses) {
         for (const item of dedupe(boss.items)) {
           addItem(item, ilvl, { section: label, boss: 'Bountiful pool', sourceKind: 'delves' });

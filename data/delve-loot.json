@@ -1,4 +1,233 @@
 {
-  "_comment": "Delve (and Trovehunter's Bounty) loot pools are server-side only — they exist in no client database, so this file is curated by hand. Add entries as {\"id\": 12345} or {\"name\": \"Exact Item Name\"}; names are resolved against the game's item database on the next 'Refresh data'. The Delves source appears in the droptimizer once this list is non-empty.",
-  "items": []
+  "_comment": "Midnight S1 delve/Trovehunter gear pool. Derived from the datamined 'delve gear' item family in the client database (cross-checked against Raidbots' droptimizer list, which carries the same 'loot tables have not been verified' caveat). Add or remove entries freely; 'Refresh data' rebuilds the source.",
+  "items": [
+    {
+      "id": 249610,
+      "name": "Resinous Blossomblade"
+    },
+    {
+      "id": 249619,
+      "name": "Sprawling Mycoshroud"
+    },
+    {
+      "id": 249620,
+      "name": "Vibrant Wilderloop"
+    },
+    {
+      "id": 249621,
+      "name": "Voodoo Band"
+    },
+    {
+      "id": 249622,
+      "name": "Spiritseal Ring"
+    },
+    {
+      "id": 249623,
+      "name": "Blooming Leafcoil"
+    },
+    {
+      "id": 249624,
+      "name": "Osseoclad Paledrape"
+    },
+    {
+      "id": 249625,
+      "name": "Elder Mossveil"
+    },
+    {
+      "id": 249626,
+      "name": "Nocturnal Thorncharm"
+    },
+    {
+      "id": 249627,
+      "name": "Arboreal Vine Collar"
+    },
+    {
+      "id": 249628,
+      "name": "Rampant Bramblecloak"
+    },
+    {
+      "id": 249629,
+      "name": "Sprawling Rootunic"
+    },
+    {
+      "id": 249630,
+      "name": "Sprawling Rootpads"
+    },
+    {
+      "id": 249631,
+      "name": "Sprawling Tendrils"
+    },
+    {
+      "id": 249632,
+      "name": "Sprawling Stoloncollar"
+    },
+    {
+      "id": 249633,
+      "name": "Sprawling Rootstockings"
+    },
+    {
+      "id": 249634,
+      "name": "Sprawling Fibershells"
+    },
+    {
+      "id": 249635,
+      "name": "Sprawling Rhizomecord"
+    },
+    {
+      "id": 249636,
+      "name": "Sprawling Wristroots"
+    },
+    {
+      "id": 249637,
+      "name": "Osseoclad Marrowvest"
+    },
+    {
+      "id": 249638,
+      "name": "Osseoclad Bonecrushers"
+    },
+    {
+      "id": 249639,
+      "name": "Osseoclad Spinegrapplers"
+    },
+    {
+      "id": 249640,
+      "name": "Osseoclad Saberteeth"
+    },
+    {
+      "id": 249641,
+      "name": "Osseoclad Bonesteppers"
+    },
+    {
+      "id": 249642,
+      "name": "Osseoclad Razorspaulders"
+    },
+    {
+      "id": 249643,
+      "name": "Osseoclad Waistbone"
+    },
+    {
+      "id": 249644,
+      "name": "Osseoclad Ivory Wrist"
+    },
+    {
+      "id": 249645,
+      "name": "Elder Mossmail"
+    },
+    {
+      "id": 249646,
+      "name": "Elder Mossclogs"
+    },
+    {
+      "id": 249647,
+      "name": "Elder Mossfeelers"
+    },
+    {
+      "id": 249648,
+      "name": "Elder Mosshorns"
+    },
+    {
+      "id": 249649,
+      "name": "Elder Mossvein Breeches"
+    },
+    {
+      "id": 249650,
+      "name": "Elder Mossvein Greatleaves"
+    },
+    {
+      "id": 249651,
+      "name": "Elder Mosscinch"
+    },
+    {
+      "id": 249652,
+      "name": "Elder Mossbands"
+    },
+    {
+      "id": 249653,
+      "name": "Rampant Brambleplate"
+    },
+    {
+      "id": 249654,
+      "name": "Rampant Thistlestompers"
+    },
+    {
+      "id": 249655,
+      "name": "Rampant Creepers"
+    },
+    {
+      "id": 249656,
+      "name": "Rampant Briarhelm"
+    },
+    {
+      "id": 249657,
+      "name": "Rampant Bramblegreaves"
+    },
+    {
+      "id": 249658,
+      "name": "Rampant Thornmantles"
+    },
+    {
+      "id": 249659,
+      "name": "Rampant Thornstrap"
+    },
+    {
+      "id": 249660,
+      "name": "Rampant Briarcuffs"
+    },
+    {
+      "id": 249661,
+      "name": "Root Sculptor's Verdaxe"
+    },
+    {
+      "id": 249662,
+      "name": "Wild Fiberknife"
+    },
+    {
+      "id": 249664,
+      "name": "Gnarled Thornmace"
+    },
+    {
+      "id": 249665,
+      "name": "Blooming Seedpod"
+    },
+    {
+      "id": 249667,
+      "name": "Barbed Rootwand"
+    },
+    {
+      "id": 249669,
+      "name": "Organ Piercer's Briarspear"
+    },
+    {
+      "id": 249670,
+      "name": "Elderoot Spire"
+    },
+    {
+      "id": 249671,
+      "name": "Gnarlroot Spinecleaver"
+    },
+    {
+      "id": 249672,
+      "name": "Elderbloom Lantern"
+    },
+    {
+      "id": 249676,
+      "name": "Bramblebarricade"
+    },
+    {
+      "id": 249677,
+      "name": "Twinthorn Wildglaive"
+    },
+    {
+      "id": 260187,
+      "name": "Underbrush Render"
+    },
+    {
+      "id": 260188,
+      "name": "Savage Briaredge"
+    },
+    {
+      "id": 260189,
+      "name": "Rootkeeper's Dancing Needle"
+    }
+  ]
 }

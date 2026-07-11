@@ -316,8 +316,10 @@ function renderDroptSources(tree, season) {
       <label><input type="checkbox" id="dropt-delves" checked> Bountiful pool <span class="hint-inline">${tree.delves[0].usable} items</span></label>
       <label>Tier <select id="dropt-delve-tier">${tiers.map((t) => `<option value="${t}" ${t === '8' ? 'selected' : ''}>T${t}</option>`).join('')}</select></label>
       <label><input type="radio" name="dropt-delve-reward" value="end" checked> Coffer</label>
+      <label><input type="radio" name="dropt-delve-reward" value="trovehunter"> Trovehunter</label>
       <label><input type="radio" name="dropt-delve-reward" value="vault"> Vault</label>
-    </div>`);
+    </div>
+    <p class="hint">Pool datamined from game data (same as Raidbots' unverified list) — edit data/delve-loot.json if you see items that don't drop.</p>`);
   } else {
     html.push('<p class="hint">Delve loot pools are not in the game\'s client data — add items to <code>data/delve-loot.json</code> and hit Refresh data to enable this source.</p>');
   }
