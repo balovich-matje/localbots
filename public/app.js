@@ -64,13 +64,16 @@ $('sim-button').addEventListener('click', startSim);
 $('cancel-button').addEventListener('click', cancelSim);
 
 // ---------- tabs ----------
+const SIM_LABELS = { quick: 'Sim it', topgear: 'Compare gear', droptimizer: 'Run droptimizer' };
 document.querySelectorAll('.tab').forEach((tab) => {
   tab.addEventListener('click', () => {
     mode = tab.dataset.mode;
     document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === tab));
     $('gear-section').classList.toggle('hidden', mode !== 'topgear');
-    $('sim-button').textContent = mode === 'topgear' ? 'Compare gear' : 'Sim it';
+    $('dropt-section').classList.toggle('hidden', mode !== 'droptimizer');
+    $('sim-button').textContent = SIM_LABELS[mode];
     if (mode === 'topgear') refreshGearList();
+    if (mode === 'droptimizer') refreshDroptimizer();
   });
 });
 
@@ -169,6 +172,182 @@ function prettySlot(slot) {
   return slot.replace(/_/g, ' ').replace(/(finger|trinket)([12])/, '$1 $2');
 }
 
+// ---------- droptimizer ----------
+let droptTree = null;
+let droptPoll = null;
+
+$('dropt-all').addEventListener('click', () => setAllDropt(true));
+$('dropt-none').addEventListener('click', () => setAllDropt(false));
+$('dropt-refresh').addEventListener('click', async () => {
+  await fetch('/api/data/refresh', { method: 'POST' });
+  refreshDroptimizer();
+});
+
+function setAllDropt(on) {
+  document.querySelectorAll('#dropt-sources input[type="checkbox"]').forEach((cb) => {
+    if (!cb.disabled) cb.checked = on;
+  });
+}
+
+async function refreshDroptimizer() {
+  clearTimeout(droptPoll);
+  const profile = $('profile').value;
+  if (!profile.trim()) {
+    $('dropt-status').textContent = 'Paste your /simc export above first.';
+    $('dropt-sources').innerHTML = '';
+    return;
+  }
+  let r;
+  try {
+    r = await (await fetch('/api/droptimizer/sources', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile }),
+    })).json();
+  } catch {
+    $('dropt-status').textContent = 'Could not reach the server.';
+    return;
+  }
+  if (r.error) {
+    $('dropt-status').textContent = r.error;
+    $('dropt-sources').innerHTML = '';
+    return;
+  }
+  if (r.needsData || r.status?.refresh?.running) {
+    const step = r.status?.refresh?.running
+      ? `Downloading game data: ${r.status.refresh.step ?? '…'}`
+      : 'Game data not downloaded yet — hit "Refresh data" (one-time, ~60 MB from wago.tools).';
+    $('dropt-status').textContent = step;
+    $('dropt-sources').innerHTML = '';
+    if (r.status?.refresh?.running) droptPoll = setTimeout(refreshDroptimizer, 2500);
+    return;
+  }
+
+  const probe = r.status.probe;
+  if (!probe.ready) {
+    $('dropt-status').textContent = probe.error
+      ? `Item check failed: ${probe.error}`
+      : 'One-time check: finding which items your simc build can sim… (~30s)';
+    if (!probe.error) droptPoll = setTimeout(refreshDroptimizer, 3000);
+    if (!droptTree) $('dropt-sources').innerHTML = '';
+    if (!probe.error && !droptTree) return;
+    if (!probe.ready && !probe.error) return;
+  } else {
+    const age = r.status.cache?.downloadedAt
+      ? `game data from ${new Date(r.status.cache.downloadedAt).toLocaleDateString()}`
+      : '';
+    $('dropt-status').textContent = `Filtering loot for ${r.spec.key.replace('_', ' ')} · ${age}`;
+  }
+
+  droptTree = r.tree;
+  renderDroptSources(r.tree, r.season);
+}
+
+function renderDroptSources(tree, season) {
+  const html = [];
+
+  if (tree.raids.length) {
+    html.push('<div class="dropt-group"><h3>Raids</h3>');
+    for (const raid of tree.raids) {
+      const diffs = Object.keys(season.raidDifficulties);
+      html.push(`<div class="dropt-row ${raid.available ? '' : 'unavailable'}">
+        <span class="src-name">${esc(raid.name)} <span class="hint-inline">${raid.available ? raid.usable + ' items' : 'not in your simc build yet'}</span></span>
+        <span class="diff-boxes">${diffs.map((d) => `
+          <label><input type="checkbox" data-raid="${raid.instanceId}" data-diff="${d}"
+            ${raid.available && d === 'Heroic' ? 'checked' : ''} ${raid.available ? '' : 'disabled'}> ${d}</label>`).join('')}
+        </span></div>`);
+    }
+    html.push('</div>');
+  }
+
+  if (tree.dungeons.length) {
+    const keys = Object.keys(season.mythicPlus.endOfDungeon);
+    html.push(`<div class="dropt-group"><h3>Mythic+</h3>
+      <div class="dropt-row">
+        <label>Key level
+          <select id="dropt-keylevel">${keys.map((k) => `<option value="${k}" ${k === '10' ? 'selected' : ''}>${k === '0' ? 'M0' : '+' + k}</option>`).join('')}</select>
+        </label>
+        <label><input type="radio" name="dropt-reward" value="end"> End of dungeon</label>
+        <label><input type="radio" name="dropt-reward" value="vault" checked> Great Vault</label>
+      </div>`);
+    for (const d of tree.dungeons) {
+      html.push(`<div class="dropt-row ${d.available ? '' : 'unavailable'}">
+        <label><input type="checkbox" data-dungeon="${d.instanceId}" ${d.available ? 'checked' : 'disabled'}>
+          ${esc(d.name)} <span class="hint-inline">${d.available ? d.usable + ' items' : 'not in your simc build yet'}</span></label></div>`);
+    }
+    html.push('</div>');
+  }
+
+  if (tree.worldBosses.length) {
+    const wb = tree.worldBosses[0];
+    html.push(`<div class="dropt-group"><h3>World bosses</h3>
+      <div class="dropt-row ${wb.available ? '' : 'unavailable'}">
+        <label><input type="checkbox" id="dropt-wb" ${wb.available ? 'checked' : 'disabled'}>
+          ${esc(wb.name)} <span class="hint-inline">${wb.usable} items</span></label>
+        <label>ilvl <input type="number" id="dropt-wb-ilvl" value="${season.worldBossIlvl}" min="200" max="320"></label>
+      </div></div>`);
+  }
+
+  if (tree.outdoor.length) {
+    html.push('<div class="dropt-group"><h3>Outdoor / events</h3>');
+    html.push(`<div class="dropt-row"><label>ilvl <input type="number" id="dropt-outdoor-ilvl" value="${season.outdoorIlvl}" min="200" max="320"></label></div>`);
+    for (const o of tree.outdoor) {
+      html.push(`<div class="dropt-row ${o.available ? '' : 'unavailable'}">
+        <label><input type="checkbox" data-outdoor="${o.instanceId}" ${o.available ? 'checked' : 'disabled'}>
+          ${esc(o.name)} <span class="hint-inline">${o.available ? o.usable + ' items' : 'not in your simc build yet'}</span></label></div>`);
+    }
+    html.push('</div>');
+  }
+
+  html.push('<div class="dropt-group"><h3>Delves</h3>');
+  if (tree.delves.length) {
+    const tiers = Object.keys(season.delves.endOfDelve);
+    html.push(`<div class="dropt-row">
+      <label><input type="checkbox" id="dropt-delves" checked> Bountiful pool <span class="hint-inline">${tree.delves[0].usable} items</span></label>
+      <label>Tier <select id="dropt-delve-tier">${tiers.map((t) => `<option value="${t}" ${t === '8' ? 'selected' : ''}>T${t}</option>`).join('')}</select></label>
+      <label><input type="radio" name="dropt-delve-reward" value="end" checked> Coffer</label>
+      <label><input type="radio" name="dropt-delve-reward" value="vault"> Vault</label>
+    </div>`);
+  } else {
+    html.push('<p class="hint">Delve loot pools are not in the game\'s client data — add items to <code>data/delve-loot.json</code> and hit Refresh data to enable this source.</p>');
+  }
+  html.push('</div>');
+
+  $('dropt-sources').innerHTML = html.join('');
+}
+
+function collectDroptSelection() {
+  const selection = { raids: {}, dungeons: null, worldBoss: null, outdoor: null, delves: null };
+  document.querySelectorAll('#dropt-sources input[data-raid]:checked').forEach((cb) => {
+    (selection.raids[cb.dataset.raid] ??= []).push(cb.dataset.diff);
+  });
+  const dungeonIds = [...document.querySelectorAll('#dropt-sources input[data-dungeon]:checked')]
+    .map((cb) => cb.dataset.dungeon);
+  if (dungeonIds.length) {
+    selection.dungeons = {
+      instanceIds: dungeonIds,
+      keyLevel: $('dropt-keylevel')?.value ?? '10',
+      reward: document.querySelector('input[name="dropt-reward"]:checked')?.value ?? 'vault',
+    };
+  }
+  if ($('dropt-wb')?.checked) {
+    selection.worldBoss = { enabled: true, ilvl: Number($('dropt-wb-ilvl')?.value) || undefined };
+  }
+  const outdoorIds = [...document.querySelectorAll('#dropt-sources input[data-outdoor]:checked')]
+    .map((cb) => cb.dataset.outdoor);
+  if (outdoorIds.length) {
+    selection.outdoor = { instanceIds: outdoorIds, ilvl: Number($('dropt-outdoor-ilvl')?.value) || undefined };
+  }
+  if ($('dropt-delves')?.checked) {
+    selection.delves = {
+      enabled: true,
+      tier: $('dropt-delve-tier')?.value ?? '8',
+      reward: document.querySelector('input[name="dropt-delve-reward"]:checked')?.value ?? 'end',
+    };
+  }
+  return selection;
+}
+
 function ilvlControl(item, i) {
   const opts = upgradeOptionsFor(item);
   if (!opts.length) {
@@ -248,6 +427,9 @@ async function startSim() {
       showError('Tick at least one item to compare (or paste an export that contains bag gear).');
       return;
     }
+  } else if (mode === 'droptimizer') {
+    payload.mode = 'droptimizer';
+    payload.selection = collectDroptSelection();
   }
 
   $('sim-button').disabled = true;
@@ -297,7 +479,7 @@ function handleUpdate(u) {
     const p = u.progress;
     if (p) {
       const phase = p.item
-        ? `Item ${p.phaseNum - 1}/${p.phaseTotal - 1}: ${p.item.replace(/ @[a-z_0-9]+$/, '')}`
+        ? `Item ${p.phaseNum - 1}/${p.phaseTotal - 1}: ${p.item.replace(/ @[a-z_0-9]+$/, '').replace(/ \[\d+\]$/, '')}`
         : p.phaseTotal > 1 ? `${p.phase} ${p.phaseNum}/${p.phaseTotal}` : p.phase;
       const detail = [
         `${p.iterDone.toLocaleString()} / ${p.iterTotal.toLocaleString()} iterations`,
@@ -384,6 +566,9 @@ function renderResult(r) {
     buffRows || '<tr><td colspan="2">No notable buffs.</td></tr>';
 }
 
+let tgRows = [];
+let tgActiveChip = null;
+
 function renderTopGear(r) {
   $('progress-area').classList.add('hidden');
   $('topgear-area').classList.remove('hidden');
@@ -396,15 +581,45 @@ function renderTopGear(r) {
     r.elapsedSeconds ? `simmed in ${r.elapsedSeconds.toFixed(1)}s` : null,
   ].filter(Boolean).join(' · ');
 
-  const maxAbs = Math.max(...r.topgear.map((t) => Math.abs(t.delta)), 1);
-  const rows = r.topgear.map((t) => {
+  tgRows = r.topgear;
+  tgActiveChip = null;
+  $('tg-search').value = '';
+
+  // filter chips (droptimizer runs have many sections; top gear has few)
+  const sections = [...new Set(tgRows.map((t) => t.section))];
+  const showFilters = sections.length > 2 || tgRows.length > 30;
+  $('tg-filters').classList.toggle('hidden', !showFilters);
+  if (showFilters) {
+    $('tg-chips').innerHTML = ['All', ...sections].map((s, i) =>
+      `<button class="chip ${i === 0 ? 'active' : ''}" data-chip="${i === 0 ? '' : esc(s)}">${esc(s)}</button>`).join('');
+    document.querySelectorAll('#tg-chips .chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        tgActiveChip = chip.dataset.chip || null;
+        document.querySelectorAll('#tg-chips .chip').forEach((c) => c.classList.toggle('active', c === chip));
+        renderTopGearRows();
+      });
+    });
+  }
+  renderTopGearRows();
+}
+
+$('tg-search').addEventListener('input', renderTopGearRows);
+
+function renderTopGearRows() {
+  const q = $('tg-search').value.toLowerCase();
+  const visible = tgRows.filter((t) =>
+    (!tgActiveChip || t.section === tgActiveChip) &&
+    (!q || `${t.itemName} ${t.section} ${t.boss ?? ''}`.toLowerCase().includes(q)));
+
+  const maxAbs = Math.max(...visible.map((t) => Math.abs(t.delta)), 1);
+  const rows = visible.map((t) => {
     const cls = t.delta > t.error ? 'delta-pos' : t.delta < -t.error ? 'delta-neg' : 'delta-zero';
     const sign = t.delta > 0 ? '+' : '';
     const fill = (Math.abs(t.delta) / maxAbs) * 100;
     return `
     <tr>
       <td>${esc(t.itemName ?? '?')}${ilvlBadge(t)}
-          <span class="slot-tag">→ ${esc(prettySlot(t.placement))}</span></td>
+          <span class="slot-tag">→ ${esc(prettySlot(t.placement))}${t.boss ? ` · ${esc(t.boss)}` : ''}</span></td>
       <td><span class="source-tag">${esc(t.section)}</span></td>
       <td class="num">${Math.round(t.dps).toLocaleString()}</td>
       <td class="num ${cls}">${sign}${Math.round(t.delta).toLocaleString()}</td>
@@ -415,7 +630,7 @@ function renderTopGear(r) {
     </tr>`;
   }).join('');
   document.querySelector('#topgear-table tbody').innerHTML =
-    rows || '<tr><td colspan="5">No results.</td></tr>';
+    rows || '<tr><td colspan="5">No results match the filter.</td></tr>';
 }
 
 function ilvlBadge(t) {

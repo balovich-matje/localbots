@@ -19,6 +19,7 @@
       <div class="tab-bar">
         <button class="tab active" data-mode="quick">Quick Sim</button>
         <button class="tab" data-mode="topgear">Top Gear</button>
+        <button class="tab" data-mode="droptimizer">Droptimizer</button>
       </div>
 
       <h2>Character</h2>
@@ -90,6 +91,19 @@
         <div id="gear-list"></div>
       </div>
 
+      <div id="dropt-section" class="hidden">
+        <h2>Loot sources</h2>
+        <p id="dropt-status" class="hint"></p>
+        <div class="gear-toolbar">
+          <button class="mini" id="dropt-all">Include everything</button>
+          <button class="mini" id="dropt-none">None</button>
+          <button class="mini" id="dropt-refresh" title="Re-download game data from wago.tools (updates with game patches)">Refresh data</button>
+        </div>
+        <div id="dropt-sources"></div>
+        <p class="hint">Full scans sim hundreds of items — the Fast precision preset is
+          recommended; expect several minutes.</p>
+      </div>
+
       <div class="actions">
         <button id="sim-button" class="primary">Sim it</button>
         <button id="cancel-button" class="danger hidden">Cancel</button>
@@ -111,6 +125,10 @@
             <span class="dps-unit">baseline DPS (equipped gear)</span>
           </div>
           <p id="tg-meta" class="hint"></p>
+        </div>
+        <div id="tg-filters" class="hidden">
+          <input type="search" id="tg-search" placeholder="Filter items…">
+          <div id="tg-chips"></div>
         </div>
         <h2>Gear ranking</h2>
         <table id="topgear-table">

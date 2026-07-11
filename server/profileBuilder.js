@@ -67,6 +67,9 @@ export function buildInput(profileText, options = {}) {
   const lines = [];
 
   // --- global sim settings ---
+  // Never fall back to the Blizzard API for unknown items (no key available;
+  // the fallback can crash simc mid-profileset). Local-only fails cleanly.
+  lines.push('item_db_source=local');
   lines.push(`fight_style=${opts.fightStyle}`);
   lines.push(`max_time=${opts.fightLength}`);
   lines.push(`desired_targets=${opts.numEnemies}`);

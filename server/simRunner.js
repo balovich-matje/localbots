@@ -199,6 +199,22 @@ export class SimQueue extends EventEmitter {
         }
       } else {
         job.error = pickErrorFromLog(job.logTail) ?? `simc exited with code ${code}`;
+        // Self-heal: if one profileset failed to initialize (e.g. an item simc
+        // rejects), drop it from the input and rerun instead of losing the run.
+        const bad = job.meta?.sets && job.error.match(/Profileset '([^']+)'/)?.[1];
+        if (bad && (job.retries = (job.retries ?? 0) + 1) <= 5) {
+          const inputPath = join(job.dir, 'input.simc');
+          const kept = readFileSync(inputPath, 'utf8')
+            .split('\n')
+            .filter((l) => !l.startsWith(`profileset."${bad}"`))
+            .join('\n');
+          writeFileSync(inputPath, kept);
+          delete job.meta.sets[bad];
+          job.error = null;
+          job.logTail.push(`--- dropped incompatible profileset "${bad}", retrying (${job.retries}/5) ---`);
+          this.#run(job);
+          return;
+        }
         this.#finish(job, 'failed');
       }
     });
@@ -226,16 +242,13 @@ export function extractTopGear(json, sets, baselineDps) {
     const info = sets[r.name];
     if (!info) continue;
     const row = {
-      itemName: info.itemName,
-      ilvl: info.ilvl,
+      ...info, // itemName, ilvl, slot, placement, section, plus droptimizer labels (boss, sourceKind)
       origIlvl: info.origIlvl ?? info.ilvl,
-      slot: info.slot,
-      placement: info.placement,
-      section: info.section,
       dps: r.mean,
       error: r.mean_stddev ?? 0,
       iterations: r.iterations ?? null,
     };
+    delete row.group;
     const existing = byGroup.get(info.group);
     if (!existing || row.dps > existing.dps) byGroup.set(info.group, row);
   }

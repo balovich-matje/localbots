@@ -14,5 +14,34 @@
     "mythIlvl": 298,
     "craftedIlvl": 295
   },
-  "maxIlvl": 298
+  "maxIlvl": 298,
+  "droptimizer": {
+    "_comment": "Drop item levels per source. raidDifficulties arrays are per boss-position bucket (early -> end bosses). mythicPlus maps key level to end-of-dungeon and Great Vault ilvls. worldBoss/outdoor are editable in the UI before each run.",
+    "raidDifficulties": {
+      "LFR": [233, 237, 240, 243],
+      "Normal": [246, 250, 253, 256],
+      "Heroic": [259, 263, 266, 269],
+      "Mythic": [272, 276, 279, 282]
+    },
+    "mythicPlusDungeons": [
+      "Magisters' Terrace",
+      "Maisara Caverns",
+      "Nexus-Point Xenas",
+      "Windrunner Spire",
+      "Algeth'ar Academy",
+      "Seat of the Triumvirate",
+      "Skyreach",
+      "Pit of Saron"
+    ],
+    "mythicPlus": {
+      "endOfDungeon": { "0": 246, "2": 250, "3": 250, "4": 253, "5": 256, "6": 259, "7": 259, "8": 263, "9": 263, "10": 266 },
+      "vault": { "0": 256, "2": 259, "3": 259, "4": 263, "5": 263, "6": 266, "7": 269, "8": 269, "9": 269, "10": 272 }
+    },
+    "delves": {
+      "endOfDelve": { "1": 220, "2": 224, "3": 227, "4": 230, "5": 233, "6": 237, "7": 250, "8": 250 },
+      "vault": { "1": 233, "2": 237, "3": 240, "4": 243, "5": 246, "6": 250, "7": 256, "8": 259 }
+    },
+    "worldBossIlvl": 256,
+    "outdoorIlvl": 250
+  }
 }

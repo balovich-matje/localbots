@@ -13,8 +13,10 @@ public data.
   with fight style, training dummies, raid buff and consumable toggles, live progress, cancel.
 - ✅ **Phase 2 — Top Gear**: compare the gear in your bags (and this week's vault choices)
   against what you're wearing — one combined run, ranked by DPS gain.
-- ⬜ **Phase 3 — Droptimizer**: sim every item that can drop for you this season — raids,
-  M+, delves and more, all in ONE run.
+- ✅ **Phase 3 — Droptimizer**: sim every item that can drop for you this season — raid
+  (per difficulty), all M+ dungeons (per key level, end-of-dungeon or vault), world
+  bosses and outdoor events — in ONE run, ranked by DPS gain with per-source filters.
+  This is the feature Raidbots gates behind premium.
 
 ## Requirements
 
@@ -104,6 +106,47 @@ any upgrade step of the current season's tracks (e.g. a fresh 272 Myth-track pie
 at a custom item level you type in. Upgraded items show as "272 → 289" in the results.
 Track/voidcore numbers live in [data/season.json](data/season.json) and are updated by
 hand once per season.
+
+## Droptimizer (sim everything that can drop)
+
+Paste your export, open the **Droptimizer** tab, pick your sources, hit
+**Run droptimizer**:
+
+- **Raids** — per difficulty (LFR/Normal/Heroic/Mythic); later bosses drop higher item
+  levels automatically.
+- **Mythic+** — every dungeon in the season pool at your chosen key level, as
+  end-of-dungeon or Great Vault item level.
+- **World bosses & outdoor events** — with editable item levels.
+- **Include everything** does what it says. A full scan is a few hundred items; on an
+  M-series Mac it takes well under a minute on Fast precision.
+
+Results are one ranked table of DPS gain per item, labeled with source and boss, with
+per-source filter chips and text search.
+
+### Where the data comes from
+
+Loot tables come from [wago.tools](https://wago.tools) DB2 exports — clean CSVs of the
+live game client's own database (the same data Wowhead renders). The first use needs a
+one-time download (~60 MB, "Refresh data" button); it's cached in `data/cache/` and only
+re-downloaded when you ask (game data changes with patches). No Blizzard API key, no
+scraping.
+
+On first use Localbots also runs a one-time probe (~30 s) to learn which items your simc
+build can actually simulate — game data ships loot for unreleased content (next season's
+raid and dungeons), and those show up grayed out as "not in your simc build yet" until
+Blizzard releases them and you update simc.
+
+### Known limitations
+
+- **Delves**: delve loot pools exist only server-side — no client database lists them.
+  Add items to `data/delve-loot.json` (by id or exact name) and hit Refresh data to
+  enable the Delves source.
+- **Tier set pieces**: raid bosses drop class tokens, which aren't mapped to your set
+  pieces yet.
+- **Legacy dungeons** (returning ones like Skyreach) may list a few old item variants
+  that no longer drop — they sim fine, just ignore rows you know aren't obtainable.
+- Item levels use simc's `ilevel=` override rather than full per-difficulty bonus IDs —
+  accurate for stats, approximate for items whose effects scale oddly.
 
 ## Sanity-checking against Raidbots
 

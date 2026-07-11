@@ -1,0 +1,4 @@
+{
+  "_comment": "Delve (and Trovehunter's Bounty) loot pools are server-side only — they exist in no client database, so this file is curated by hand. Add entries as {\"id\": 12345} or {\"name\": \"Exact Item Name\"}; names are resolved against the game's item database on the next 'Refresh data'. The Delves source appears in the droptimizer once this list is non-empty.",
+  "items": []
+}
