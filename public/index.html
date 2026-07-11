@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Localbots — local SimulationCraft runner</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚔️</text></svg>">
+</head>
+<body>
+  <header>
+    <h1>Localbots</h1>
+    <span class="tagline">your hardware, your sims</span>
+    <span id="simc-version" class="version-pill">checking simc…</span>
+  </header>
+
+  <main>
+    <section class="panel input-panel">
+      <h2>Character</h2>
+      <p class="hint">In game: type <code>/simc</code>, copy the text (Ctrl+C / Cmd+C), paste it below.</p>
+      <textarea id="profile" spellcheck="false"
+        placeholder="# Paste your /simc addon export here&#10;warrior=&quot;Yourname&quot;&#10;level=90&#10;spec=fury&#10;..."></textarea>
+
+      <h2>Fight</h2>
+      <div class="options-grid">
+        <label>Fight style
+          <select id="fight-style">
+            <option value="Patchwerk">Patchwerk (single target, raid boss)</option>
+            <option value="DungeonSlice">DungeonSlice (M+ style packs)</option>
+            <option value="HecticAddCleave">HecticAddCleave (heavy add cleave)</option>
+            <option value="Dummy">Training dummy (stand still &amp; pump)</option>
+          </select>
+        </label>
+        <label id="enemies-label">Enemies
+          <input type="number" id="num-enemies" min="1" max="10" value="1">
+        </label>
+        <label>Fight length (seconds)
+          <input type="number" id="fight-length" min="30" max="1200" step="30" value="300">
+        </label>
+        <label>Precision
+          <select id="precision">
+            <option value="0.5">Fast (target error 0.5%)</option>
+            <option value="0.2" selected>Normal (target error 0.2%)</option>
+            <option value="0.1">High (target error 0.1%)</option>
+            <option value="iterations">Fixed iterations…</option>
+          </select>
+        </label>
+        <label id="iterations-label" class="hidden">Iterations
+          <input type="number" id="iterations" min="100" max="100000" step="100" value="10000">
+        </label>
+      </div>
+
+      <h2>Raid buffs</h2>
+      <div class="checkbox-grid" id="buffs">
+        <label><input type="checkbox" data-buff="bloodlust" checked> Bloodlust / Heroism</label>
+        <label><input type="checkbox" data-buff="arcane_intellect" checked> Arcane Intellect</label>
+        <label><input type="checkbox" data-buff="battle_shout" checked> Battle Shout</label>
+        <label><input type="checkbox" data-buff="mark_of_the_wild" checked> Mark of the Wild</label>
+        <label><input type="checkbox" data-buff="power_word_fortitude" checked> PW: Fortitude</label>
+        <label><input type="checkbox" data-buff="mystic_touch" checked> Mystic Touch</label>
+        <label><input type="checkbox" data-buff="chaos_brand" checked> Chaos Brand</label>
+        <label><input type="checkbox" data-buff="skyfury" checked> Skyfury</label>
+      </div>
+
+      <h2>Consumables</h2>
+      <div class="checkbox-grid" id="consumables">
+        <label><input type="checkbox" data-consumable="flask" checked> Flask</label>
+        <label><input type="checkbox" data-consumable="food" checked> Food</label>
+        <label><input type="checkbox" data-consumable="potion" checked> Potion</label>
+        <label><input type="checkbox" data-consumable="augmentation" checked> Augment rune</label>
+        <label><input type="checkbox" data-consumable="temporary_enchant" checked> Weapon oil</label>
+      </div>
+
+      <div class="actions">
+        <button id="sim-button" class="primary">Sim it</button>
+        <button id="cancel-button" class="danger hidden">Cancel</button>
+      </div>
+      <p id="error-box" class="error hidden"></p>
+    </section>
+
+    <section class="panel results-panel">
+      <div id="progress-area" class="hidden">
+        <h2 id="progress-phase">Simulating…</h2>
+        <div class="progress-track"><div id="progress-bar"></div></div>
+        <p id="progress-detail" class="hint"></p>
+      </div>
+
+      <div id="results-area" class="hidden">
+        <div class="dps-hero">
+          <div>
+            <span id="dps-value">0</span>
+            <span class="dps-unit">DPS</span>
+          </div>
+          <p id="dps-meta" class="hint"></p>
+        </div>
+
+        <h2>Damage breakdown</h2>
+        <table id="abilities-table">
+          <thead>
+            <tr><th>Ability</th><th class="num">DPS</th><th class="num">Casts</th><th class="share-col">Share</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+
+        <h2>Buff uptimes</h2>
+        <table id="buffs-table">
+          <thead>
+            <tr><th>Buff</th><th class="share-col">Uptime</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div id="empty-state">
+        <p>Paste your character, pick a fight, hit <strong>Sim it</strong>.</p>
+        <p class="hint">Results appear here with DPS, damage breakdown, and buff uptimes.</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "localbots",
+  "version": "0.1.0",
+  "description": "Locally-hosted Raidbots alternative: sim your WoW character and find gear upgrades with your own SimulationCraft install.",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/balovich-matje/localbots.git"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}

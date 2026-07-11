@@ -1,0 +1,226 @@
+{
+  "deathknight_blood": {
+    "flask": "flask_of_the_shattered_sun_2",
+    "food": "silvermoon_parade",
+    "potion": "draught_of_rampant_abandon_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2"
+  },
+  "deathknight_frost": {
+    "flask": "flask_of_the_shattered_sun_2",
+    "food": "silvermoon_parade",
+    "potion": "potion_of_recklessness_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2/off_hand:thalassian_phoenix_oil_2"
+  },
+  "deathknight_unholy": {
+    "flask": "flask_of_the_magisters_2",
+    "food": "silvermoon_parade",
+    "potion": "potion_of_recklessness_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2"
+  },
+  "demonhunter_devourer": {
+    "flask": "flask_of_the_magisters_2",
+    "food": "blooming_feast",
+    "potion": "potion_of_recklessness_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2/off_hand:thalassian_phoenix_oil_2"
+  },
+  "demonhunter_havoc": {
+    "flask": "flask_of_the_shattered_sun_2",
+    "food": "blooming_feast",
+    "potion": "potion_of_recklessness_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2/off_hand:thalassian_phoenix_oil_2"
+  },
+  "demonhunter_vengeance": {
+    "flask": "flask_of_the_magisters_2",
+    "food": "silvermoon_parade",
+    "potion": "lights_potential_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2/off_hand:thalassian_phoenix_oil_2"
+  },
+  "druid_balance": {
+    "flask": "magisters_2",
+    "food": "harandar_celebration",
+    "potion": "lights_potential_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2"
+  },
+  "druid_feral": {
+    "flask": "magisters_2",
+    "food": "harandar_celebration",
+    "potion": "lights_potential_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2"
+  },
+  "druid_guardian": {
+    "flask": "blood_knights_2",
+    "food": "harandar_celebration",
+    "potion": "lights_potential_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2"
+  },
+  "evoker_devastation": {
+    "flask": "flask_of_the_shattered_sun_2",
+    "food": "silvermoon_parade",
+    "potion": "lights_potential_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2"
+  },
+  "hunter_beast_mastery": {
+    "flask": "flask_of_the_magisters_2",
+    "food": "silvermoon_parade",
+    "potion": "lights_potential_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2"
+  },
+  "hunter_marksmanship": {
+    "flask": "flask_of_the_shattered_sun_2",
+    "food": "silvermoon_parade",
+    "potion": "lights_potential_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2"
+  },
+  "hunter_survival": {
+    "flask": "flask_of_the_magisters_2",
+    "food": "silvermoon_parade",
+    "potion": "lights_potential_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2/off_hand:thalassian_phoenix_oil_2"
+  },
+  "mage_arcane": {
+    "flask": "flask_of_thalassian_resistance_2",
+    "food": "silvermoon_parade",
+    "potion": "lights_potential_2",
+    "augmentation": "void_touched_augment_rune",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2"
+  },
+  "mage_fire": {
+    "flask": "flask_of_the_blood_knights_2",
+    "food": "silvermoon_parade",
+    "potion": "lights_potential_2",
+    "augmentation": "void_touched_augment_rune",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2"
+  },
+  "mage_frost": {
+    "flask": "flask_of_the_shattered_sun_2",
+    "food": "harandar_celebration",
+    "potion": "potion_of_recklessness_2",
+    "augmentation": "void_touched_augment_rune",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2"
+  },
+  "monk_brewmaster": {
+    "flask": "flask_of_the_magisters_2",
+    "food": "harandar_celebration",
+    "potion": "draught_of_rampant_abandon_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2/off_hand:thalassian_phoenix_oil_2"
+  },
+  "monk_windwalker": {
+    "flask": "flask_of_the_shattered_sun_2",
+    "food": "harandar_celebration",
+    "potion": "potion_of_recklessness_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2/off_hand:thalassian_phoenix_oil_2"
+  },
+  "paladin_protection": {
+    "flask": "flask_of_the_shattered_sun_2",
+    "food": "blooming_feast",
+    "potion": "lights_potential_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2,if=!(talent.rite_of_adjuration.enabled|talent.rite_of_sanctification.enabled)"
+  },
+  "paladin_retribution": {
+    "flask": "flask_of_the_magisters_2",
+    "food": "royal_roast",
+    "potion": "lights_potential_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2"
+  },
+  "priest_shadow": {
+    "flask": "flask_of_the_magisters_2",
+    "food": "silvermoon_parade",
+    "potion": "lights_potential_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2"
+  },
+  "rogue_assassination": {
+    "flask": "flask_of_the_shattered_sun_2",
+    "food": "harandar_celebration",
+    "potion": "lights_potential_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2/off_hand:thalassian_phoenix_oil_2"
+  },
+  "rogue_outlaw": {
+    "flask": "flask_of_the_shattered_sun_2",
+    "food": "harandar_celebration",
+    "potion": "lights_potential_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2/off_hand:thalassian_phoenix_oil_2"
+  },
+  "rogue_subtlety": {
+    "flask": "flask_of_the_shattered_sun_2",
+    "food": "harandar_celebration",
+    "potion": "lights_potential_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2/off_hand:thalassian_phoenix_oil_2"
+  },
+  "shaman_elemental": {
+    "flask": "flask_of_the_magisters_2",
+    "food": "harandar_celebration",
+    "potion": "lights_potential_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2,if=!talent.flametongue_weapon"
+  },
+  "shaman_enhancement": {
+    "flask": "flask_of_the_blood_knights_2",
+    "food": "harandar_celebration",
+    "potion": "lights_potential_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "disabled"
+  },
+  "warlock_affliction": {
+    "flask": "flask_of_the_shattered_sun_2",
+    "food": "harandar_celebration",
+    "potion": "lights_potential_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2"
+  },
+  "warlock_demonology": {
+    "flask": "flask_of_the_shattered_sun_2",
+    "food": "harandar_celebration",
+    "potion": "potion_of_recklessness_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2"
+  },
+  "warlock_destruction": {
+    "flask": "flask_of_the_shattered_sun_2",
+    "food": "harandar_celebration",
+    "potion": "potion_of_recklessness_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2"
+  },
+  "warrior_arms": {
+    "flask": "flask_of_the_shattered_sun_2",
+    "food": "harandar_celebration",
+    "potion": "lights_potential_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2"
+  },
+  "warrior_fury": {
+    "flask": "flask_of_the_magisters_2",
+    "food": "harandar_celebration",
+    "potion": "lights_potential_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2/off_hand:thalassian_phoenix_oil_2"
+  },
+  "warrior_protection": {
+    "flask": "flask_of_the_shattered_sun_2",
+    "food": "harandar_celebration",
+    "potion": "potion_of_recklessness_2",
+    "augmentation": "void_touched",
+    "temporary_enchant": "main_hand:thalassian_phoenix_oil_2"
+  }
+}
