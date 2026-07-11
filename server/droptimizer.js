@@ -105,7 +105,8 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
   const season = fullSeason.droptimizer;
   const tracks = fullSeason.tracks ?? {};
   const rawUpgrade = Number(selection.upgradeTo);
-  const withVoidcore = rawUpgrade === 6; // "6/6 + Voidcore" option
+  // Voidcores only apply on top of fully upgraded (6/6) items
+  const withVoidcore = rawUpgrade === 6 || (selection.voidcores === true && rawUpgrade === 5);
   const upgradeTo = withVoidcore ? 5
     : Number.isInteger(rawUpgrade) && rawUpgrade >= 1 && rawUpgrade <= 5 ? rawUpgrade : null;
   const voidcoreSlots = new Set(fullSeason.voidcore?.slots ?? []);

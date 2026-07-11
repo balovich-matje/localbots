@@ -87,6 +87,14 @@ $('profile').addEventListener('input', () => {
 $('gear-all').addEventListener('click', () => setAllGear(true));
 $('gear-none').addEventListener('click', () => setAllGear(false));
 
+// Voidcore toggle is only meaningful on fully upgraded (6/6) items
+$('dropt-upgrade').addEventListener('change', () => {
+  const at66 = $('dropt-upgrade').value === '5';
+  $('dropt-voidcore').disabled = !at66;
+  $('dropt-voidcore-label').classList.toggle('disabled-label', !at66);
+  if (!at66) $('dropt-voidcore').checked = false;
+});
+
 function setAllGear(checked) {
   document.querySelectorAll('#gear-list input').forEach((cb) => { cb.checked = checked; });
   updateGearCount();
@@ -255,7 +263,7 @@ function renderDroptSources(tree, season) {
   if (raids.length) {
     html.push(`<div class="dropt-group" data-group="raids">${groupHeader('Raids')}`);
     const diffs = Object.keys(season.raidDifficulties);
-    html.push(`<div class="dropt-row diff-toggle-row"><span class="hint-inline">Toggle difficulty for all raids:</span>
+    html.push(`<div class="dropt-row diff-toggle-row"><span class="hint-inline">All raids:</span>
       ${diffs.map((d) => `<button class="mini diff-toggle" data-difftoggle="${d}">${d}</button>`).join('')}</div>`);
     for (const raid of raids) {
       const diffs = Object.keys(season.raidDifficulties);
@@ -333,20 +341,13 @@ function renderDroptSources(tree, season) {
 
   $('dropt-sources').innerHTML = html.join('');
 
-  // Group on/off toggles: off unchecks everything in the section (remembering
-  // the previous state), on restores it.
+  // Group on/off toggles: on checks everything in the section, off unchecks it.
   document.querySelectorAll('#dropt-sources .group-toggle').forEach((toggle) => {
     toggle.addEventListener('change', () => {
       const group = toggle.closest('.dropt-group');
-      const inner = [...group.querySelectorAll('input[type="checkbox"]')].filter((cb) => cb !== toggle);
-      if (!toggle.checked) {
-        group._saved = inner.map((cb) => cb.checked);
-        inner.forEach((cb) => { cb.checked = false; });
-      } else if (group._saved) {
-        inner.forEach((cb, i) => { cb.checked = group._saved[i] ?? true; });
-      } else {
-        inner.forEach((cb) => { cb.checked = true; });
-      }
+      group.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+        if (cb !== toggle) cb.checked = toggle.checked;
+      });
     });
   });
 
@@ -388,6 +389,7 @@ function collectDroptSelection() {
     selection.delves = { champion: !!delveChamp, hero: !!delveHero };
   }
   selection.upgradeTo = Number($('dropt-upgrade')?.value) || 0;
+  selection.voidcores = !!($('dropt-voidcore')?.checked && !$('dropt-voidcore')?.disabled);
   return selection;
 }
 
@@ -659,9 +661,11 @@ function renderTopGearRows() {
     const cls = t.delta > t.error ? 'delta-pos' : t.delta < -t.error ? 'delta-neg' : 'delta-zero';
     const sign = t.delta > 0 ? '+' : '';
     const fill = (Math.abs(t.delta) / maxAbs) * 100;
+    // rarity-style glow for big upgrades: 1% rare blue, 2% epic purple, 3%+ legendary orange
+    const glow = t.deltaPct >= 3 ? 'glow-legendary' : t.deltaPct >= 2 ? 'glow-epic' : t.deltaPct >= 1 ? 'glow-rare' : '';
     return `
     <tr>
-      <td>${esc(t.itemName ?? '?')}${ilvlBadge(t)}
+      <td><span class="${glow ? `item-glow ${glow}` : ''}">${esc(t.itemName ?? '?')}</span>${ilvlBadge(t)}
           <span class="slot-tag">→ ${esc(prettySlot(t.placement))}${t.boss ? ` · ${esc(t.boss)}` : ''}</span></td>
       <td><span class="source-tag">${esc(t.section)}</span></td>
       <td class="num">${Math.round(t.dps).toLocaleString()}</td>

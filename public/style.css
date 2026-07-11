@@ -329,6 +329,45 @@ button.mini {
 }
 .chip.active { background: var(--accent); color: #1a1405; border-color: var(--accent); }
 
+/* --- disabled toggle label --- */
+.disabled-label { opacity: 0.45; }
+
+/* --- compact difficulty toggle row --- */
+.diff-toggle-row { gap: 6px; flex-wrap: nowrap; }
+.diff-toggle-row .hint-inline { white-space: nowrap; }
+.diff-toggle-row .mini { padding: 2px 9px; font-size: 11px; }
+
+/* --- rarity glow for big DPS upgrades --- */
+.item-glow {
+  padding: 1px 7px;
+  margin-left: -7px;
+  border-radius: 6px;
+}
+.glow-rare {
+  color: #4aa8ff;
+  animation: pulse-rare 2s ease-in-out infinite;
+}
+.glow-epic {
+  color: #b76aff;
+  animation: pulse-epic 2s ease-in-out infinite;
+}
+.glow-legendary {
+  color: #ffa640;
+  animation: pulse-legendary 1.6s ease-in-out infinite;
+}
+@keyframes pulse-rare {
+  0%, 100% { box-shadow: 0 0 4px 0 rgba(0, 112, 221, 0.35); }
+  50% { box-shadow: 0 0 10px 2px rgba(0, 112, 221, 0.65); }
+}
+@keyframes pulse-epic {
+  0%, 100% { box-shadow: 0 0 4px 0 rgba(163, 53, 238, 0.35); }
+  50% { box-shadow: 0 0 10px 2px rgba(163, 53, 238, 0.7); }
+}
+@keyframes pulse-legendary {
+  0%, 100% { box-shadow: 0 0 5px 1px rgba(255, 128, 0, 0.4); }
+  50% { box-shadow: 0 0 14px 3px rgba(255, 128, 0, 0.75); }
+}
+
 /* --- results side --- */
 #empty-state {
   color: var(--muted);
