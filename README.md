@@ -15,8 +15,12 @@ public data.
   against what you're wearing — one combined run, ranked by DPS gain.
 - ✅ **Phase 3 — Droptimizer**: sim every item that can drop for you this season — raid
   (per difficulty), all M+ dungeons (per key level, end-of-dungeon or vault), world
-  bosses and outdoor events — in ONE run, ranked by DPS gain with per-source filters.
-  This is the feature Raidbots gates behind premium.
+  bosses, outdoor events and delves — in ONE run, with upgrade-track and Voidcore
+  options, ranked by DPS gain with per-source filters. This is the feature Raidbots
+  gates behind premium.
+- ⬜ **Phase 4 — Full source parity with Raidbots**: catalyst/tier-set pieces, normal
+  dungeons, Prey rewards, PvP gear, crafted gear, previous-season tiers, vault-socket
+  option and off-spec loot. Detailed plan in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Requirements
 
