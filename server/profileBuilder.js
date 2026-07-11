@@ -127,9 +127,16 @@ export function buildTopGearInput(profileText, options, items) {
   for (const [index, item] of items.entries()) {
     const slotMatch = String(item.line ?? '').trim().match(/^([a-z_0-9]+)=(.*)$/);
     if (!slotMatch) continue;
-    const rest = slotMatch[2];
+    let rest = slotMatch[2];
+    const upgraded = item.targetIlvl && item.targetIlvl !== item.ilvl;
+    if (upgraded) {
+      // ilevel= wins over bonus_id-derived levels, so this "upgrades" the item.
+      rest = rest.replace(/,ilevel=\d+/g, '');
+      rest += `,ilevel=${item.targetIlvl}`;
+    }
     for (const placement of placementsFor(slotMatch[1])) {
-      let name = sanitizeSetName(`${item.name ?? slotMatch[1]} @${placement}`);
+      let name = sanitizeSetName(
+        `${item.name ?? slotMatch[1]}${upgraded ? ` +${item.targetIlvl}` : ''} @${placement}`);
       let n = 2;
       while (usedNames.has(name)) name = sanitizeSetName(`${item.name} #${n++} @${placement}`);
       usedNames.add(name);
@@ -137,7 +144,8 @@ export function buildTopGearInput(profileText, options, items) {
       sets[name] = {
         group: index, // one group per source item, across its placements
         itemName: item.name ?? null,
-        ilvl: item.ilvl ?? null,
+        ilvl: upgraded ? item.targetIlvl : (item.ilvl ?? null),
+        origIlvl: item.ilvl ?? null,
         slot: slotMatch[1],
         placement,
         section: item.section ?? 'Bags',

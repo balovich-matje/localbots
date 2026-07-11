@@ -226,6 +226,18 @@ button.mini {
   margin-left: auto;
   font-variant-numeric: tabular-nums;
 }
+.ilvl-select, .ilvl-custom {
+  margin-left: auto;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 12px;
+  padding: 2px 4px;
+  max-width: 165px;
+}
+.ilvl-custom { width: 64px; }
+.ilvl.upgraded { color: var(--accent); }
 #gear-list .empty { color: var(--muted); font-size: 13px; padding: 10px 0; }
 
 /* --- top gear results --- */

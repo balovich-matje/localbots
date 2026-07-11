@@ -98,6 +98,13 @@ picking your weekly reward.
 Under the hood this uses simc's *profilesets*: one baseline sim plus a cheap delta sim
 per item, all in a single run.
 
+**Simming upgrades:** every item row has an item-level dropdown — sim the item as-is, at
+any upgrade step of the current season's tracks (e.g. a fresh 272 Myth-track piece at its
+6/6 cap of 289), at Voidcore levels (weapons/trinkets only: 295 crafted / 298 Myth), or
+at a custom item level you type in. Upgraded items show as "272 → 289" in the results.
+Track/voidcore numbers live in [data/season.json](data/season.json) and are updated by
+hand once per season.
+
 ## Sanity-checking against Raidbots
 
 Localbots uses the same SimulationCraft engine as Raidbots, so the same character with the

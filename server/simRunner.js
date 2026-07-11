@@ -228,6 +228,7 @@ export function extractTopGear(json, sets, baselineDps) {
     const row = {
       itemName: info.itemName,
       ilvl: info.ilvl,
+      origIlvl: info.origIlvl ?? info.ilvl,
       slot: info.slot,
       placement: info.placement,
       section: info.section,

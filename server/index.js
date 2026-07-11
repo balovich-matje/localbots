@@ -1,4 +1,5 @@
 import express from 'express';
+import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildInput, buildTopGearInput, detectSpec } from './profileBuilder.js';
@@ -27,6 +28,9 @@ app.use(express.static(join(ROOT, 'public')));
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, simcPath, simcVersion: version });
 });
+
+const seasonConfig = JSON.parse(readFileSync(join(ROOT, 'data', 'season.json'), 'utf8'));
+app.get('/api/season', (req, res) => res.json(seasonConfig));
 
 // Parse bagged/vault gear out of an export so the UI can offer checkboxes.
 app.post('/api/gear', (req, res) => {
@@ -75,9 +79,11 @@ function validateItems(items) {
     const line = String(it?.line ?? '').trim();
     const m = line.match(/^([a-z_0-9]+)=(\S*)$/);
     if (!m || !GEAR_SLOTS.includes(m[1]) || !m[2].includes('id=')) continue;
+    const targetIlvl = Number(it?.targetIlvl);
     out.push({
       name: String(it?.name ?? '').slice(0, 120) || null,
       ilvl: Number.isFinite(Number(it?.ilvl)) ? Number(it.ilvl) : null,
+      targetIlvl: Number.isInteger(targetIlvl) && targetIlvl >= 100 && targetIlvl <= 500 ? targetIlvl : null,
       section: String(it?.section ?? 'Bags').slice(0, 60),
       slot: m[1],
       line,

@@ -4,6 +4,27 @@ let currentJobId = null;
 let eventSource = null;
 let mode = 'quick';
 let gearItems = []; // last parsed bag/vault items, indexes match checkboxes
+let season = null; // upgrade tracks + voidcore info from data/season.json
+
+fetch('/api/season').then((r) => r.json()).then((s) => { season = s; }).catch(() => {});
+
+// Every upgrade-step ilvl above `current`, across all tracks, plus voidcore
+// levels for weapon/trinket slots. We don't know which track an item is on,
+// so we offer the union — the user knows what their crests can reach.
+function upgradeOptionsFor(item) {
+  if (!season || !item.ilvl) return [];
+  const steps = new Set();
+  for (const track of Object.values(season.tracks ?? {})) {
+    for (const ilvl of track) if (ilvl > item.ilvl) steps.add(ilvl);
+  }
+  const opts = [...steps].sort((a, b) => a - b).map((ilvl) => ({ ilvl, label: String(ilvl) }));
+  if (season.voidcore?.slots?.includes(item.slot)) {
+    for (const extra of season.voidcore.extraIlvls ?? []) {
+      if (extra.ilvl > item.ilvl) opts.push({ ilvl: extra.ilvl, label: `${extra.ilvl} — ${extra.label}` });
+    }
+  }
+  return opts;
+}
 
 // ---------- boot ----------
 fetch('/api/health')
@@ -100,17 +121,56 @@ async function refreshGearList() {
       <label>
         <input type="checkbox" data-gear-index="${i}" checked>
         <span>${esc(item.name)}<span class="slot-tag">${esc(prettySlot(item.slot))}</span></span>
-        ${item.ilvl ? `<span class="ilvl">${item.ilvl}</span>` : ''}
+        ${ilvlControl(item, i)}
       </label>`).join('')}
   `).join('');
-  document.querySelectorAll('#gear-list input').forEach((cb) => {
+  document.querySelectorAll('#gear-list input[type="checkbox"]').forEach((cb) => {
     cb.addEventListener('change', updateGearCount);
+  });
+  document.querySelectorAll('#gear-list select.ilvl-select').forEach((sel) => {
+    sel.addEventListener('click', (e) => e.preventDefault()); // don't toggle the row checkbox
+    sel.addEventListener('change', () => {
+      const i = Number(sel.dataset.gearIndex);
+      if (sel.value === 'custom') {
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.className = 'ilvl-custom';
+        input.min = 100; input.max = 500;
+        input.value = gearItems[i].targetIlvl ?? gearItems[i].ilvl ?? 289;
+        input.dataset.gearIndex = i;
+        input.addEventListener('click', (e) => e.preventDefault());
+        input.addEventListener('input', () => {
+          gearItems[i].targetIlvl = Number(input.value) || null;
+        });
+        sel.replaceWith(input);
+        input.focus();
+        gearItems[i].targetIlvl = Number(input.value);
+      } else {
+        gearItems[i].targetIlvl = Number(sel.value) || null;
+      }
+    });
   });
   updateGearCount();
 }
 
 function prettySlot(slot) {
   return slot.replace(/_/g, ' ').replace(/(finger|trinket)([12])/, '$1 $2');
+}
+
+function ilvlControl(item, i) {
+  const opts = upgradeOptionsFor(item);
+  if (!opts.length) {
+    // no known upgrades (or no parsed ilvl) — still allow custom editing
+    return `<select class="ilvl-select" data-gear-index="${i}">
+      <option value="">${item.ilvl ?? '?'}</option>
+      <option value="custom">custom…</option>
+    </select>`;
+  }
+  return `<select class="ilvl-select" data-gear-index="${i}" title="Sim this item at a higher upgrade level">
+    <option value="">${item.ilvl} (as looted)</option>
+    ${opts.map((o) => `<option value="${o.ilvl}">${esc(o.label)}</option>`).join('')}
+    <option value="custom">custom…</option>
+  </select>`;
 }
 
 // ---------- options ----------
@@ -331,7 +391,7 @@ function renderTopGear(r) {
     const fill = (Math.abs(t.delta) / maxAbs) * 100;
     return `
     <tr>
-      <td>${esc(t.itemName ?? '?')}${t.ilvl ? ` <span class="ilvl">(${t.ilvl})</span>` : ''}
+      <td>${esc(t.itemName ?? '?')}${ilvlBadge(t)}
           <span class="slot-tag">→ ${esc(prettySlot(t.placement))}</span></td>
       <td><span class="source-tag">${esc(t.section)}</span></td>
       <td class="num">${Math.round(t.dps).toLocaleString()}</td>
@@ -344,6 +404,14 @@ function renderTopGear(r) {
   }).join('');
   document.querySelector('#topgear-table tbody').innerHTML =
     rows || '<tr><td colspan="5">No results.</td></tr>';
+}
+
+function ilvlBadge(t) {
+  if (!t.ilvl) return '';
+  if (t.origIlvl && t.origIlvl !== t.ilvl) {
+    return ` <span class="ilvl upgraded">(${t.origIlvl} → ${t.ilvl})</span>`;
+  }
+  return ` <span class="ilvl">(${t.ilvl})</span>`;
 }
 
 function shareBar(pct, fillPct) {
