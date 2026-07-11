@@ -83,7 +83,7 @@ export function specKeyFor(spec) {
 
 // Returns null if unusable, otherwise the list of simc slots to try.
 export function usableSlots(item, classId, specKey) {
-  if (item.quality < 3) return null;
+  if (item.quality < 3 && !item.curated) return null;
   if (item.allowableClass !== -1 && !(item.allowableClass & (1 << (classId - 1)))) return null;
 
   const primary = SPEC_PRIMARY[specKey];

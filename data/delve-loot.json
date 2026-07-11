@@ -1,5 +1,5 @@
 {
-  "_comment": "Midnight S1 delve/Trovehunter gear pool. Derived from the datamined 'delve gear' item family in the client database (cross-checked against Raidbots' droptimizer list, which carries the same 'loot tables have not been verified' caveat). Add or remove entries freely; 'Refresh data' rebuilds the source.",
+  "_comment": "Midnight S1 delve gear pool: datamined item family cross-checked and EXTENDED via Zah'ran, the post-delve gear vendor (wowhead.com/npc=256670) — his sell list is the same pool and includes the trinkets. Entries are {id} or {name}; names resolve to the best-quality item version on Refresh data.",
   "items": [
     {
       "id": 249610,
@@ -228,6 +228,72 @@
     {
       "id": 260189,
       "name": "Rootkeeper's Dancing Needle"
+    },
+    {
+      "name": "Withered Saptor's Paw"
+    },
+    {
+      "name": "Lost Idol of the Hash'ey"
+    },
+    {
+      "name": "Sylvan Wakrapuku"
+    },
+    {
+      "name": "Void-Reaper's Libram"
+    },
+    {
+      "name": "Ever-Collapsing Void Fissure"
+    },
+    {
+      "name": "Sealed Chaos Urn"
+    },
+    {
+      "name": "Gift of Light"
+    },
+    {
+      "name": "Consecrated Chalice"
+    },
+    {
+      "name": "Desecrated Chalice"
+    },
+    {
+      "name": "Holy Retributor's Order"
+    },
+    {
+      "name": "Glorious Crusader's Keepsake"
+    },
+    {
+      "name": "Tangle of Vibrant Vines"
+    },
+    {
+      "name": "Thorneedle"
+    },
+    {
+      "name": "Bark of the Guardian Tree"
+    },
+    {
+      "name": "Hand of the Rootkeeper"
+    },
+    {
+      "name": "Wildthorn Razorfang"
+    },
+    {
+      "name": "Heavy Bramblebolter"
+    },
+    {
+      "name": "Ultradon Cuirass"
+    },
+    {
+      "name": "Cosmic Bell"
+    },
+    {
+      "name": "Astalor's Anguish Agitator"
+    },
+    {
+      "name": "Fiber of Living Agony"
+    },
+    {
+      "name": "Drum of Renewed Bonds"
     }
   ]
 }

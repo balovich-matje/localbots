@@ -134,10 +134,24 @@ export function buildLootDb(mplusDungeonNames = []) {
     }
   }
 
+  // Resolve delve names to the best item version (some names have old or
+  // low-quality doppelgangers): highest quality wins, then newest id.
+  const nameCandidates = new Map();
   const sparse = new Map();
   for (const r of loadTable('ItemSparse')) {
     if (wantedItemIds.has(r.ID)) sparse.set(r.ID, r);
-    else if (delveNames.has(r.Display_lang)) { wantedItemIds.add(r.ID); sparse.set(r.ID, r); delveIds.add(r.ID); }
+    if (delveNames.has(r.Display_lang)) {
+      const prev = nameCandidates.get(r.Display_lang);
+      const better = !prev
+        || Number(r.OverallQualityID) > Number(prev.OverallQualityID)
+        || (Number(r.OverallQualityID) === Number(prev.OverallQualityID) && Number(r.ID) > Number(prev.ID));
+      if (better) nameCandidates.set(r.Display_lang, r);
+    }
+  }
+  for (const r of nameCandidates.values()) {
+    wantedItemIds.add(r.ID);
+    sparse.set(r.ID, r);
+    delveIds.add(r.ID);
   }
   const itemMeta = new Map();
   for (const r of loadTable('Item')) if (wantedItemIds.has(r.ID)) itemMeta.set(r.ID, r);
@@ -167,7 +181,12 @@ export function buildLootDb(mplusDungeonNames = []) {
     }
   }
 
-  const delveItems = [...delveIds].map((id) => shapeItem(id, sparse, itemMeta)).filter(Boolean);
+  // Curated pool entries are trusted even when the base item record is
+  // low quality (epic quality often comes from server-side bonuses).
+  const delveItems = [...delveIds]
+    .map((id) => shapeItem(id, sparse, itemMeta))
+    .filter(Boolean)
+    .map((it) => ({ ...it, curated: true }));
   if (delveItems.length) {
     sources.push({
       instanceId: 'delves',

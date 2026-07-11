@@ -10,9 +10,10 @@
   },
   "crafted": { "maxIlvl": 285 },
   "voidcore": {
+    "_comment": "Ascendant Voidforged ilvls, confirmed from live item tooltips: Hero 6/6 -> 285, Myth 6/6 -> 298.",
     "slots": ["main_hand", "off_hand", "trinket1", "trinket2"],
     "mythIlvl": 298,
-    "heroIlvl": 289,
+    "heroIlvl": 285,
     "craftedIlvl": 295
   },
   "maxIlvl": 298,
