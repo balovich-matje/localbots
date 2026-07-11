@@ -8,12 +8,11 @@
     "Hero": [259, 263, 266, 269, 272, 276],
     "Myth": [272, 276, 279, 282, 285, 289]
   },
+  "crafted": { "maxIlvl": 285 },
   "voidcore": {
     "slots": ["main_hand", "off_hand", "trinket1", "trinket2"],
-    "extraIlvls": [
-      { "ilvl": 295, "label": "Voidcore (max crafted)" },
-      { "ilvl": 298, "label": "Voidcore (Myth 6/6)" }
-    ]
+    "mythIlvl": 298,
+    "craftedIlvl": 295
   },
   "maxIlvl": 298
 }

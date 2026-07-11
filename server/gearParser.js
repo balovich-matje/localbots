@@ -47,6 +47,9 @@ export function parseGear(profileText) {
           slot: slotMatch[1],
           line: content,
           section: section ?? 'Bags',
+          // crafted gear always carries crafted_stats= in the export;
+          // dropped gear never does — this gates crafted-only upgrade options
+          crafted: /[,=]crafted_stats=/.test(`,${content}`),
         });
         pendingName = null;
       } else {

@@ -8,20 +8,32 @@ let season = null; // upgrade tracks + voidcore info from data/season.json
 
 fetch('/api/season').then((r) => r.json()).then((s) => { season = s; }).catch(() => {});
 
-// Every upgrade-step ilvl above `current`, across all tracks, plus voidcore
-// levels for weapon/trinket slots. We don't know which track an item is on,
-// so we offer the union — the user knows what their crests can reach.
+// Upgrade levels this specific item can actually reach.
+// Crafted items (marked by crafted_stats= in the export): max craft, then
+// Voidcore for weapons/trinkets. Dropped items: every track step above the
+// current ilvl (we don't know the item's track, so we offer the union),
+// then the Myth Voidcore level for weapons/trinkets.
 function upgradeOptionsFor(item) {
   if (!season || !item.ilvl) return [];
+  const isVoidcoreSlot = season.voidcore?.slots?.includes(item.slot);
+  const opts = [];
+
+  if (item.crafted) {
+    const maxCraft = season.crafted?.maxIlvl;
+    if (maxCraft && maxCraft > item.ilvl) opts.push({ ilvl: maxCraft, label: `${maxCraft} — max craft` });
+    const vc = season.voidcore?.craftedIlvl;
+    if (isVoidcoreSlot && vc && vc > item.ilvl) opts.push({ ilvl: vc, label: `${vc} — Voidcore (crafted)` });
+    return opts;
+  }
+
   const steps = new Set();
   for (const track of Object.values(season.tracks ?? {})) {
     for (const ilvl of track) if (ilvl > item.ilvl) steps.add(ilvl);
   }
-  const opts = [...steps].sort((a, b) => a - b).map((ilvl) => ({ ilvl, label: String(ilvl) }));
-  if (season.voidcore?.slots?.includes(item.slot)) {
-    for (const extra of season.voidcore.extraIlvls ?? []) {
-      if (extra.ilvl > item.ilvl) opts.push({ ilvl: extra.ilvl, label: `${extra.ilvl} — ${extra.label}` });
-    }
+  opts.push(...[...steps].sort((a, b) => a - b).map((ilvl) => ({ ilvl, label: String(ilvl) })));
+  const vc = season.voidcore?.mythIlvl;
+  if (isVoidcoreSlot && vc && vc > item.ilvl) {
+    opts.push({ ilvl: vc, label: `${vc} — Voidcore (Myth 6/6)` });
   }
   return opts;
 }
