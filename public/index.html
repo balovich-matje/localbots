@@ -99,6 +99,19 @@
           <button class="mini" id="dropt-none">None</button>
           <button class="mini" id="dropt-refresh" title="Re-download game data from wago.tools (updates with game patches)">Refresh data</button>
         </div>
+        <div class="dropt-row" id="dropt-upgrade-row">
+          <label title="Sim every item upgraded within its own track (e.g. a Mythic raid drop at Myth 4/6). World boss / outdoor items are unaffected.">
+            Upgrade items to
+            <select id="dropt-upgrade">
+              <option value="0" selected>As dropped (no upgrades)</option>
+              <option value="1">2/6 of their track</option>
+              <option value="2">3/6 of their track</option>
+              <option value="3">4/6 of their track</option>
+              <option value="4">5/6 of their track</option>
+              <option value="5">6/6 — fully upgraded</option>
+            </select>
+          </label>
+        </div>
         <div id="dropt-sources"></div>
         <p class="hint">Full scans sim hundreds of items — the Fast precision preset is
           recommended; expect several minutes.</p>

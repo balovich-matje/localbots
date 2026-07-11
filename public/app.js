@@ -311,13 +311,13 @@ function renderDroptSources(tree, season) {
 
   html.push('<div class="dropt-group"><h3>Delves</h3>');
   if (tree.delves.length) {
-    const tiers = Object.keys(season.delves.endOfDelve);
     html.push(`<div class="dropt-row">
-      <label><input type="checkbox" id="dropt-delves" checked> Bountiful pool <span class="hint-inline">${tree.delves[0].usable} items</span></label>
-      <label>Tier <select id="dropt-delve-tier">${tiers.map((t) => `<option value="${t}" ${t === '8' ? 'selected' : ''}>T${t}</option>`).join('')}</select></label>
-      <label><input type="radio" name="dropt-delve-reward" value="end" checked> Coffer</label>
-      <label><input type="radio" name="dropt-delve-reward" value="trovehunter"> Trovehunter</label>
-      <label><input type="radio" name="dropt-delve-reward" value="vault"> Vault</label>
+      <label><input type="checkbox" id="dropt-delves-champion" checked>
+        Champion track <span class="hint-inline">high Bountiful Coffers · ${season.delveTracks?.Champion ?? 250} · ${tree.delves[0].usable} items</span></label>
+    </div>
+    <div class="dropt-row">
+      <label><input type="checkbox" id="dropt-delves-hero" checked>
+        Hero track <span class="hint-inline">Trovehunter's Bounty / Great Vault · ${season.delveTracks?.Hero ?? 259}</span></label>
     </div>
     <p class="hint">Pool datamined from game data (same as Raidbots' unverified list) — edit data/delve-loot.json if you see items that don't drop.</p>`);
   } else {
@@ -350,13 +350,12 @@ function collectDroptSelection() {
   if (outdoorIds.length) {
     selection.outdoor = { instanceIds: outdoorIds, ilvl: Number($('dropt-outdoor-ilvl')?.value) || undefined };
   }
-  if ($('dropt-delves')?.checked) {
-    selection.delves = {
-      enabled: true,
-      tier: $('dropt-delve-tier')?.value ?? '8',
-      reward: document.querySelector('input[name="dropt-delve-reward"]:checked')?.value ?? 'end',
-    };
+  const delveChamp = $('dropt-delves-champion')?.checked;
+  const delveHero = $('dropt-delves-hero')?.checked;
+  if (delveChamp || delveHero) {
+    selection.delves = { champion: !!delveChamp, hero: !!delveHero };
   }
+  selection.upgradeTo = Number($('dropt-upgrade')?.value) || 0;
   return selection;
 }
 

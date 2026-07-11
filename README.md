@@ -117,6 +117,10 @@ Paste your export, open the **Droptimizer** tab, pick your sources, hit
 - **Mythic+** — every dungeon in the season pool at your chosen key level, as
   end-of-dungeon or Great Vault item level.
 - **World bosses & outdoor events** — with editable item levels.
+- **Delves** — the (unverified, datamined) bountiful gear pool at Champion or Hero track.
+- **Upgrade items to X/6** — sim every item upgraded within its own track, like
+  Raidbots' "Upgrade up to": a Mythic raid drop at Myth 6/6, a delve Hero drop at
+  Hero 6/6, and so on. Upgraded items show as "272 → 289" in the results.
 - **Include everything** does what it says. A full scan is a few hundred items; on an
   M-series Mac it takes well under a minute on Fast precision.
 
