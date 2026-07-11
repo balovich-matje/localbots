@@ -2,6 +2,8 @@ const $ = (id) => document.getElementById(id);
 
 let currentJobId = null;
 let eventSource = null;
+let mode = 'quick';
+let gearItems = []; // last parsed bag/vault items, indexes match checkboxes
 
 // ---------- boot ----------
 fetch('/api/health')
@@ -27,6 +29,89 @@ $('fight-style').addEventListener('change', () => {
 
 $('sim-button').addEventListener('click', startSim);
 $('cancel-button').addEventListener('click', cancelSim);
+
+// ---------- tabs ----------
+document.querySelectorAll('.tab').forEach((tab) => {
+  tab.addEventListener('click', () => {
+    mode = tab.dataset.mode;
+    document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === tab));
+    $('gear-section').classList.toggle('hidden', mode !== 'topgear');
+    $('sim-button').textContent = mode === 'topgear' ? 'Compare gear' : 'Sim it';
+    if (mode === 'topgear') refreshGearList();
+  });
+});
+
+let gearRefreshTimer = null;
+$('profile').addEventListener('input', () => {
+  if (mode !== 'topgear') return;
+  clearTimeout(gearRefreshTimer);
+  gearRefreshTimer = setTimeout(refreshGearList, 400);
+});
+
+$('gear-all').addEventListener('click', () => setAllGear(true));
+$('gear-none').addEventListener('click', () => setAllGear(false));
+
+function setAllGear(checked) {
+  document.querySelectorAll('#gear-list input').forEach((cb) => { cb.checked = checked; });
+  updateGearCount();
+}
+
+function updateGearCount() {
+  const boxes = [...document.querySelectorAll('#gear-list input')];
+  $('gear-count').textContent = boxes.length
+    ? `${boxes.filter((b) => b.checked).length} of ${boxes.length} selected`
+    : '';
+}
+
+async function refreshGearList() {
+  const profile = $('profile').value;
+  gearItems = [];
+  if (!profile.trim()) {
+    $('gear-list').innerHTML = '<p class="empty">Paste your /simc export above first.</p>';
+    updateGearCount();
+    return;
+  }
+  try {
+    const resp = await fetch('/api/gear', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile }),
+    });
+    const body = await resp.json();
+    gearItems = body.items ?? [];
+  } catch {
+    $('gear-list').innerHTML = '<p class="empty">Could not reach the server.</p>';
+    return;
+  }
+  if (!gearItems.length) {
+    $('gear-list').innerHTML =
+      '<p class="empty">No bag items found in this export. Make sure you copied the WHOLE ' +
+      '/simc text — the addon lists bag gear at the bottom as comment lines.</p>';
+    updateGearCount();
+    return;
+  }
+  const bySection = {};
+  gearItems.forEach((item, i) => {
+    (bySection[item.section] ??= []).push({ item, i });
+  });
+  $('gear-list').innerHTML = Object.entries(bySection).map(([section, entries]) => `
+    <div class="gear-group">${esc(section)} (${entries.length})</div>
+    ${entries.map(({ item, i }) => `
+      <label>
+        <input type="checkbox" data-gear-index="${i}" checked>
+        <span>${esc(item.name)}<span class="slot-tag">${esc(prettySlot(item.slot))}</span></span>
+        ${item.ilvl ? `<span class="ilvl">${item.ilvl}</span>` : ''}
+      </label>`).join('')}
+  `).join('');
+  document.querySelectorAll('#gear-list input').forEach((cb) => {
+    cb.addEventListener('change', updateGearCount);
+  });
+  updateGearCount();
+}
+
+function prettySlot(slot) {
+  return slot.replace(/_/g, ' ').replace(/(finger|trinket)([12])/, '$1 $2');
+}
 
 // ---------- options ----------
 function collectOptions() {
@@ -79,6 +164,20 @@ async function startSim() {
   localStorage.setItem('localbots', JSON.stringify({ profile, options }));
 
   hideError();
+
+  const payload = { profile, options };
+  if (mode === 'topgear') {
+    payload.mode = 'topgear';
+    payload.items = [...document.querySelectorAll('#gear-list input')]
+      .filter((cb) => cb.checked)
+      .map((cb) => gearItems[Number(cb.dataset.gearIndex)])
+      .filter(Boolean);
+    if (!payload.items.length) {
+      showError('Tick at least one item to compare (or paste an export that contains bag gear).');
+      return;
+    }
+  }
+
   $('sim-button').disabled = true;
 
   let resp;
@@ -86,7 +185,7 @@ async function startSim() {
     resp = await fetch('/api/sim', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profile, options }),
+      body: JSON.stringify(payload),
     });
   } catch {
     showError('Could not reach the Localbots server. Is it still running?');
@@ -104,6 +203,7 @@ async function startSim() {
   $('cancel-button').classList.remove('hidden');
   $('empty-state').classList.add('hidden');
   $('results-area').classList.add('hidden');
+  $('topgear-area').classList.add('hidden');
   $('progress-area').classList.remove('hidden');
   setProgress('Starting…', 0, '');
 
@@ -124,10 +224,12 @@ function handleUpdate(u) {
   } else if (u.status === 'running') {
     const p = u.progress;
     if (p) {
-      const phase = p.phaseTotal > 1 ? `${p.phase} ${p.phaseNum}/${p.phaseTotal}` : p.phase;
+      const phase = p.item
+        ? `Item ${p.phaseNum - 1}/${p.phaseTotal - 1}: ${p.item.replace(/ @[a-z_0-9]+$/, '')}`
+        : p.phaseTotal > 1 ? `${p.phase} ${p.phaseNum}/${p.phaseTotal}` : p.phase;
       const detail = [
         `${p.iterDone.toLocaleString()} / ${p.iterTotal.toLocaleString()} iterations`,
-        p.meanDps ? `~${Math.round(p.meanDps).toLocaleString()} DPS so far` : null,
+        p.meanDps ? `~${Math.round(p.meanDps).toLocaleString()} DPS` : null,
         p.eta ? `ETA ${p.eta}` : null,
       ].filter(Boolean).join(' · ');
       setProgress(phase, p.percent, detail);
@@ -136,7 +238,8 @@ function handleUpdate(u) {
     }
   } else if (u.status === 'done') {
     finishStream();
-    renderResult(u.result);
+    if (u.result?.topgear) renderTopGear(u.result);
+    else renderResult(u.result);
   } else if (u.status === 'failed') {
     finishStream();
     showError(`Sim failed:\n${u.error ?? 'unknown error'}`);
@@ -207,6 +310,40 @@ function renderResult(r) {
     </tr>`).join('');
   document.querySelector('#buffs-table tbody').innerHTML =
     buffRows || '<tr><td colspan="2">No notable buffs.</td></tr>';
+}
+
+function renderTopGear(r) {
+  $('progress-area').classList.add('hidden');
+  $('topgear-area').classList.remove('hidden');
+
+  $('tg-baseline').textContent = Math.round(r.dps).toLocaleString();
+  $('tg-meta').textContent = [
+    r.player.name,
+    r.player.spec,
+    `${r.topgear.length} item${r.topgear.length === 1 ? '' : 's'} compared`,
+    r.elapsedSeconds ? `simmed in ${r.elapsedSeconds.toFixed(1)}s` : null,
+  ].filter(Boolean).join(' · ');
+
+  const maxAbs = Math.max(...r.topgear.map((t) => Math.abs(t.delta)), 1);
+  const rows = r.topgear.map((t) => {
+    const cls = t.delta > t.error ? 'delta-pos' : t.delta < -t.error ? 'delta-neg' : 'delta-zero';
+    const sign = t.delta > 0 ? '+' : '';
+    const fill = (Math.abs(t.delta) / maxAbs) * 100;
+    return `
+    <tr>
+      <td>${esc(t.itemName ?? '?')}${t.ilvl ? ` <span class="ilvl">(${t.ilvl})</span>` : ''}
+          <span class="slot-tag">→ ${esc(prettySlot(t.placement))}</span></td>
+      <td><span class="source-tag">${esc(t.section)}</span></td>
+      <td class="num">${Math.round(t.dps).toLocaleString()}</td>
+      <td class="num ${cls}">${sign}${Math.round(t.delta).toLocaleString()}</td>
+      <td><div class="share-bar">
+        <div class="track"><div class="fill" style="width:${fill.toFixed(1)}%; background:${t.delta >= 0 ? 'var(--green)' : 'var(--red)'}"></div></div>
+        <span class="pct ${cls}">${sign}${t.deltaPct.toFixed(2)}%</span>
+      </div></td>
+    </tr>`;
+  }).join('');
+  document.querySelector('#topgear-table tbody').innerHTML =
+    rows || '<tr><td colspan="5">No results.</td></tr>';
 }
 
 function shareBar(pct, fillPct) {

@@ -1,8 +1,9 @@
 import express from 'express';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildInput, detectSpec } from './profileBuilder.js';
+import { buildInput, buildTopGearInput, detectSpec } from './profileBuilder.js';
 import { SimQueue, findSimc, simcVersion } from './simRunner.js';
+import { parseGear, GEAR_SLOTS } from './gearParser.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT) || 4747;
@@ -27,8 +28,18 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, simcPath, simcVersion: version });
 });
 
+// Parse bagged/vault gear out of an export so the UI can offer checkboxes.
+app.post('/api/gear', (req, res) => {
+  const { profile } = req.body ?? {};
+  if (!profile || typeof profile !== 'string') {
+    return res.status(400).json({ error: 'No profile text supplied.' });
+  }
+  const { equipped, items } = parseGear(profile);
+  res.json({ equippedSlots: Object.keys(equipped), items });
+});
+
 app.post('/api/sim', (req, res) => {
-  const { profile, options } = req.body ?? {};
+  const { profile, options, mode, items } = req.body ?? {};
   if (!profile || typeof profile !== 'string' || !profile.trim()) {
     return res.status(400).json({ error: 'No profile text supplied. Paste your /simc addon export.' });
   }
@@ -39,10 +50,41 @@ app.post('/api/sim', (req, res) => {
              'In game, type /simc, press Ctrl+C (Cmd+C on Mac) to copy, and paste the whole thing here.',
     });
   }
+
+  if (mode === 'topgear') {
+    const clean = validateItems(items);
+    if (!clean.length) {
+      return res.status(400).json({ error: 'No items selected to compare.' });
+    }
+    const { input, sets } = buildTopGearInput(profile, options ?? {}, clean);
+    const job = queue.submit(input, { spec, sets });
+    return res.json({ jobId: job.id });
+  }
+
   const input = buildInput(profile, options ?? {});
   const job = queue.submit(input, { spec });
   res.json({ jobId: job.id });
 });
+
+// Item lines get written into the simc input file — accept only clean
+// single-line "slot=,id=..." strings for known slots.
+function validateItems(items) {
+  if (!Array.isArray(items)) return [];
+  const out = [];
+  for (const it of items.slice(0, 300)) {
+    const line = String(it?.line ?? '').trim();
+    const m = line.match(/^([a-z_0-9]+)=(\S*)$/);
+    if (!m || !GEAR_SLOTS.includes(m[1]) || !m[2].includes('id=')) continue;
+    out.push({
+      name: String(it?.name ?? '').slice(0, 120) || null,
+      ilvl: Number.isFinite(Number(it?.ilvl)) ? Number(it.ilvl) : null,
+      section: String(it?.section ?? 'Bags').slice(0, 60),
+      slot: m[1],
+      line,
+    });
+  }
+  return out;
+}
 
 // Server-Sent Events: progress stream for one job.
 app.get('/api/sim/:id/events', (req, res) => {

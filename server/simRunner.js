@@ -37,9 +37,27 @@ export function simcVersion(simcPath) {
   }
 }
 
-// Progress lines look like:
-// "Generating Baseline: 1/1 [====>....] 1502/50000 307.147 1min 18sec\r"
-const PROGRESS_RE = /Generating\s+([^:]+):\s+(\d+)\/(\d+)\s+\[[^\]]*\]\s+(\d+)\/(\d+)(?:\s+([\d.]+))?(?:\s+(.*))?$/;
+// Progress lines come in two shapes:
+//   "Generating Baseline: 1/1 [====>....] 1502/50000 307.147 1min 18sec\r"
+//   "Generating Profileset: Item Name @finger1 3/5 [====>] 221/221 449.5 Mean=95526 Error=0.42% 61msec\r"
+const PROFILESET_RE = /Generating\s+Profileset:\s+(.+?)\s+(\d+)\/(\d+)\s+\[[^\]]*\]\s+(\d+)\/(\d+)\s*(.*)$/;
+const BASELINE_RE = /Generating\s+([^:]+):\s+(\d+)\/(\d+)\s+\[[^\]]*\]\s+(\d+)\/(\d+)\s*(.*)$/;
+
+function parseProgressLine(line) {
+  let m = line.match(PROFILESET_RE);
+  if (m) {
+    const [, item, phaseNum, phaseTotal, iterDone, iterTotal, tail] = m;
+    return { phase: 'Profileset', item, phaseNum: +phaseNum, phaseTotal: +phaseTotal,
+             iterDone: +iterDone, iterTotal: +iterTotal, tail };
+  }
+  m = line.match(BASELINE_RE);
+  if (m) {
+    const [, phase, phaseNum, phaseTotal, iterDone, iterTotal, tail] = m;
+    return { phase: phase.trim(), item: null, phaseNum: +phaseNum, phaseTotal: +phaseTotal,
+             iterDone: +iterDone, iterTotal: +iterTotal, tail };
+  }
+  return null;
+}
 
 export class SimQueue extends EventEmitter {
   constructor(simcPath) {
@@ -133,18 +151,23 @@ export class SimQueue extends EventEmitter {
         if (!line.trim()) continue;
         job.logTail.push(line);
         if (job.logTail.length > 40) job.logTail.shift();
-        const m = line.match(PROGRESS_RE);
-        if (m) {
-          const [, phase, phaseNum, phaseTotal, iterDone, iterTotal, meanDps, eta] = m;
+        const p = parseProgressLine(line);
+        if (p) {
+          // Overall percent spans all phases (baseline + one per profileset).
+          const iterFrac = p.iterDone / Math.max(1, p.iterTotal);
+          const percent = Math.round(((p.phaseNum - 1 + iterFrac) / Math.max(1, p.phaseTotal)) * 100);
+          const meanMatch = p.tail?.match(/Mean=([\d.]+)/) ?? p.tail?.match(/^([\d.]+)/);
+          const etaMatch = p.phase === 'Profileset' ? null : p.tail?.match(/([\d]+(?:\.\d+)?\s*(?:min|sec|hr)[\w\s]*)$/);
           job.progress = {
-            phase: phase.trim(),
-            phaseNum: +phaseNum,
-            phaseTotal: +phaseTotal,
-            iterDone: +iterDone,
-            iterTotal: +iterTotal,
-            percent: Math.round((+iterDone / Math.max(1, +iterTotal)) * 100),
-            meanDps: meanDps ? +meanDps : null,
-            eta: eta?.trim() || null,
+            phase: p.phase,
+            item: p.item,
+            phaseNum: p.phaseNum,
+            phaseTotal: p.phaseTotal,
+            iterDone: p.iterDone,
+            iterTotal: p.iterTotal,
+            percent,
+            meanDps: meanMatch ? +meanMatch[1] : null,
+            eta: etaMatch ? etaMatch[1].trim() : null,
           };
           this.emit(`update:${job.id}`, job);
         }
@@ -164,7 +187,11 @@ export class SimQueue extends EventEmitter {
         this.#finish(job, 'cancelled');
       } else if (code === 0 && existsSync(jsonPath)) {
         try {
-          job.result = extractResult(JSON.parse(readFileSync(jsonPath, 'utf8')));
+          const json = JSON.parse(readFileSync(jsonPath, 'utf8'));
+          job.result = extractResult(json);
+          if (job.meta?.sets) {
+            job.result.topgear = extractTopGear(json, job.meta.sets, job.result.dps);
+          }
           this.#finish(job, 'done');
         } catch (e) {
           job.error = `Could not parse simc JSON output: ${e.message}`;
@@ -189,6 +216,35 @@ export class SimQueue extends EventEmitter {
     }
     this.#pump();
   }
+}
+
+// Turns raw profileset results into one ranked row per bag item,
+// keeping only the best placement for rings/trinkets.
+export function extractTopGear(json, sets, baselineDps) {
+  const byGroup = new Map();
+  for (const r of json.sim.profilesets?.results ?? []) {
+    const info = sets[r.name];
+    if (!info) continue;
+    const row = {
+      itemName: info.itemName,
+      ilvl: info.ilvl,
+      slot: info.slot,
+      placement: info.placement,
+      section: info.section,
+      dps: r.mean,
+      error: r.mean_stddev ?? 0,
+      iterations: r.iterations ?? null,
+    };
+    const existing = byGroup.get(info.group);
+    if (!existing || row.dps > existing.dps) byGroup.set(info.group, row);
+  }
+  return [...byGroup.values()]
+    .map((row) => ({
+      ...row,
+      delta: row.dps - baselineDps,
+      deltaPct: baselineDps > 0 ? ((row.dps - baselineDps) / baselineDps) * 100 : 0,
+    }))
+    .sort((a, b) => b.delta - a.delta);
 }
 
 function pickErrorFromLog(logTail) {

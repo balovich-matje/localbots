@@ -16,6 +16,11 @@
 
   <main>
     <section class="panel input-panel">
+      <div class="tab-bar">
+        <button class="tab active" data-mode="quick">Quick Sim</button>
+        <button class="tab" data-mode="topgear">Top Gear</button>
+      </div>
+
       <h2>Character</h2>
       <p class="hint">In game: type <code>/simc</code>, copy the text (Ctrl+C / Cmd+C), paste it below.</p>
       <textarea id="profile" spellcheck="false"
@@ -73,6 +78,18 @@
         <label><input type="checkbox" data-consumable="temporary_enchant" checked> Weapon oil</label>
       </div>
 
+      <div id="gear-section" class="hidden">
+        <h2>Items to compare</h2>
+        <p class="hint">Gear found in your bags (and vault choices) inside the export.
+          Each ticked item is simmed in place of what you have equipped.</p>
+        <div class="gear-toolbar">
+          <button class="mini" id="gear-all">All</button>
+          <button class="mini" id="gear-none">None</button>
+          <span id="gear-count" class="hint"></span>
+        </div>
+        <div id="gear-list"></div>
+      </div>
+
       <div class="actions">
         <button id="sim-button" class="primary">Sim it</button>
         <button id="cancel-button" class="danger hidden">Cancel</button>
@@ -85,6 +102,23 @@
         <h2 id="progress-phase">Simulating…</h2>
         <div class="progress-track"><div id="progress-bar"></div></div>
         <p id="progress-detail" class="hint"></p>
+      </div>
+
+      <div id="topgear-area" class="hidden">
+        <div class="dps-hero">
+          <div>
+            <span id="tg-baseline">0</span>
+            <span class="dps-unit">baseline DPS (equipped gear)</span>
+          </div>
+          <p id="tg-meta" class="hint"></p>
+        </div>
+        <h2>Gear ranking</h2>
+        <table id="topgear-table">
+          <thead>
+            <tr><th>Item</th><th>Source</th><th class="num">DPS</th><th class="num">Change</th><th class="share-col">vs equipped</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </div>
 
       <div id="results-area" class="hidden">

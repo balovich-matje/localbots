@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { placementsFor } from './gearParser.js';
 
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
 const CONSUMABLE_DEFAULTS = JSON.parse(readFileSync(join(DATA_DIR, 'consumables.json'), 'utf8'));
@@ -112,6 +113,42 @@ export function buildInput(profileText, options = {}) {
 
 function hasConsumableLine(text, key) {
   return new RegExp(`^\\s*${key}\\s*=`, 'm').test(text);
+}
+
+// Builds a Top Gear input: baseline profile plus one profileset per
+// (item, placement). Returns { input, sets } where sets maps the exact
+// profileset name back to the item it represents.
+export function buildTopGearInput(profileText, options, items) {
+  const base = buildInput(profileText, options);
+  const lines = [base];
+  const sets = {};
+  const usedNames = new Set();
+
+  for (const [index, item] of items.entries()) {
+    const slotMatch = String(item.line ?? '').trim().match(/^([a-z_0-9]+)=(.*)$/);
+    if (!slotMatch) continue;
+    const rest = slotMatch[2];
+    for (const placement of placementsFor(slotMatch[1])) {
+      let name = sanitizeSetName(`${item.name ?? slotMatch[1]} @${placement}`);
+      let n = 2;
+      while (usedNames.has(name)) name = sanitizeSetName(`${item.name} #${n++} @${placement}`);
+      usedNames.add(name);
+      lines.push(`profileset."${name}"=${placement}=${rest}`);
+      sets[name] = {
+        group: index, // one group per source item, across its placements
+        itemName: item.name ?? null,
+        ilvl: item.ilvl ?? null,
+        slot: slotMatch[1],
+        placement,
+        section: item.section ?? 'Bags',
+      };
+    }
+  }
+  return { input: lines.join('\n') + '\n', sets };
+}
+
+function sanitizeSetName(name) {
+  return name.replace(/["\r\n]/g, "'").replace(/[$\\]/g, ' ').slice(0, 80).trim();
 }
 
 export function normalizeOptions(options) {

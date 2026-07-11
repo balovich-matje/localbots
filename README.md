@@ -11,7 +11,8 @@ public data.
 
 - ✅ **Phase 1 — Quick Sim**: paste `/simc` export → DPS + ability breakdown + buff uptimes,
   with fight style, training dummies, raid buff and consumable toggles, live progress, cancel.
-- ⬜ **Phase 2 — Top Gear**: compare the gear in your bags against what you're wearing.
+- ✅ **Phase 2 — Top Gear**: compare the gear in your bags (and this week's vault choices)
+  against what you're wearing — one combined run, ranked by DPS gain.
 - ⬜ **Phase 3 — Droptimizer**: sim every item that can drop for you this season — raids,
   M+, delves and more, all in ONE run.
 
@@ -83,6 +84,19 @@ Open **http://localhost:4747**, paste your `/simc` export, hit **Sim it**.
 | Precision | `target_error=` — Fast 0.5% / Normal 0.2% / High 0.1% / Extreme 0.05% (≈ Raidbots Smart Sim), or a fixed iteration count |
 | Raid buffs | starts from `optimal_raid=1` (everything on, like Raidbots), unticking a buff adds `override.<buff>=0` |
 | Consumables | flask / food / potion / augment rune / weapon oil. On = current-season defaults for your spec (from simc's own profiles), Off = `disabled` |
+
+## Top Gear (compare gear you own)
+
+The `/simc` addon export lists your bag gear and weekly vault choices at the bottom
+(as comment lines) — paste the WHOLE export, switch to the **Top Gear** tab, and every
+comparable item shows up with a checkbox. Hit **Compare gear** and each ticked item is
+simmed in place of your equipped one (rings and trinkets are tried in both slots
+automatically; only the better placement is shown). The result is a table ranked by
+DPS gain versus your current gear, with vault choices labeled separately — handy for
+picking your weekly reward.
+
+Under the hood this uses simc's *profilesets*: one baseline sim plus a cheap delta sim
+per item, all in a single run.
 
 ## Sanity-checking against Raidbots
 
