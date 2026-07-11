@@ -248,9 +248,15 @@ function renderDroptSources(tree, season) {
   const hidden = []; // unreleased sources (in game data, not in simc yet)
   const avail = (list) => list.filter((s) => (s.available ? true : (hidden.push(s.name), false)));
 
+  const groupHeader = (title) =>
+    `<h3><label><input type="checkbox" class="group-toggle" checked> ${title}</label></h3>`;
+
   const raids = avail(tree.raids);
   if (raids.length) {
-    html.push('<div class="dropt-group"><h3>Raids</h3>');
+    html.push(`<div class="dropt-group" data-group="raids">${groupHeader('Raids')}`);
+    const diffs = Object.keys(season.raidDifficulties);
+    html.push(`<div class="dropt-row diff-toggle-row"><span class="hint-inline">Toggle difficulty for all raids:</span>
+      ${diffs.map((d) => `<button class="mini diff-toggle" data-difftoggle="${d}">${d}</button>`).join('')}</div>`);
     for (const raid of raids) {
       const diffs = Object.keys(season.raidDifficulties);
       html.push(`<div class="dropt-row">
@@ -266,7 +272,7 @@ function renderDroptSources(tree, season) {
   const dungeons = avail(tree.dungeons);
   if (dungeons.length) {
     const keys = Object.keys(season.mythicPlus.endOfDungeon);
-    html.push(`<div class="dropt-group"><h3>Mythic+</h3>
+    html.push(`<div class="dropt-group" data-group="dungeons">${groupHeader('Mythic+')}
       <div class="dropt-row">
         <label>Key level
           <select id="dropt-keylevel">${keys.map((k) => `<option value="${k}" ${k === '10' ? 'selected' : ''}>${k === '0' ? 'M0' : '+' + k}</option>`).join('')}</select>
@@ -285,7 +291,7 @@ function renderDroptSources(tree, season) {
   const worldBosses = avail(tree.worldBosses);
   if (worldBosses.length) {
     const wb = worldBosses[0];
-    html.push(`<div class="dropt-group"><h3>World bosses</h3>
+    html.push(`<div class="dropt-group" data-group="worldboss">${groupHeader('World bosses')}
       <div class="dropt-row">
         <label><input type="checkbox" id="dropt-wb" checked>
           ${esc(wb.name)} <span class="hint-inline">${wb.usable} items</span></label>
@@ -295,7 +301,7 @@ function renderDroptSources(tree, season) {
 
   const outdoor = avail(tree.outdoor);
   if (outdoor.length) {
-    html.push('<div class="dropt-group"><h3>Outdoor / events</h3>');
+    html.push(`<div class="dropt-group" data-group="outdoor">${groupHeader('Outdoor / events')}`);
     html.push(`<div class="dropt-row"><label>ilvl <input type="number" id="dropt-outdoor-ilvl" value="${season.outdoorIlvl}" min="200" max="320"></label></div>`);
     for (const o of outdoor) {
       html.push(`<div class="dropt-row">
@@ -309,7 +315,7 @@ function renderDroptSources(tree, season) {
     html.push(`<p class="hint">Not yet released (found in game data, but not live): ${hidden.map(esc).join(', ')} — these appear automatically once the patch drops and simc is updated.</p>`);
   }
 
-  html.push('<div class="dropt-group"><h3>Delves</h3>');
+  html.push(`<div class="dropt-group" data-group="delves">${groupHeader('Delves')}`);
   if (tree.delves.length) {
     html.push(`<div class="dropt-row">
       <label><input type="checkbox" id="dropt-delves-champion" checked>
@@ -326,6 +332,32 @@ function renderDroptSources(tree, season) {
   html.push('</div>');
 
   $('dropt-sources').innerHTML = html.join('');
+
+  // Group on/off toggles: off unchecks everything in the section (remembering
+  // the previous state), on restores it.
+  document.querySelectorAll('#dropt-sources .group-toggle').forEach((toggle) => {
+    toggle.addEventListener('change', () => {
+      const group = toggle.closest('.dropt-group');
+      const inner = [...group.querySelectorAll('input[type="checkbox"]')].filter((cb) => cb !== toggle);
+      if (!toggle.checked) {
+        group._saved = inner.map((cb) => cb.checked);
+        inner.forEach((cb) => { cb.checked = false; });
+      } else if (group._saved) {
+        inner.forEach((cb, i) => { cb.checked = group._saved[i] ?? true; });
+      } else {
+        inner.forEach((cb) => { cb.checked = true; });
+      }
+    });
+  });
+
+  // Difficulty column toggles: flip one difficulty across all raids.
+  document.querySelectorAll('#dropt-sources .diff-toggle').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const boxes = [...document.querySelectorAll(`#dropt-sources input[data-raid][data-diff="${btn.dataset.difftoggle}"]`)];
+      const turnOn = boxes.some((cb) => !cb.checked);
+      boxes.forEach((cb) => { cb.checked = turnOn; });
+    });
+  });
 }
 
 function collectDroptSelection() {

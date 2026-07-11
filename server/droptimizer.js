@@ -104,8 +104,12 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
   const fullSeason = seasonConfig();
   const season = fullSeason.droptimizer;
   const tracks = fullSeason.tracks ?? {};
-  const upgradeTo = Number.isInteger(selection.upgradeTo) && selection.upgradeTo >= 1 && selection.upgradeTo <= 5
-    ? selection.upgradeTo : null;
+  const rawUpgrade = Number(selection.upgradeTo);
+  const withVoidcore = rawUpgrade === 6; // "6/6 + Voidcore" option
+  const upgradeTo = withVoidcore ? 5
+    : Number.isInteger(rawUpgrade) && rawUpgrade >= 1 && rawUpgrade <= 5 ? rawUpgrade : null;
+  const voidcoreSlots = new Set(fullSeason.voidcore?.slots ?? []);
+  const voidcoreIlvl = { Myth: fullSeason.voidcore?.mythIlvl, Hero: fullSeason.voidcore?.heroIlvl };
   let skippedUnknown = 0;
 
   const base = buildInput(profileText, options);
@@ -118,7 +122,11 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
     if (knownItems && !knownItems.has(item.id)) { skippedUnknown++; return; }
     const slots = usableSlots(item, classId, specKey);
     if (!slots || !baseIlvl) return;
-    const ilvl = upgradedIlvl(baseIlvl, track, upgradeTo, tracks);
+    let ilvl = upgradedIlvl(baseIlvl, track, upgradeTo, tracks);
+    // Voidcores apply only to fully upgraded Hero/Myth-track weapons and trinkets
+    if (withVoidcore && voidcoreIlvl[track] && slots.some((s) => voidcoreSlots.has(s))) {
+      ilvl = voidcoreIlvl[track];
+    }
     group++;
     for (const placement of slots) {
       const name = `${String(item.name).replace(/["\r\n$\\]/g, "'").slice(0, 60)} [${++counter}]`;

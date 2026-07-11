@@ -12,6 +12,7 @@
   "voidcore": {
     "slots": ["main_hand", "off_hand", "trinket1", "trinket2"],
     "mythIlvl": 298,
+    "heroIlvl": 289,
     "craftedIlvl": 295
   },
   "maxIlvl": 298,
