@@ -262,8 +262,13 @@ export function extractTopGear(json, sets, baselineDps) {
 }
 
 function pickErrorFromLog(logTail) {
-  const errLine = [...logTail].reverse().find((l) => /error|invalid|unable to|could not/i.test(l));
-  return errLine ?? null;
+  const lines = [...logTail].reverse();
+  // real simc errors start with "Error:" — prefer those ("target_error=" in
+  // the sim banner would otherwise match a generic /error/ search)
+  const hard = lines.find((l) => /^\s*Error[: ]/i.test(l));
+  if (hard) return hard.trim();
+  const soft = lines.find((l) => !/^Simulating/i.test(l) && /invalid|unable to|could not/i.test(l));
+  return soft?.trim() ?? null;
 }
 
 // Reduce simc's giant json2 report to what the UI needs.

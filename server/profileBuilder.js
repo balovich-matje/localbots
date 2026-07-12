@@ -98,6 +98,12 @@ export function buildInput(profileText, options = {}) {
   lines.push(sanitizeProfile(profileText).trim());
   lines.push('');
 
+  // simc gates DungeonSlice for Demon Hunter mid-rework; this player-scoped
+  // option (must come after the character) is simc's own suggested override.
+  if (opts.fightStyle === 'DungeonSlice' && detectSpec(profileText).class === 'demonhunter') {
+    lines.push('demonhunter.enable_dungeon_slice=1');
+  }
+
   // --- consumables: appended after the profile so they win ---
   const specKey = detectSpec(profileText).key;
   const defaults = (specKey && CONSUMABLE_DEFAULTS[specKey]) || {};
