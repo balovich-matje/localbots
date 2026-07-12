@@ -1,31 +1,38 @@
-// Enchant and gem comparisons for Top Gear: sim each season alternative by
-// re-emitting the character's own equipped item line with the enchant_id or
-// gem_id swapped. One profileset per variant; rings/dual weapons change
-// together in a single variant so the row reads as one decision.
+// Enchant, gem, diamond and Omnium Folio comparisons for Top Gear: sim each
+// season alternative by re-emitting the character's own equipped item line
+// with the enchant_id / gem_id swapped.
+//
+// Weapons (when dual-wielding) and ring pairs sim COMBINATIONS: every
+// main-hand × off-hand ordering (weapon procs care which hand) and every
+// unordered ring pair (flat stat enchants don't care which ring).
+//
+// `selection` filters which options run: arrays of ids/values per group,
+// as picked in the UI (absent/true = everything).
 
 import { parseGear } from './gearParser.js';
 import { detectSpec } from './profileBuilder.js';
 import { isDualWield, primaryStat } from './lootFilter.js';
 
-const ENCHANT_SLOTS = {
-  weapon: ['main_hand', 'off_hand'], // off_hand only when dual-wielding
-  chest: ['chest'],
-  head: ['head'],
-  feet: ['feet'],
-  legs: ['legs'],
-  ring: ['finger1', 'finger2'],
-};
+const SINGLE_SLOTS = { chest: 'chest', head: 'head', feet: 'feet', legs: 'legs' };
+
+const clean = (s) => String(s).replace(/["\r\n$\\]/g, "'");
 
 function swapEnchant(line, enchantId) {
-  const cleaned = line.replace(/,enchant_id=\d+/g, '').replace(/,enchant=[^,]+/g, '');
-  return `${cleaned},enchant_id=${enchantId}`;
+  const stripped = line.replace(/,enchant_id=\d+/g, '').replace(/,enchant=[^,]+/g, '');
+  return `${stripped},enchant_id=${enchantId}`;
 }
 
 function currentEnchantId(line) {
-  return Number(line.match(/,enchant_id=(\d+)/)?.[1]) || null;
+  return Number(line?.match(/,enchant_id=(\d+)/)?.[1]) || null;
 }
 
-export function buildEnchantVariants(profileText, enchantOptions, startGroup = 6000) {
+function pickSelected(choices, selectedIds) {
+  if (!Array.isArray(selectedIds)) return choices;
+  const wanted = new Set(selectedIds.map(Number));
+  return choices.filter((c) => wanted.has(Number(c.id)));
+}
+
+export function buildEnchantVariants(profileText, enchantOptions, selection = null, startGroup = 6000) {
   const { equipped } = parseGear(profileText);
   const spec = detectSpec(profileText);
   const dw = isDualWield(spec.key);
@@ -34,32 +41,143 @@ export function buildEnchantVariants(profileText, enchantOptions, startGroup = 6
   const sets = {};
   let group = startGroup;
 
-  for (const [category, choices] of Object.entries(enchantOptions ?? {})) {
-    if (category.startsWith('_') || !Array.isArray(choices)) continue;
-    let slots = (ENCHANT_SLOTS[category] ?? []).filter((s) => equipped[s]);
-    if (category === 'weapon' && !dw) slots = slots.filter((s) => s !== 'off_hand');
-    if (!slots.length) continue;
+  const emit = (label, slotLines, boss, isCurrent) => {
+    const full = `${label}${isCurrent ? ' (current)' : ''}`;
+    const name = clean(`Ench ${full} [e${++group}]`).slice(0, 78);
+    lines.push(...slotLines.map((l, i) => `profileset."${name}"${i > 0 ? '+' : ''}=${l}`));
+    sets[name] = {
+      group, itemName: full, ilvl: null, slot: boss.toLowerCase(), placement: boss.toLowerCase(),
+      section: 'Enchants', boss, sourceKind: 'enchants',
+    };
+  };
 
+  const statOk = (choice) =>
+    !(choice.stat === 'attack' && primary === 5) && !(choice.stat === 'int' && primary !== 5);
+
+  // --- single slots ---
+  for (const [category, slot] of Object.entries(SINGLE_SLOTS)) {
+    if (!equipped[slot]) continue;
+    const choices = pickSelected(enchantOptions?.[category] ?? [], selection?.[category]).filter(statOk);
     for (const choice of choices) {
-      // leg kits/spellthreads are primary-stat specific
-      if (choice.stat === 'attack' && primary === 5) continue;
-      if (choice.stat === 'int' && primary !== 5) continue;
-      const isCurrent = slots.every((s) => currentEnchantId(equipped[s]) === choice.id);
-      const label = `${choice.label}${isCurrent ? ' (current)' : ''}`;
-      const name = `Ench ${label} [e${++group}]`.replace(/["\r\n$\\]/g, "'").slice(0, 80);
-      lines.push(...slots.map((s, i) =>
-        `profileset."${name}"${i > 0 ? '+' : ''}=${swapEnchant(equipped[s], choice.id)}`));
-      sets[name] = {
-        group,
-        itemName: label,
-        ilvl: null,
-        slot: category,
-        placement: category === 'ring' ? 'rings' : category,
-        section: 'Enchants',
-        boss: category === 'ring' ? 'Rings' : category[0].toUpperCase() + category.slice(1),
-        sourceKind: 'enchants',
-      };
+      const isCurrent = currentEnchantId(equipped[slot]) === choice.id;
+      emit(choice.label, [swapEnchant(equipped[slot], choice.id)],
+        category[0].toUpperCase() + category.slice(1), isCurrent);
     }
+  }
+
+  // --- weapons: MH x OH combinations for dual-wielders ---
+  const weaponChoices = pickSelected(enchantOptions?.weapon ?? [], selection?.weapon);
+  if (equipped.main_hand && weaponChoices.length) {
+    const curMh = currentEnchantId(equipped.main_hand);
+    const curOh = currentEnchantId(equipped.off_hand);
+    if (dw && equipped.off_hand) {
+      for (const mh of weaponChoices) {
+        for (const oh of weaponChoices) {
+          const label = mh.id === oh.id
+            ? `${mh.label} (both weapons)`
+            : `MH: ${mh.label} + OH: ${oh.label}`;
+          emit(label,
+            [swapEnchant(equipped.main_hand, mh.id), swapEnchant(equipped.off_hand, oh.id)],
+            'Weapons', curMh === mh.id && curOh === oh.id);
+        }
+      }
+    } else {
+      for (const mh of weaponChoices) {
+        emit(mh.label, [swapEnchant(equipped.main_hand, mh.id)], 'Weapon', curMh === mh.id);
+      }
+    }
+  }
+
+  // --- rings: unordered pairs (flat stats — which finger doesn't matter) ---
+  const ringChoices = pickSelected(enchantOptions?.ring ?? [], selection?.ring);
+  const fingers = ['finger1', 'finger2'].filter((f) => equipped[f]);
+  if (fingers.length === 2 && ringChoices.length) {
+    const cur = new Set(fingers.map((f) => currentEnchantId(equipped[f])));
+    for (let i = 0; i < ringChoices.length; i++) {
+      for (let j = i; j < ringChoices.length; j++) {
+        const [a, b] = [ringChoices[i], ringChoices[j]];
+        const label = a.id === b.id ? `${a.label} (both rings)` : `${a.label} + ${b.label}`;
+        const isCurrent = cur.has(a.id) && cur.has(b.id) && (a.id === b.id ? cur.size === 1 : cur.size === 2);
+        emit(label,
+          [swapEnchant(equipped.finger1, a.id), swapEnchant(equipped.finger2, b.id)],
+          'Rings', isCurrent);
+      }
+    }
+  } else if (fingers.length === 1 && ringChoices.length) {
+    for (const c of ringChoices) {
+      emit(c.label, [swapEnchant(equipped[fingers[0]], c.id)], 'Rings',
+        currentEnchantId(equipped[fingers[0]]) === c.id);
+    }
+  }
+
+  return { lines, sets };
+}
+
+// Uniform-gem comparison: every socket that holds a known stat gem is
+// swapped to the candidate; diamonds and unknown ids are left untouched.
+export function buildGemVariants(profileText, gemOptions, selection = null, startGroup = 7000) {
+  const { equipped } = parseGear(profileText);
+  const choices = pickSelected(gemOptions ?? [], selection);
+  const knownGemIds = new Set((gemOptions ?? []).map((g) => String(g.id)));
+  const lines = [];
+  const sets = {};
+  let group = startGroup;
+
+  const gemmedSlots = Object.entries(equipped).filter(([, line]) => /,gem_id=[\d/]+/.test(line));
+  if (!gemmedSlots.length || !choices.length) return { lines, sets };
+
+  const swapLine = (line, gemId) =>
+    line.replace(/,gem_id=([\d/]+)/, (m, ids) =>
+      `,gem_id=${ids.split('/').map((id) => (knownGemIds.has(id) ? gemId : id)).join('/')}`);
+
+  for (const gem of choices) {
+    const swapped = gemmedSlots
+      .map(([slot, line]) => [slot, swapLine(line, gem.id)])
+      .filter(([slot, line]) => line !== equipped[slot]);
+    const isCurrent = swapped.length === 0;
+    const label = `All gems: ${gem.label}${isCurrent ? ' (current)' : ''}`;
+    const name = clean(`${label} [g${++group}]`).slice(0, 78);
+    const emitLines = isCurrent ? gemmedSlots : swapped;
+    lines.push(...emitLines.map(([, line], i) => `profileset."${name}"${i > 0 ? '+' : ''}=${line}`));
+    sets[name] = {
+      group, itemName: label, ilvl: null, slot: 'gems', placement: 'all sockets',
+      section: 'Gems', boss: 'Stat gems', sourceKind: 'gems',
+    };
+  }
+  return { lines, sets };
+}
+
+// Eversong Diamond comparison: swap whichever socket currently holds one.
+export function buildDiamondVariants(profileText, diamondConfig, selection = null, startGroup = 7500) {
+  const { equipped } = parseGear(profileText);
+  const lines = [];
+  const sets = {};
+  const options = pickSelected(diamondConfig?.options ?? [], selection);
+  const known = new Set((diamondConfig?.knownIds ?? []).map(String));
+  if (!options.length) return { lines, sets };
+  let group = startGroup;
+
+  // find the socket holding a diamond
+  let holder = null; // [slot, line, currentDiamondId]
+  for (const [slot, line] of Object.entries(equipped)) {
+    const ids = line.match(/,gem_id=([\d/]+)/)?.[1]?.split('/') ?? [];
+    const hit = ids.find((id) => known.has(id));
+    if (hit) { holder = [slot, line, Number(hit)]; break; }
+  }
+  if (!holder) return { lines, sets };
+  const [slot, line, currentId] = holder;
+
+  for (const d of options) {
+    const isCurrent = d.id === currentId || d.id === currentId + 1 || d.id === currentId - 1;
+    const swapped = line.replace(/,gem_id=([\d/]+)/, (m, ids) =>
+      `,gem_id=${ids.split('/').map((id) => (known.has(id) ? d.id : id)).join('/')}`);
+    const label = `${d.label}${isCurrent ? ' (current)' : ''}`;
+    const name = clean(`${label} [d${++group}]`).slice(0, 78);
+    lines.push(`profileset."${name}"=${swapped}`);
+    sets[name] = {
+      group, itemName: label, ilvl: null, slot: 'gems', placement: slot,
+      section: 'Gems', boss: 'Diamonds', sourceKind: 'gems',
+    };
   }
   return { lines, sets };
 }
@@ -73,7 +191,6 @@ export function buildFolioVariants(profileText, folioConfig, startGroup = 8000) 
   if (!m || !folioConfig?.rows) return { lines, sets };
   let group = startGroup;
 
-  // current picks: entryId -> rank
   const current = new Map(m[1].split('/').map((e) => {
     const [id, rank] = e.split(':');
     return [Number(id), Number(rank) || 1];
@@ -89,59 +206,13 @@ export function buildFolioVariants(profileText, folioConfig, startGroup = 8000) 
       picks.set(choice.entry, 1);
       const str = [...picks.entries()].map(([id, r]) => `${id}:${r}`).join('/');
       const label = `${choice.label}${isCurrent ? ' (current)' : ''}`;
-      const name = `Folio ${label} [f${++group}]`.replace(/["\r\n$\\]/g, "'").slice(0, 80);
+      const name = clean(`Folio ${label} [f${++group}]`).slice(0, 78);
       lines.push(`profileset."${name}"=omnium_talents=${str}`);
       sets[name] = {
-        group,
-        itemName: label,
-        ilvl: null,
-        slot: 'folio',
-        placement: `row ${row.row}`,
-        section: 'Omnium Folio',
-        boss: `Row ${row.row}`,
-        sourceKind: 'folio',
+        group, itemName: label, ilvl: null, slot: 'folio', placement: `row ${row.row}`,
+        section: 'Omnium Folio', boss: `Row ${row.row}`, sourceKind: 'folio',
       };
     }
-  }
-  return { lines, sets };
-}
-
-// Uniform-gem comparison: every socket that holds a known stat gem is
-// swapped to the candidate; special gems (Eversong Diamonds etc.) and
-// unknown ids are left untouched.
-export function buildGemVariants(profileText, gemOptions, startGroup = 7000) {
-  const { equipped } = parseGear(profileText);
-  const knownGemIds = new Set((gemOptions ?? []).map((g) => String(g.id)));
-  const lines = [];
-  const sets = {};
-  let group = startGroup;
-
-  const gemmedSlots = Object.entries(equipped).filter(([, line]) => /,gem_id=[\d/]+/.test(line));
-  if (!gemmedSlots.length || !gemOptions?.length) return { lines, sets };
-
-  const swapLine = (line, gemId) =>
-    line.replace(/,gem_id=([\d/]+)/, (m, ids) =>
-      `,gem_id=${ids.split('/').map((id) => (knownGemIds.has(id) ? gemId : id)).join('/')}`);
-
-  for (const gem of gemOptions) {
-    const swapped = gemmedSlots
-      .map(([slot, line]) => [slot, swapLine(line, gem.id)])
-      .filter(([slot, line]) => line !== equipped[slot]);
-    const isCurrent = swapped.length === 0;
-    const label = `All gems: ${gem.label}${isCurrent ? ' (current)' : ''}`;
-    const name = `${label} [g${++group}]`.replace(/["\r\n$\\]/g, "'").slice(0, 80);
-    const emit = isCurrent ? gemmedSlots : swapped; // current still gets a row for reference
-    lines.push(...emit.map(([, line], i) => `profileset."${name}"${i > 0 ? '+' : ''}=${line}`));
-    sets[name] = {
-      group,
-      itemName: label,
-      ilvl: null,
-      slot: 'gems',
-      placement: 'all sockets',
-      section: 'Gems',
-      boss: 'Gems',
-      sourceKind: 'gems',
-    };
   }
   return { lines, sets };
 }

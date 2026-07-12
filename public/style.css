@@ -335,6 +335,57 @@ button.mini {
 /* --- item set minimum buttons --- */
 .setmin.active { background: var(--accent); color: #1a1405; border-color: var(--accent); }
 
+/* --- "Also compare" pickers --- */
+.compare-group {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  padding: 8px 12px;
+  margin-bottom: 8px;
+}
+.cg-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.cg-head input { accent-color: var(--accent); }
+.cg-panel { margin-top: 8px; }
+.cg-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 14px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.cg-slot-head {
+  grid-column: 1 / -1;
+  color: var(--accent);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 6px;
+}
+.cg-opt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.cg-opt input { accent-color: var(--accent); }
+
+/* --- slot group headers in results --- */
+.slot-group-row td {
+  color: var(--accent);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding-top: 14px;
+  border-bottom: 1px solid var(--accent-dim);
+}
+
 /* --- compact difficulty toggle row --- */
 .diff-toggle-row { gap: 6px; flex-wrap: nowrap; }
 .diff-toggle-row .hint-inline { white-space: nowrap; }

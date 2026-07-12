@@ -8,7 +8,112 @@ let itemSets = []; // detected item sets from /api/gear
 let setMinimums = {}; // setId -> chosen minimum bonus (0/2/4)
 let season = null; // upgrade tracks + voidcore info from data/season.json
 
-fetch('/api/season').then((r) => r.json()).then((s) => { season = s; }).catch(() => {});
+fetch('/api/season').then((r) => r.json()).then((s) => { season = s; renderCompareGroups(); }).catch(() => {});
+
+// ---------- "Also compare" pickers ----------
+// Each group: header checkbox + expandable panel of options (all on by
+// default, All/None buttons). Selections narrow what gets simmed.
+const SLOT_TITLES = {
+  weapon: 'Weapon (dual-wielders sim every MH × OH combination)',
+  chest: 'Chest', head: 'Head', feet: 'Feet', legs: 'Legs',
+  ring: 'Rings (every pair combination)',
+};
+
+function renderCompareGroups() {
+  const groups = [];
+
+  const optionRow = (group, cat, key, label) =>
+    `<label class="cg-opt"><input type="checkbox" data-cgroup="${group}" data-cat="${cat}" data-key="${esc(String(key))}" checked> ${esc(label)}</label>`;
+
+  // consumables
+  const cons = [];
+  for (const [cat, choices] of Object.entries(season.consumableOptions ?? {})) {
+    if (cat.startsWith('_') || !Array.isArray(choices)) continue;
+    cons.push(`<div class="cg-slot-head">${esc(cat === 'temporary_enchant' ? 'Weapon oil' : cat[0].toUpperCase() + cat.slice(1))}</div>`);
+    cons.push(...choices.map((c) => optionRow('consumables', cat, c.value, c.label)));
+  }
+  groups.push(['consumables', 'Consumables', cons.join('')]);
+
+  // enchants
+  const ench = [];
+  for (const [cat, choices] of Object.entries(season.enchantOptions ?? {})) {
+    if (cat.startsWith('_') || !Array.isArray(choices)) continue;
+    ench.push(`<div class="cg-slot-head">${esc(SLOT_TITLES[cat] ?? cat)}</div>`);
+    ench.push(...choices.map((c) => optionRow('enchants', cat, c.id, c.label)));
+  }
+  groups.push(['enchants', 'Enchants', ench.join('')]);
+
+  // gems + diamonds
+  const gems = ['<div class="cg-slot-head">Stat gems (whole setup swapped per gem)</div>'];
+  gems.push(...(season.gemOptions ?? []).map((g) => optionRow('gems', 'gems', g.id, g.label)));
+  gems.push('<div class="cg-slot-head">Eversong Diamonds (swapped in your diamond socket)</div>');
+  gems.push(...(season.diamondOptions?.options ?? []).map((d) => optionRow('gems', 'diamonds', d.id, d.label)));
+  groups.push(['gems', 'Gems', gems.join('')]);
+
+  // folio (no picker — 13 runes always cheap)
+  groups.push(['folio', 'Omnium Folio', '<p class="hint">All rune alternatives, one row at a time. Needs the omnium_talents line from a current /simc export.</p>']);
+
+  $('compare-groups').innerHTML = groups.map(([id, title, body]) => `
+    <div class="compare-group" data-group="${id}">
+      <label class="cg-head"><input type="checkbox" id="compare-${id}"> ${title}
+        <span class="hint-inline cg-count" data-count="${id}"></span></label>
+      <div class="cg-panel hidden">
+        <div class="gear-toolbar">
+          <button class="mini cg-all" data-target="${id}">All</button>
+          <button class="mini cg-none" data-target="${id}">None</button>
+        </div>
+        <div class="cg-options">${body}</div>
+      </div>
+    </div>`).join('');
+
+  document.querySelectorAll('.compare-group').forEach((el) => {
+    const head = el.querySelector('.cg-head input');
+    head.addEventListener('change', () => {
+      el.querySelector('.cg-panel').classList.toggle('hidden', !head.checked);
+      updateCompareCounts();
+    });
+  });
+  document.querySelectorAll('.cg-all, .cg-none').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const on = btn.classList.contains('cg-all');
+      document.querySelectorAll(`input[data-cgroup="${btn.dataset.target}"]`)
+        .forEach((cb) => { cb.checked = on; });
+      updateCompareCounts();
+    });
+  });
+  document.querySelectorAll('input[data-cgroup]').forEach((cb) => {
+    cb.addEventListener('change', updateCompareCounts);
+  });
+  updateCompareCounts();
+}
+
+function selectedOptions(group) {
+  const out = {};
+  document.querySelectorAll(`input[data-cgroup="${group}"]`).forEach((cb) => {
+    out[cb.dataset.cat] ??= []; // an all-unchecked category means "none", not "all"
+    if (cb.checked) out[cb.dataset.cat].push(isNaN(Number(cb.dataset.key)) ? cb.dataset.key : Number(cb.dataset.key));
+  });
+  return out;
+}
+
+// rough variant-count preview so long runs don't surprise anyone
+function updateCompareCounts() {
+  const counts = { consumables: 0, enchants: 0, gems: 0, folio: 13 };
+  const consSel = selectedOptions('consumables');
+  counts.consumables = Object.values(consSel).reduce((n, a) => n + a.length, 0);
+  const enchSel = selectedOptions('enchants');
+  for (const [cat, arr] of Object.entries(enchSel)) {
+    if (cat === 'weapon') counts.enchants += arr.length * arr.length; // MH x OH worst case
+    else if (cat === 'ring') counts.enchants += (arr.length * (arr.length + 1)) / 2;
+    else counts.enchants += arr.length;
+  }
+  const gemSel = selectedOptions('gems');
+  counts.gems = (gemSel.gems?.length ?? 0) + (gemSel.diamonds?.length ?? 0);
+  for (const [id, n] of Object.entries(counts)) {
+    const el = document.querySelector(`.cg-count[data-count="${id}"]`);
+    if (el) el.textContent = $(`compare-${id}`)?.checked ? `≈ ${n} sims` : '';
+  }
+}
 
 // Upgrade levels this specific item can actually reach.
 // Crafted items (marked by crafted_stats= in the export): max craft, then
@@ -498,10 +603,10 @@ async function startSim() {
       .map((cb) => gearItems[Number(cb.dataset.gearIndex)])
       .filter(Boolean);
     payload.compare = {
-      consumables: $('compare-consumables').checked,
-      enchants: $('compare-enchants').checked,
-      gems: $('compare-gems').checked,
-      folio: $('compare-folio').checked,
+      consumables: $('compare-consumables')?.checked ? { selection: selectedOptions('consumables') } : false,
+      enchants: $('compare-enchants')?.checked ? { selection: selectedOptions('enchants') } : false,
+      gems: $('compare-gems')?.checked ? { selection: selectedOptions('gems') } : false,
+      folio: !!$('compare-folio')?.checked,
     };
     payload.setMinimums = Object.fromEntries(
       Object.entries(setMinimums).filter(([, v]) => v > 0));
@@ -693,28 +798,50 @@ function renderTopGearRows() {
     (!tgActiveChip || t.section === tgActiveChip) &&
     (!q || `${t.itemName} ${t.section} ${t.boss ?? ''}`.toLowerCase().includes(q)));
 
+  // When viewing a single section (via chip or a single-section run), group
+  // rows by sub-slot (Weapons, Rings, Flask, Row 1, ...) so different slots
+  // don't interleave in the ranking.
+  const sections = new Set(visible.map((t) => t.section));
+  const bosses = new Set(visible.map((t) => t.boss));
+  const grouped = sections.size === 1 && bosses.size > 1 && !bosses.has(undefined);
+  if (grouped) {
+    const byBoss = new Map();
+    for (const t of visible) {
+      if (!byBoss.has(t.boss)) byBoss.set(t.boss, []);
+      byBoss.get(t.boss).push(t);
+    }
+    const groups = [...byBoss.entries()]
+      .sort((a, b) => Math.max(...b[1].map((t) => t.delta)) - Math.max(...a[1].map((t) => t.delta)));
+    const maxAbs = Math.max(...visible.map((t) => Math.abs(t.delta)), 1);
+    document.querySelector('#topgear-table tbody').innerHTML = groups.map(([boss, rows]) =>
+      `<tr class="slot-group-row"><td colspan="5">${esc(boss ?? '')}</td></tr>` +
+      rows.map((t) => rowHtml(t, maxAbs)).join('')).join('') || '<tr><td colspan="5">No results match the filter.</td></tr>';
+    return;
+  }
+
   const maxAbs = Math.max(...visible.map((t) => Math.abs(t.delta)), 1);
-  const rows = visible.map((t) => {
-    const cls = t.delta > t.error ? 'delta-pos' : t.delta < -t.error ? 'delta-neg' : 'delta-zero';
-    const sign = t.delta > 0 ? '+' : '';
-    const fill = (Math.abs(t.delta) / maxAbs) * 100;
-    // rarity-style glow for big upgrades: 1% rare blue, 2% epic purple, 3%+ legendary orange
-    const glow = t.deltaPct >= 3 ? 'glow-legendary' : t.deltaPct >= 2 ? 'glow-epic' : t.deltaPct >= 1 ? 'glow-rare' : '';
-    return `
-    <tr>
-      <td><span class="${glow ? `item-glow ${glow}` : ''}">${esc(t.itemName ?? '?')}</span>${ilvlBadge(t)}
-          <span class="slot-tag">→ ${esc(prettySlot(t.placement))}${t.boss ? ` · ${esc(t.boss)}` : ''}</span></td>
-      <td><span class="source-tag">${esc(t.section)}</span></td>
-      <td class="num">${Math.round(t.dps).toLocaleString()}</td>
-      <td class="num ${cls}">${sign}${Math.round(t.delta).toLocaleString()}</td>
-      <td><div class="share-bar">
-        <div class="track"><div class="fill" style="width:${fill.toFixed(1)}%; background:${t.delta >= 0 ? 'var(--green)' : 'var(--red)'}"></div></div>
-        <span class="pct ${cls}">${sign}${t.deltaPct.toFixed(2)}%</span>
-      </div></td>
-    </tr>`;
-  }).join('');
   document.querySelector('#topgear-table tbody').innerHTML =
-    rows || '<tr><td colspan="5">No results match the filter.</td></tr>';
+    visible.map((t) => rowHtml(t, maxAbs)).join('') || '<tr><td colspan="5">No results match the filter.</td></tr>';
+}
+
+function rowHtml(t, maxAbs) {
+  const cls = t.delta > t.error ? 'delta-pos' : t.delta < -t.error ? 'delta-neg' : 'delta-zero';
+  const sign = t.delta > 0 ? '+' : '';
+  const fill = (Math.abs(t.delta) / maxAbs) * 100;
+  // rarity-style glow for big upgrades: 1% rare blue, 2% epic purple, 3%+ legendary orange
+  const glow = t.deltaPct >= 3 ? 'glow-legendary' : t.deltaPct >= 2 ? 'glow-epic' : t.deltaPct >= 1 ? 'glow-rare' : '';
+  return `
+  <tr>
+    <td><span class="${glow ? `item-glow ${glow}` : ''}">${esc(t.itemName ?? '?')}</span>${ilvlBadge(t)}
+        <span class="slot-tag">→ ${esc(prettySlot(t.placement))}${t.boss ? ` · ${esc(t.boss)}` : ''}</span></td>
+    <td><span class="source-tag">${esc(t.section)}</span></td>
+    <td class="num">${Math.round(t.dps).toLocaleString()}</td>
+    <td class="num ${cls}">${sign}${Math.round(t.delta).toLocaleString()}</td>
+    <td><div class="share-bar">
+      <div class="track"><div class="fill" style="width:${fill.toFixed(1)}%; background:${t.delta >= 0 ? 'var(--green)' : 'var(--red)'}"></div></div>
+      <span class="pct ${cls}">${sign}${t.deltaPct.toFixed(2)}%</span>
+    </div></td>
+  </tr>`;
 }
 
 function ilvlBadge(t) {

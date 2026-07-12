@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildInput, buildTopGearInput, buildConsumableVariants, detectSpec } from './profileBuilder.js';
-import { buildEnchantVariants, buildGemVariants, buildFolioVariants } from './enhancements.js';
+import { buildEnchantVariants, buildGemVariants, buildDiamondVariants, buildFolioVariants } from './enhancements.js';
 import { SimQueue, findSimc, simcVersion } from './simRunner.js';
 import { parseGear, GEAR_SLOTS } from './gearParser.js';
 import { loadLootDb, buildLootDb, downloadTables, cacheStatus, loadItemSetMap } from './wagoData.js';
@@ -203,25 +203,26 @@ app.post('/api/sim', (req, res) => {
       };
     }
     let { input, sets, skippedBySets } = buildTopGearInput(profile, options ?? {}, clean, setCtx);
-    if (compare.consumables) {
-      const variants = buildConsumableVariants(profile, options ?? {}, seasonConfig.consumableOptions);
+    // compare groups: `true` (or missing selection) means "all options";
+    // an object with per-category arrays narrows what gets simmed
+    const sel = (group) => (typeof compare[group] === 'object' && compare[group] !== null
+      ? compare[group].selection ?? null : null);
+    const append = (variants) => {
       input += variants.lines.join('\n') + '\n';
       Object.assign(sets, variants.sets);
+    };
+    if (compare.consumables) {
+      append(buildConsumableVariants(profile, options ?? {}, seasonConfig.consumableOptions, sel('consumables')));
     }
     if (compare.enchants) {
-      const variants = buildEnchantVariants(profile, seasonConfig.enchantOptions);
-      input += variants.lines.join('\n') + '\n';
-      Object.assign(sets, variants.sets);
+      append(buildEnchantVariants(profile, seasonConfig.enchantOptions, sel('enchants')));
     }
     if (compare.gems) {
-      const variants = buildGemVariants(profile, seasonConfig.gemOptions);
-      input += variants.lines.join('\n') + '\n';
-      Object.assign(sets, variants.sets);
+      append(buildGemVariants(profile, seasonConfig.gemOptions, sel('gems')?.gems ?? null));
+      append(buildDiamondVariants(profile, seasonConfig.diamondOptions, sel('gems')?.diamonds ?? null));
     }
     if (compare.folio) {
-      const variants = buildFolioVariants(profile, seasonConfig.omniumFolio);
-      input += variants.lines.join('\n') + '\n';
-      Object.assign(sets, variants.sets);
+      append(buildFolioVariants(profile, seasonConfig.omniumFolio));
     }
     const job = queue.submit(input, { spec, sets });
     return res.json({ jobId: job.id, skippedBySets: skippedBySets ?? 0 });

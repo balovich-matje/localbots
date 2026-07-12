@@ -493,5 +493,36 @@
         ]
       }
     ]
+  },
+  "diamondOptions": {
+    "_comment": "Eversong Diamonds — the unique special-socket gems. Compared by swapping whichever socket currently holds one.",
+    "options": [
+      {
+        "id": 240967,
+        "label": "Powerful Eversong Diamond (main stat)"
+      },
+      {
+        "id": 240969,
+        "label": "Telluric Eversong Diamond"
+      },
+      {
+        "id": 240971,
+        "label": "Stoic Eversong Diamond"
+      },
+      {
+        "id": 240983,
+        "label": "Indecipherable Eversong Diamond"
+      }
+    ],
+    "knownIds": [
+      240966,
+      240967,
+      240968,
+      240969,
+      240970,
+      240971,
+      240982,
+      240983
+    ]
   }
 }

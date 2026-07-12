@@ -110,12 +110,20 @@ per item, all in a single run.
 Raidbots-style "Minimum Set Bonus" pickers (0 / 2 / 4 set) — suggestions that would
 break the bonus you chose to keep are hidden.
 
-**Also compare:** optional groups that rank alongside gear in the same table —
-**Consumables** (every season flask, food, potion and weapon oil), **Enchants** (every
-season enchant per slot, on your own items), **Gems** (your setup with all stat gems
-swapped to each type; special diamonds kept), and **Omnium Folio** (each rune
-alternative, one row at a time). Your current choice is tagged "(current)" so you can
-sanity-check the comparison at a glance. All options live in
+**Also compare:** optional groups that rank alongside gear in the same table, each
+with a Raidbots-style picker (everything on by default, All/None buttons, live sim
+count) so you can exclude options you'd never use:
+
+- **Consumables** — every season flask, food, potion and weapon oil.
+- **Enchants** — every season enchant per slot on your own items. Dual-wielders sim
+  every main-hand × off-hand **combination**, and rings sim every pair — so "MH: X +
+  OH: Y" mixes show up when they beat matching enchants.
+- **Gems** — your setup with all stat gems swapped to each type, plus the four
+  **Eversong Diamonds** compared in your diamond socket.
+- **Omnium Folio** — each rune alternative, one row at a time.
+
+Your current choice is tagged "(current)", and when viewing one comparison group the
+table splits into per-slot sections (Weapons, Rings, Flask, …). All options live in
 [data/season.json](data/season.json).
 
 **Simming upgrades:** every item row has an item-level dropdown — sim the item as-is, at

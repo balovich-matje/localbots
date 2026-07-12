@@ -196,7 +196,7 @@ function sanitizeSetName(name) {
 // "Which flask/food/potion/oil is best for me": one profileset per season
 // alternative, overriding just that consumable against the baseline.
 // Returns { lines, sets } to append to a Top Gear input.
-export function buildConsumableVariants(profileText, options, consumableOptions, startGroup = 5000) {
+export function buildConsumableVariants(profileText, options, consumableOptions, selection = null, startGroup = 5000) {
   const opts = normalizeOptions(options);
   const spec = detectSpec(profileText);
   const defaults = (spec.key && CONSUMABLE_DEFAULTS[spec.key]) || {};
@@ -207,9 +207,11 @@ export function buildConsumableVariants(profileText, options, consumableOptions,
     flask: 'Flask', food: 'Food', potion: 'Potion', temporary_enchant: 'Weapon oil',
   };
 
-  for (const [category, choices] of Object.entries(consumableOptions ?? {})) {
-    if (category.startsWith('_') || !Array.isArray(choices)) continue;
+  for (const [category, allChoices] of Object.entries(consumableOptions ?? {})) {
+    if (category.startsWith('_') || !Array.isArray(allChoices)) continue;
     if (opts.consumables[category] === false) continue; // category toggled off entirely
+    const wanted = Array.isArray(selection?.[category]) ? new Set(selection[category]) : null;
+    const choices = wanted ? allChoices.filter((c) => wanted.has(c.value)) : allChoices;
     const current = currentConsumable(profileText, category, defaults);
     for (const choice of choices) {
       let value = choice.value;
