@@ -186,9 +186,14 @@ document.querySelectorAll('.tab').forEach((tab) => {
 
 let gearRefreshTimer = null;
 $('profile').addEventListener('input', () => {
+  equippedItems = null; // character changed — resolved ilvls are stale
+  delete $('tu-list').dataset.rendered;
   if (mode !== 'topgear') return;
   clearTimeout(gearRefreshTimer);
-  gearRefreshTimer = setTimeout(refreshGearList, 400);
+  gearRefreshTimer = setTimeout(() => {
+    refreshGearList();
+    if ($('track-upgrades-toggle').checked) loadEquippedItems();
+  }, 400);
 });
 
 $('gear-all').addEventListener('click', () => setAllGear(true));
@@ -287,6 +292,74 @@ async function refreshGearList() {
 
 function prettySlot(slot) {
   return slot.replace(/_/g, ' ').replace(/(finger|trinket)([12])/, '$1 $2');
+}
+
+// ---------- track upgrades (equipped gear) ----------
+let equippedItems = null; // resolved from simc via /api/gear resolveIlvls
+
+$('track-upgrades-toggle').addEventListener('change', async () => {
+  const on = $('track-upgrades-toggle').checked;
+  $('track-upgrades-panel').classList.toggle('hidden', !on);
+  if (on && !equippedItems) await loadEquippedItems();
+});
+$('tu-step').addEventListener('change', () => {
+  const at66 = $('tu-step').value === '5';
+  $('tu-voidcore').disabled = !at66;
+  $('tu-voidcore-label').classList.toggle('disabled-label', !at66);
+  if (!at66) $('tu-voidcore').checked = false;
+  renderEquippedList();
+});
+$('tu-voidcore').addEventListener('change', renderEquippedList);
+$('tu-all').addEventListener('click', () => setAllTu(true));
+$('tu-none').addEventListener('click', () => setAllTu(false));
+function setAllTu(on) {
+  document.querySelectorAll('#tu-list input:not(:disabled)').forEach((cb) => { cb.checked = on; });
+}
+
+async function loadEquippedItems() {
+  $('tu-status').textContent = 'Resolving item levels via simc…';
+  try {
+    const r = await (await fetch('/api/gear', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile: $('profile').value, resolveIlvls: true }),
+    })).json();
+    equippedItems = r.equippedItems ?? null;
+    $('tu-status').textContent = r.equippedItemsError ? `Failed: ${r.equippedItemsError}` : '';
+  } catch {
+    $('tu-status').textContent = 'Could not reach the server.';
+  }
+  renderEquippedList();
+}
+
+function tuTarget(item) {
+  if (!item.track || !season?.tracks) return null;
+  const steps = season.tracks[item.track];
+  const idx = steps.indexOf(item.ilvl);
+  if (idx < 0) return null;
+  let target = steps[Math.max(idx, Number($('tu-step').value))];
+  if ($('tu-voidcore').checked && $('tu-step').value === '5'
+      && season.voidcore?.slots?.includes(item.slot)) {
+    if (item.track === 'Myth' && season.voidcore.mythIlvl) target = season.voidcore.mythIlvl;
+    if (item.track === 'Hero' && season.voidcore.heroIlvl) target = season.voidcore.heroIlvl;
+  }
+  return target > item.ilvl ? target : null;
+}
+
+function renderEquippedList() {
+  if (!equippedItems) { $('tu-list').innerHTML = ''; return; }
+  const prevChecked = new Set([...document.querySelectorAll('#tu-list input:checked')].map((cb) => cb.dataset.tuslot));
+  const first = prevChecked.size === 0 && !$('tu-list').dataset.rendered;
+  $('tu-list').innerHTML = equippedItems.map((it) => {
+    const target = tuTarget(it);
+    const upgradable = target !== null;
+    const checked = upgradable && (first || prevChecked.has(it.slot));
+    return `<label class="cg-opt ${upgradable ? '' : 'disabled-label'}">
+      <input type="checkbox" data-tuslot="${esc(it.slot)}" ${checked ? 'checked' : ''} ${upgradable ? '' : 'disabled'}>
+      ${esc(it.name)} <span class="hint-inline">${it.ilvl}${upgradable ? ` → ${target}` : ' (maxed / no track)'}${it.track ? ` · ${it.track}` : ''}</span>
+    </label>`;
+  }).join('');
+  $('tu-list').dataset.rendered = '1';
 }
 
 // ---------- droptimizer ----------
@@ -610,7 +683,17 @@ async function startSim() {
     };
     payload.setMinimums = Object.fromEntries(
       Object.entries(setMinimums).filter(([, v]) => v > 0));
-    if (!payload.items.length && !Object.values(payload.compare).some(Boolean)) {
+    if ($('track-upgrades-toggle').checked) {
+      const slots = [...document.querySelectorAll('#tu-list input:checked')].map((cb) => cb.dataset.tuslot);
+      if (slots.length) {
+        payload.trackUpgrades = {
+          slots,
+          step: Number($('tu-step').value),
+          voidcores: $('tu-voidcore').checked && !$('tu-voidcore').disabled,
+        };
+      }
+    }
+    if (!payload.items.length && !Object.values(payload.compare).some(Boolean) && !payload.trackUpgrades) {
       showError('Tick at least one item to compare (or enable a comparison group below).');
       return;
     }

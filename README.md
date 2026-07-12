@@ -110,6 +110,12 @@ per item, all in a single run.
 Raidbots-style "Minimum Set Bonus" pickers (0 / 2 / 4 set) — suggestions that would
 break the bonus you chose to keep are hidden.
 
+**Track upgrades:** an optional section that answers "what is upgrading each equipped
+item actually worth?" — pick a target (2/6 … 6/6, optionally + Voidcores) and every
+ticked equipped item sims at that level within its own track, one at a time, plus one
+"all together" row. Item levels are decoded from your export by simc itself; the
+upgrade track is inferred from the level (untick anything that looks off).
+
 **Also compare:** optional groups that rank alongside gear in the same table, each
 with a Raidbots-style picker (everything on by default, All/None buttons, live sim
 count) so you can exclude options you'd never use:

@@ -96,6 +96,35 @@
           <div id="itemsets-list"></div>
         </div>
 
+        <div class="compare-group" id="track-upgrades-group">
+          <label class="cg-head"><input type="checkbox" id="track-upgrades-toggle"> Track upgrades (equipped gear)
+            <span class="hint-inline">what is each upgrade worth?</span></label>
+          <div class="cg-panel hidden" id="track-upgrades-panel">
+            <div class="dropt-row">
+              <label>Upgrade to
+                <select id="tu-step">
+                  <option value="1">2/6 of its track</option>
+                  <option value="2">3/6 of its track</option>
+                  <option value="3">4/6 of its track</option>
+                  <option value="4">5/6 of its track</option>
+                  <option value="5" selected>6/6 — fully upgraded</option>
+                </select>
+              </label>
+              <label id="tu-voidcore-label">
+                <input type="checkbox" id="tu-voidcore"> + Voidcores (weapons &amp; trinkets)
+              </label>
+            </div>
+            <div class="gear-toolbar">
+              <button class="mini" id="tu-all">All</button>
+              <button class="mini" id="tu-none">None</button>
+              <span class="hint" id="tu-status"></span>
+            </div>
+            <div class="cg-options" id="tu-list"></div>
+            <p class="hint">Each item sims alone (plus one "all together" row). Item levels come
+              from your export; the track is guessed from the level — untick anything that looks off.</p>
+          </div>
+        </div>
+
         <h2>Also compare</h2>
         <div id="compare-groups"></div>
       </div>

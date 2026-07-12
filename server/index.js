@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildInput, buildTopGearInput, buildConsumableVariants, detectSpec } from './profileBuilder.js';
-import { buildEnchantVariants, buildGemVariants, buildDiamondVariants, buildFolioVariants } from './enhancements.js';
+import { buildEnchantVariants, buildGemVariants, buildDiamondVariants, buildFolioVariants, buildTrackUpgradeVariants, trackFor } from './enhancements.js';
+import { resolveEquipped } from './equippedResolver.js';
 import { SimQueue, findSimc, simcVersion } from './simRunner.js';
 import { parseGear, GEAR_SLOTS } from './gearParser.js';
 import { loadLootDb, buildLootDb, downloadTables, cacheStatus, loadItemSetMap } from './wagoData.js';
@@ -159,20 +160,34 @@ function detectItemSets(equipped, bagItems) {
 }
 
 // Parse bagged/vault gear out of an export so the UI can offer checkboxes.
-app.post('/api/gear', (req, res) => {
-  const { profile } = req.body ?? {};
+// resolveIlvls=true additionally runs a 1-iteration simc pass to decode each
+// equipped item's actual item level and upgrade track (cached per profile).
+app.post('/api/gear', async (req, res) => {
+  const { profile, resolveIlvls } = req.body ?? {};
   if (!profile || typeof profile !== 'string') {
     return res.status(400).json({ error: 'No profile text supplied.' });
   }
   const { equipped, items } = parseGear(profile);
-  res.json({
+  const out = {
     equippedSlots: Object.keys(equipped),
     items,
     itemSets: detectItemSets(equipped, items),
-  });
+  };
+  if (resolveIlvls) {
+    try {
+      const resolved = await resolveEquipped(simcPath, profile);
+      out.equippedItems = resolved.map((it) => ({
+        ...it,
+        track: trackFor(it.ilvl, seasonConfig.tracks)?.track ?? null,
+      }));
+    } catch (e) {
+      out.equippedItemsError = e.message;
+    }
+  }
+  res.json(out);
 });
 
-app.post('/api/sim', (req, res) => {
+app.post('/api/sim', async (req, res) => {
   const { profile, options, mode, items } = req.body ?? {};
   if (!profile || typeof profile !== 'string' || !profile.trim()) {
     return res.status(400).json({ error: 'No profile text supplied. Paste your /simc addon export.' });
@@ -188,7 +203,9 @@ app.post('/api/sim', (req, res) => {
   if (mode === 'topgear') {
     const clean = validateItems(items);
     const compare = req.body.compare ?? {};
-    if (!clean.length && !compare.consumables && !compare.enchants && !compare.gems && !compare.folio) {
+    const trackUpgrades = req.body.trackUpgrades ?? null;
+    if (!clean.length && !compare.consumables && !compare.enchants && !compare.gems && !compare.folio
+        && !(trackUpgrades?.slots?.length)) {
       return res.status(400).json({ error: 'Nothing to compare — tick some items or enable a comparison group.' });
     }
     let setCtx = null;
@@ -223,6 +240,14 @@ app.post('/api/sim', (req, res) => {
     }
     if (compare.folio) {
       append(buildFolioVariants(profile, seasonConfig.omniumFolio));
+    }
+    if (trackUpgrades?.slots?.length) {
+      try {
+        const resolved = await resolveEquipped(simcPath, profile);
+        append(buildTrackUpgradeVariants(profile, resolved, seasonConfig, trackUpgrades));
+      } catch (e) {
+        return res.status(500).json({ error: `Could not resolve equipped item levels: ${e.message}` });
+      }
     }
     const job = queue.submit(input, { spec, sets });
     return res.json({ jobId: job.id, skippedBySets: skippedBySets ?? 0 });

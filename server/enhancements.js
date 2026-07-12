@@ -182,6 +182,67 @@ export function buildDiamondVariants(profileText, diamondConfig, selection = nul
   return { lines, sets };
 }
 
+// Track upgrades: sim equipped items upgraded within their own track,
+// one item per variant plus one "everything together" row. The item's
+// track is inferred from its resolved ilvl (highest track containing it);
+// items whose level matches no track step (already Voidforged, crafted
+// oddities) are skipped.
+const TRACK_ORDER = ['Myth', 'Hero', 'Champion', 'Veteran', 'Adventurer'];
+
+export function trackFor(ilvl, tracks) {
+  for (const name of TRACK_ORDER) {
+    const idx = (tracks[name] ?? []).indexOf(ilvl);
+    if (idx >= 0) return { track: name, stepIdx: idx };
+  }
+  return null;
+}
+
+export function buildTrackUpgradeVariants(profileText, resolved, seasonFull, opts, startGroup = 9000) {
+  const { equipped } = parseGear(profileText);
+  const tracks = seasonFull.tracks ?? {};
+  const vc = seasonFull.voidcore ?? {};
+  const vcSlots = new Set(vc.slots ?? []);
+  const step = Math.min(Math.max(Number(opts.step) || 5, 0), 5);
+  const wanted = new Set(opts.slots ?? []);
+  const lines = [];
+  const sets = {};
+  let group = startGroup;
+
+  const upgrades = []; // [slot, upgradedLine, label]
+  for (const item of resolved) {
+    if (!wanted.has(item.slot) || !equipped[item.slot]) continue;
+    const info = trackFor(item.ilvl, tracks);
+    if (!info) continue;
+    let target = tracks[info.track][Math.max(info.stepIdx, step)];
+    if (opts.voidcores && step === 5 && vcSlots.has(item.slot)) {
+      if (info.track === 'Myth' && vc.mythIlvl) target = vc.mythIlvl;
+      if (info.track === 'Hero' && vc.heroIlvl) target = vc.heroIlvl;
+    }
+    if (target <= item.ilvl) continue;
+    const line = `${equipped[item.slot].replace(/,ilevel=\d+/g, '')},ilevel=${target}`;
+    upgrades.push([item.slot, line, `${item.name} (${item.ilvl} → ${target})`]);
+  }
+
+  for (const [slot, line, label] of upgrades) {
+    const name = clean(`Up ${label} [u${++group}]`).slice(0, 78);
+    lines.push(`profileset."${name}"=${line}`);
+    sets[name] = {
+      group, itemName: label, ilvl: null, slot, placement: slot,
+      section: 'Track upgrades', boss: 'Per item', sourceKind: 'upgrades',
+    };
+  }
+  if (upgrades.length >= 2) {
+    const name = clean(`Up all ${upgrades.length} ticked items together [u${++group}]`).slice(0, 78);
+    lines.push(...upgrades.map(([, line], i) => `profileset."${name}"${i > 0 ? '+' : ''}=${line}`));
+    sets[name] = {
+      group, itemName: `All ${upgrades.length} ticked items upgraded together`, ilvl: null,
+      slot: 'combined', placement: 'combined', section: 'Track upgrades', boss: 'Combined',
+      sourceKind: 'upgrades',
+    };
+  }
+  return { lines, sets };
+}
+
 // Omnium Folio comparison: swap one rune choice per variant in the
 // export's omnium_talents= string.
 export function buildFolioVariants(profileText, folioConfig, startGroup = 8000) {
