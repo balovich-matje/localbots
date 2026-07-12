@@ -8,6 +8,30 @@
     "Hero": [259, 263, 266, 269, 272, 276],
     "Myth": [272, 276, 279, 282, 285, 289]
   },
+  "consumableOptions": {
+    "_comment": "Alternatives offered by the Top Gear consumables comparison. All names validated against simc (rank 2 is this season's cap).",
+    "flask": [
+      { "value": "flask_of_the_shattered_sun_2", "label": "Flask of the Shattered Sun (Crit)" },
+      { "value": "flask_of_the_magisters_2", "label": "Flask of the Magisters (Haste)" },
+      { "value": "flask_of_the_blood_knights_2", "label": "Flask of the Blood Knights (Mastery)" },
+      { "value": "flask_of_thalassian_resistance_2", "label": "Flask of Thalassian Resistance (Vers)" }
+    ],
+    "food": [
+      { "value": "harandar_celebration", "label": "Harandar Celebration (feast)" },
+      { "value": "silvermoon_parade", "label": "Silvermoon Parade (feast)" },
+      { "value": "blooming_feast", "label": "Blooming Feast" },
+      { "value": "royal_roast", "label": "Royal Roast" }
+    ],
+    "potion": [
+      { "value": "lights_potential_2", "label": "Light's Potential" },
+      { "value": "potion_of_recklessness_2", "label": "Potion of Recklessness" },
+      { "value": "draught_of_rampant_abandon_2", "label": "Draught of Rampant Abandon" },
+      { "value": "potion_of_zealotry_2", "label": "Potion of Zealotry" }
+    ],
+    "temporary_enchant": [
+      { "value": "thalassian_phoenix_oil_2", "label": "Thalassian Phoenix Oil" }
+    ]
+  },
   "crafted": { "maxIlvl": 285 },
   "voidcore": {
     "_comment": "Ascendant Voidforged ilvls, confirmed from live item tooltips: Hero 6/6 -> 285, Myth 6/6 -> 298.",

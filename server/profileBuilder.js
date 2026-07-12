@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { placementsFor } from './gearParser.js';
+import { isDualWield } from './lootFilter.js';
 
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
 const CONSUMABLE_DEFAULTS = JSON.parse(readFileSync(join(DATA_DIR, 'consumables.json'), 'utf8'));
@@ -160,6 +161,59 @@ export function buildTopGearInput(profileText, options, items) {
 
 function sanitizeSetName(name) {
   return name.replace(/["\r\n]/g, "'").replace(/[$\\]/g, ' ').slice(0, 80).trim();
+}
+
+// "Which flask/food/potion/oil is best for me": one profileset per season
+// alternative, overriding just that consumable against the baseline.
+// Returns { lines, sets } to append to a Top Gear input.
+export function buildConsumableVariants(profileText, options, consumableOptions, startGroup = 5000) {
+  const opts = normalizeOptions(options);
+  const spec = detectSpec(profileText);
+  const defaults = (spec.key && CONSUMABLE_DEFAULTS[spec.key]) || {};
+  const lines = [];
+  const sets = {};
+  let group = startGroup;
+  const CATEGORY_LABELS = {
+    flask: 'Flask', food: 'Food', potion: 'Potion', temporary_enchant: 'Weapon oil',
+  };
+
+  for (const [category, choices] of Object.entries(consumableOptions ?? {})) {
+    if (category.startsWith('_') || !Array.isArray(choices)) continue;
+    if (opts.consumables[category] === false) continue; // category toggled off entirely
+    const current = currentConsumable(profileText, category, defaults);
+    for (const choice of choices) {
+      let value = choice.value;
+      if (category === 'temporary_enchant') {
+        value = isDualWield(spec.key)
+          ? `main_hand:${choice.value}/off_hand:${choice.value}`
+          : `main_hand:${choice.value}`;
+      }
+      const isCurrent = current != null && (value === current || choice.value === current);
+      const name = sanitizeSetName(`${choice.label}${isCurrent ? ' (current)' : ''} @${category}`);
+      lines.push(`profileset."${name}"=${category}=${value}`);
+      sets[name] = {
+        group: ++group,
+        itemName: `${choice.label}${isCurrent ? ' (current)' : ''}`,
+        ilvl: null,
+        slot: category,
+        placement: CATEGORY_LABELS[category] ?? category,
+        section: 'Consumables',
+        boss: CATEGORY_LABELS[category] ?? category,
+        sourceKind: 'consumables',
+      };
+    }
+  }
+  return { lines, sets };
+}
+
+function currentConsumable(profileText, category, defaults) {
+  const m = profileText.match(new RegExp(`^\\s*${category}\\s*=\\s*(\\S+)`, 'm'));
+  const raw = m ? m[1] : (defaults[category] ?? null);
+  if (raw && category === 'temporary_enchant') {
+    // normalize "main_hand:oil_x/off_hand:oil_x" to the bare oil name
+    return raw.split('/')[0].replace(/^main_hand:/, '');
+  }
+  return raw;
 }
 
 export function normalizeOptions(options) {

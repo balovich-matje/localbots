@@ -2,7 +2,7 @@ import express from 'express';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildInput, buildTopGearInput, detectSpec } from './profileBuilder.js';
+import { buildInput, buildTopGearInput, buildConsumableVariants, detectSpec } from './profileBuilder.js';
 import { SimQueue, findSimc, simcVersion } from './simRunner.js';
 import { parseGear, GEAR_SLOTS } from './gearParser.js';
 import { loadLootDb, buildLootDb, downloadTables, cacheStatus } from './wagoData.js';
@@ -139,10 +139,16 @@ app.post('/api/sim', (req, res) => {
 
   if (mode === 'topgear') {
     const clean = validateItems(items);
-    if (!clean.length) {
-      return res.status(400).json({ error: 'No items selected to compare.' });
+    const compare = req.body.compare ?? {};
+    if (!clean.length && !compare.consumables) {
+      return res.status(400).json({ error: 'Nothing to compare — tick some items or enable a comparison group.' });
     }
-    const { input, sets } = buildTopGearInput(profile, options ?? {}, clean);
+    let { input, sets } = buildTopGearInput(profile, options ?? {}, clean);
+    if (compare.consumables) {
+      const variants = buildConsumableVariants(profile, options ?? {}, seasonConfig.consumableOptions);
+      input += variants.lines.join('\n') + '\n';
+      Object.assign(sets, variants.sets);
+    }
     const job = queue.submit(input, { spec, sets });
     return res.json({ jobId: job.id });
   }

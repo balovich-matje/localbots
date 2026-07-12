@@ -1,4 +1,27 @@
-# Roadmap: full source parity with Raidbots' droptimizer
+# Roadmap
+
+## Phase 3.5 — Top Gear "everything else" (in progress)
+
+Compare more than gear, all inside the Top Gear tab, all as cheap profileset
+variants against the baseline. Order of implementation:
+
+1. **Consumables comparison** — which flask/food/potion is actually best for
+   this character. Curated season alternatives in `data/season.json`
+   (validated against the local simc build), simmed one-swap-at-a-time.
+2. **Item sets / Minimum Set Bonus** — detect item sets across equipped+bag
+   gear (game's ItemSet data), show Raidbots-style per-set "0 / 2 / 4 set"
+   minimums, and skip Top Gear suggestions that would break the chosen bonus.
+3. **Enchants + gems** — per-slot enchant candidates and gem alternatives
+   (season-curated ids, names from game data), simmed by rewriting the
+   equipped item's enchant_id/gem_id.
+4. **Omnium Folio** — compare folio node choices by overriding the export's
+   `omnium_talents=` line, one node swap at a time. Needs node-name research
+   (simc source / trait tables).
+
+Deliberately skipped for now (niche): Raidbots' Item Upgrade Currency budget
+and Catalyst Charges limiter.
+
+# Phase 4: full source parity with Raidbots' droptimizer
 
 Where we stand (✅) and how we'll add the rest, in the order that pays off most.
 Reference: Raidbots' source picker offers — Season Raids, March on Quel'Danas,

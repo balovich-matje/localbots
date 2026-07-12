@@ -464,12 +464,13 @@ async function startSim() {
   const payload = { profile, options };
   if (mode === 'topgear') {
     payload.mode = 'topgear';
-    payload.items = [...document.querySelectorAll('#gear-list input')]
+    payload.items = [...document.querySelectorAll('#gear-list input[type="checkbox"]')]
       .filter((cb) => cb.checked)
       .map((cb) => gearItems[Number(cb.dataset.gearIndex)])
       .filter(Boolean);
-    if (!payload.items.length) {
-      showError('Tick at least one item to compare (or paste an export that contains bag gear).');
+    payload.compare = { consumables: $('compare-consumables').checked };
+    if (!payload.items.length && !payload.compare.consumables) {
+      showError('Tick at least one item to compare (or enable a comparison group below).');
       return;
     }
   } else if (mode === 'droptimizer') {

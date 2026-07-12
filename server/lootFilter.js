@@ -59,6 +59,9 @@ const SHIELD_SPECS = new Set([
 ]);
 
 // specs that dual-wield: a looted weapon should also be tried in the off hand
+export function isDualWield(specKey) {
+  return DUAL_WIELD_1H.has(specKey) || DUAL_WIELD_2H.has(specKey);
+}
 const DUAL_WIELD_1H = new Set([
   'warrior_fury', 'deathknight_frost', 'shaman_enhancement',
   'rogue_assassination', 'rogue_outlaw', 'rogue_subtlety',
