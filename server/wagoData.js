@@ -46,6 +46,32 @@ export async function downloadTables(onProgress = () => {}) {
     if (!resp.ok) throw new Error(`wago.tools ${table}: HTTP ${resp.status}`);
     writeFileSync(join(CACHE_DIR, `${table}.csv`), await resp.text());
   }
+  // Raidbots' public bonus-id map: the community-standard decode of upgrade
+  // tracks ("Hero 6/6"), sockets etc. Static file, cached like the CSVs.
+  onProgress({ table: 'bonuses.json (raidbots)', index: names.length, total: names.length });
+  const resp = await fetch('https://www.raidbots.com/static/data/live/bonuses.json', {
+    headers: { 'User-Agent': 'localbots (github.com/balovich-matje/localbots)' },
+  });
+  if (resp.ok) writeFileSync(join(CACHE_DIR, 'bonuses.json'), await resp.text());
+}
+
+// bonus id -> { track, level, max, ilvl } for upgrade-track bonuses
+export function loadBonusUpgradeMap() {
+  const path = join(CACHE_DIR, 'bonuses.json');
+  if (!existsSync(path)) return null;
+  try {
+    const raw = JSON.parse(readFileSync(path, 'utf8'));
+    const map = new Map();
+    for (const entry of Object.values(raw)) {
+      const u = entry?.upgrade;
+      if (u?.name && u.level && u.max) {
+        map.set(Number(entry.id), { track: u.name, level: u.level, max: u.max, ilvl: u.itemLevel ?? null });
+      }
+    }
+    return map;
+  } catch {
+    return null;
+  }
 }
 
 export function cacheStatus() {

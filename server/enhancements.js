@@ -211,8 +211,11 @@ export function buildTrackUpgradeVariants(profileText, resolved, seasonFull, opt
   const upgrades = []; // [slot, upgradedLine, label]
   for (const item of resolved) {
     if (!wanted.has(item.slot) || !equipped[item.slot]) continue;
-    const info = trackFor(item.ilvl, tracks);
-    if (!info) continue;
+    // prefer the exact track/step decoded from the item's bonus ids
+    const info = item.track != null && item.stepIdx != null
+      ? { track: item.track, stepIdx: item.stepIdx }
+      : trackFor(item.ilvl, tracks);
+    if (!info || !tracks[info.track]) continue;
     let target = tracks[info.track][Math.max(info.stepIdx, step)];
     if (opts.voidcores && step === 5 && vcSlots.has(item.slot)) {
       if (info.track === 'Myth' && vc.mythIlvl) target = vc.mythIlvl;

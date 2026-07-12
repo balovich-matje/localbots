@@ -335,7 +335,8 @@ async function loadEquippedItems() {
 function tuTarget(item) {
   if (!item.track || !season?.tracks) return null;
   const steps = season.tracks[item.track];
-  const idx = steps.indexOf(item.ilvl);
+  if (!steps) return null;
+  const idx = item.stepIdx ?? steps.indexOf(item.ilvl);
   if (idx < 0) return null;
   let target = steps[Math.max(idx, Number($('tu-step').value))];
   if ($('tu-voidcore').checked && $('tu-step').value === '5'
@@ -356,7 +357,7 @@ function renderEquippedList() {
     const checked = upgradable && (first || prevChecked.has(it.slot));
     return `<label class="cg-opt ${upgradable ? '' : 'disabled-label'}">
       <input type="checkbox" data-tuslot="${esc(it.slot)}" ${checked ? 'checked' : ''} ${upgradable ? '' : 'disabled'}>
-      ${esc(it.name)} <span class="hint-inline">${it.ilvl}${upgradable ? ` → ${target}` : ' (maxed / no track)'}${it.track ? ` · ${it.track}` : ''}</span>
+      ${esc(it.name)} <span class="hint-inline">${it.ilvl}${upgradable ? ` → ${target}` : ' (maxed / no track)'}${it.track ? ` · ${it.track}${it.stepIdx != null ? ` ${it.stepIdx + 1}/6` : ''}${it.trackSource === 'guessed' ? ' (guessed)' : ''}` : ''}</span>
     </label>`;
   }).join('');
   $('tu-list').dataset.rendered = '1';

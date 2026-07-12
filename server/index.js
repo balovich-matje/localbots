@@ -7,7 +7,7 @@ import { buildEnchantVariants, buildGemVariants, buildDiamondVariants, buildFoli
 import { resolveEquipped } from './equippedResolver.js';
 import { SimQueue, findSimc, simcVersion } from './simRunner.js';
 import { parseGear, GEAR_SLOTS } from './gearParser.js';
-import { loadLootDb, buildLootDb, downloadTables, cacheStatus, loadItemSetMap } from './wagoData.js';
+import { loadLootDb, buildLootDb, downloadTables, cacheStatus, loadItemSetMap, loadBonusUpgradeMap } from './wagoData.js';
 import { buildSourceTree, buildDroptimizerInput, seasonConfig as fullSeasonConfig } from './droptimizer.js';
 import { probeKnownItems, loadProbeCache } from './simcProbe.js';
 import { CLASS_IDS } from './lootFilter.js';
@@ -89,6 +89,7 @@ app.post('/api/data/refresh', (req, res) => {
     refreshState.step = 'building loot database';
     lootDb = buildLootDb(seasonConfig.droptimizer.mythicPlusDungeons);
     itemSetMap = loadItemSetMap();
+    bonusUpgradeMap = loadBonusUpgradeMap();
     knownItems = null; // probe cache is keyed on builtAt; it re-runs on next use
   })()
     .catch((err) => { refreshState.error = err.message; })
@@ -118,6 +119,26 @@ app.post('/api/droptimizer/sources', (req, res) => {
 });
 
 let itemSetMap = loadItemSetMap();
+let bonusUpgradeMap = loadBonusUpgradeMap();
+
+// Enrich simc-resolved equipped items with their exact upgrade track/step:
+// upgrade-track bonus ids on the item line decode to "Hero 6/6" etc. via the
+// bonus map; items without one fall back to ilvl-based track inference.
+function enrichEquipped(profile, resolved) {
+  const { equipped } = parseGear(profile);
+  return resolved.map((it) => {
+    const ids = (equipped[it.slot]?.match(/bonus_id=([\d/]+)/)?.[1] ?? '')
+      .split('/').map(Number);
+    const up = bonusUpgradeMap ? ids.map((id) => bonusUpgradeMap.get(id)).find(Boolean) : null;
+    const guess = trackFor(it.ilvl, seasonConfig.tracks);
+    return {
+      ...it,
+      track: up?.track ?? guess?.track ?? null,
+      stepIdx: up ? up.level - 1 : (guess?.stepIdx ?? null),
+      trackSource: up ? 'exact' : 'guessed',
+    };
+  });
+}
 
 function equippedIdsFrom(equipped) {
   const ids = {};
@@ -176,10 +197,7 @@ app.post('/api/gear', async (req, res) => {
   if (resolveIlvls) {
     try {
       const resolved = await resolveEquipped(simcPath, profile);
-      out.equippedItems = resolved.map((it) => ({
-        ...it,
-        track: trackFor(it.ilvl, seasonConfig.tracks)?.track ?? null,
-      }));
+      out.equippedItems = enrichEquipped(profile, resolved);
     } catch (e) {
       out.equippedItemsError = e.message;
     }
@@ -244,7 +262,7 @@ app.post('/api/sim', async (req, res) => {
     if (trackUpgrades?.slots?.length) {
       try {
         const resolved = await resolveEquipped(simcPath, profile);
-        append(buildTrackUpgradeVariants(profile, resolved, seasonConfig, trackUpgrades));
+        append(buildTrackUpgradeVariants(profile, enrichEquipped(profile, resolved), seasonConfig, trackUpgrades));
       } catch (e) {
         return res.status(500).json({ error: `Could not resolve equipped item levels: ${e.message}` });
       }
