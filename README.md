@@ -18,6 +18,8 @@ public data.
   bosses, outdoor events and delves — in ONE run, with upgrade-track and Voidcore
   options, ranked by DPS gain with per-source filters. This is the feature Raidbots
   gates behind premium.
+- ✅ **Phase 3.5 — Beyond gear**: item sets with Minimum Set Bonus protection, plus
+  consumables / enchants / gems / Omnium Folio comparisons in Top Gear.
 - ⬜ **Phase 4 — Full source parity with Raidbots**: catalyst/tier-set pieces, normal
   dungeons, Prey rewards, PvP gear, crafted gear, previous-season tiers, vault-socket
   option and off-spec loot. Detailed plan in [docs/ROADMAP.md](docs/ROADMAP.md).
@@ -103,6 +105,18 @@ picking your weekly reward.
 
 Under the hood this uses simc's *profilesets*: one baseline sim plus a cheap delta sim
 per item, all in a single run.
+
+**Item sets:** detected automatically from your equipped and bagged gear, with
+Raidbots-style "Minimum Set Bonus" pickers (0 / 2 / 4 set) — suggestions that would
+break the bonus you chose to keep are hidden.
+
+**Also compare:** optional groups that rank alongside gear in the same table —
+**Consumables** (every season flask, food, potion and weapon oil), **Enchants** (every
+season enchant per slot, on your own items), **Gems** (your setup with all stat gems
+swapped to each type; special diamonds kept), and **Omnium Folio** (each rune
+alternative, one row at a time). Your current choice is tagged "(current)" so you can
+sanity-check the comparison at a glance. All options live in
+[data/season.json](data/season.json).
 
 **Simming upgrades:** every item row has an item-level dropdown — sim the item as-is, at
 any upgrade step of the current season's tracks (e.g. a fresh 272 Myth-track piece at its

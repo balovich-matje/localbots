@@ -1,6 +1,6 @@
 # Roadmap
 
-## Phase 3.5 — Top Gear "everything else" (in progress)
+## Phase 3.5 — Top Gear "everything else" (DONE)
 
 Compare more than gear, all inside the Top Gear tab, all as cheap profileset
 variants against the baseline. Order of implementation:

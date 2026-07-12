@@ -501,6 +501,7 @@ async function startSim() {
       consumables: $('compare-consumables').checked,
       enchants: $('compare-enchants').checked,
       gems: $('compare-gems').checked,
+      folio: $('compare-folio').checked,
     };
     payload.setMinimums = Object.fromEntries(
       Object.entries(setMinimums).filter(([, v]) => v > 0));

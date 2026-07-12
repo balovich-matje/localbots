@@ -411,5 +411,87 @@
       "id": 240894,
       "label": "Flawless Versatile Peridot"
     }
-  ]
+  ],
+  "omniumFolio": {
+    "_comment": "Omnium Folio rune choices (expansion trait tree from game data; entry ids are what omnium_talents= uses). One choice per row.",
+    "rows": [
+      {
+        "row": 1,
+        "choices": [
+          {
+            "entry": 136825,
+            "label": "Void-Touched Orbs"
+          },
+          {
+            "entry": 136822,
+            "label": "Unleashed Fire"
+          }
+        ]
+      },
+      {
+        "row": 2,
+        "choices": [
+          {
+            "entry": 136819,
+            "label": "Self-Mending"
+          },
+          {
+            "entry": 136816,
+            "label": "Void-Tainted Shell"
+          },
+          {
+            "entry": 136823,
+            "label": "Lynxlike Reflexes"
+          }
+        ]
+      },
+      {
+        "row": 3,
+        "choices": [
+          {
+            "entry": 136817,
+            "label": "Lingering"
+          }
+        ]
+      },
+      {
+        "row": 4,
+        "choices": [
+          {
+            "entry": 136815,
+            "label": "Critical Power"
+          },
+          {
+            "entry": 136821,
+            "label": "Burning Haste"
+          },
+          {
+            "entry": 136818,
+            "label": "Masterful Cunning"
+          },
+          {
+            "entry": 136820,
+            "label": "The Versatile Warrior"
+          }
+        ]
+      },
+      {
+        "row": 5,
+        "choices": [
+          {
+            "entry": 136814,
+            "label": "Overload"
+          },
+          {
+            "entry": 136824,
+            "label": "Residual Energy"
+          },
+          {
+            "entry": 136826,
+            "label": "Echoes"
+          }
+        ]
+      }
+    ]
+  }
 }

@@ -64,6 +64,48 @@ export function buildEnchantVariants(profileText, enchantOptions, startGroup = 6
   return { lines, sets };
 }
 
+// Omnium Folio comparison: swap one rune choice per variant in the
+// export's omnium_talents= string.
+export function buildFolioVariants(profileText, folioConfig, startGroup = 8000) {
+  const lines = [];
+  const sets = {};
+  const m = profileText.match(/^\s*omnium_talents\s*=\s*(\S+)/m);
+  if (!m || !folioConfig?.rows) return { lines, sets };
+  let group = startGroup;
+
+  // current picks: entryId -> rank
+  const current = new Map(m[1].split('/').map((e) => {
+    const [id, rank] = e.split(':');
+    return [Number(id), Number(rank) || 1];
+  }));
+
+  for (const row of folioConfig.rows) {
+    const rowEntries = row.choices.map((c) => c.entry);
+    const active = rowEntries.find((e) => current.has(e)) ?? null;
+    for (const choice of row.choices) {
+      const isCurrent = choice.entry === active;
+      const picks = new Map(current);
+      if (active !== null) picks.delete(active);
+      picks.set(choice.entry, 1);
+      const str = [...picks.entries()].map(([id, r]) => `${id}:${r}`).join('/');
+      const label = `${choice.label}${isCurrent ? ' (current)' : ''}`;
+      const name = `Folio ${label} [f${++group}]`.replace(/["\r\n$\\]/g, "'").slice(0, 80);
+      lines.push(`profileset."${name}"=omnium_talents=${str}`);
+      sets[name] = {
+        group,
+        itemName: label,
+        ilvl: null,
+        slot: 'folio',
+        placement: `row ${row.row}`,
+        section: 'Omnium Folio',
+        boss: `Row ${row.row}`,
+        sourceKind: 'folio',
+      };
+    }
+  }
+  return { lines, sets };
+}
+
 // Uniform-gem comparison: every socket that holds a known stat gem is
 // swapped to the candidate; special gems (Eversong Diamonds etc.) and
 // unknown ids are left untouched.
