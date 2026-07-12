@@ -4,6 +4,8 @@ let currentJobId = null;
 let eventSource = null;
 let mode = 'quick';
 let gearItems = []; // last parsed bag/vault items, indexes match checkboxes
+let itemSets = []; // detected item sets from /api/gear
+let setMinimums = {}; // setId -> chosen minimum bonus (0/2/4)
 let season = null; // upgrade tracks + voidcore info from data/season.json
 
 fetch('/api/season').then((r) => r.json()).then((s) => { season = s; }).catch(() => {});
@@ -123,6 +125,8 @@ async function refreshGearList() {
     });
     const body = await resp.json();
     gearItems = body.items ?? [];
+    itemSets = body.itemSets ?? [];
+    renderItemSets();
   } catch {
     $('gear-list').innerHTML = '<p class="empty">Could not reach the server.</p>';
     return;
@@ -393,6 +397,31 @@ function collectDroptSelection() {
   return selection;
 }
 
+// Raidbots-style "Minimum Set Bonus" pickers. Default: protect the bonus
+// tier the character already has equipped (4pc -> 4, 2pc -> 2).
+function renderItemSets() {
+  $('itemsets-section').classList.toggle('hidden', !itemSets.length);
+  setMinimums = {};
+  if (!itemSets.length) { $('itemsets-list').innerHTML = ''; return; }
+  $('itemsets-list').innerHTML = itemSets.map((s) => {
+    const thresholds = [0, 2, 4].filter((t) => t === 0 || t <= s.size);
+    const def = s.equipped >= 4 ? 4 : s.equipped >= 2 ? 2 : 0;
+    setMinimums[s.setId] = def;
+    return `<div class="dropt-row">
+      <span class="src-name">${esc(s.name)} <span class="hint-inline">${s.equipped} equipped · ${s.owned} owned</span></span>
+      <span class="diff-boxes">${thresholds.map((t) => `
+        <button class="mini setmin ${t === def ? 'active' : ''}" data-set="${s.setId}" data-min="${t}">${t} set</button>`).join('')}
+      </span></div>`;
+  }).join('');
+  document.querySelectorAll('#itemsets-list .setmin').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setMinimums[btn.dataset.set] = Number(btn.dataset.min);
+      document.querySelectorAll(`#itemsets-list .setmin[data-set="${btn.dataset.set}"]`)
+        .forEach((b) => b.classList.toggle('active', b === btn));
+    });
+  });
+}
+
 function ilvlControl(item, i) {
   const opts = upgradeOptionsFor(item);
   if (!opts.length) {
@@ -469,6 +498,8 @@ async function startSim() {
       .map((cb) => gearItems[Number(cb.dataset.gearIndex)])
       .filter(Boolean);
     payload.compare = { consumables: $('compare-consumables').checked };
+    payload.setMinimums = Object.fromEntries(
+      Object.entries(setMinimums).filter(([, v]) => v > 0));
     if (!payload.items.length && !payload.compare.consumables) {
       showError('Tick at least one item to compare (or enable a comparison group below).');
       return;

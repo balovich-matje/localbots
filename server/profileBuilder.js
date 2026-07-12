@@ -122,16 +122,39 @@ function hasConsumableLine(text, key) {
 // Builds a Top Gear input: baseline profile plus one profileset per
 // (item, placement). Returns { input, sets } where sets maps the exact
 // profileset name back to the item it represents.
-export function buildTopGearInput(profileText, options, items) {
+// setCtx (optional) enforces "Minimum Set Bonus": { byItem: {itemId: setId},
+// equippedIds: {slot: itemId}, minimums: {setId: 2|4} } — swaps that would
+// drop a set below its minimum are skipped.
+export function buildTopGearInput(profileText, options, items, setCtx = null) {
   const base = buildInput(profileText, options);
   const lines = [base];
   const sets = {};
   const usedNames = new Set();
+  let skippedBySets = 0;
+
+  // equipped piece count per set, for the minimum-bonus constraint
+  const setCounts = {};
+  if (setCtx?.minimums && Object.keys(setCtx.minimums).length) {
+    for (const id of Object.values(setCtx.equippedIds ?? {})) {
+      const sid = setCtx.byItem[id];
+      if (sid != null) setCounts[sid] = (setCounts[sid] ?? 0) + 1;
+    }
+  }
+  const breaksSetMinimum = (candidateId, placement) => {
+    if (!setCtx?.minimums) return false;
+    const replacedSet = setCtx.byItem[setCtx.equippedIds?.[placement]];
+    const candidateSet = setCtx.byItem[candidateId];
+    if (replacedSet == null || replacedSet === candidateSet) return false;
+    const min = Number(setCtx.minimums[replacedSet]);
+    if (!min) return false;
+    return ((setCounts[replacedSet] ?? 0) - 1) < min && (setCounts[replacedSet] ?? 0) >= min;
+  };
 
   for (const [index, item] of items.entries()) {
     const slotMatch = String(item.line ?? '').trim().match(/^([a-z_0-9]+)=(.*)$/);
     if (!slotMatch) continue;
     let rest = slotMatch[2];
+    const itemId = Number(rest.match(/(?:^|,)id=(\d+)/)?.[1]) || null;
     const upgraded = item.targetIlvl && item.targetIlvl !== item.ilvl;
     if (upgraded) {
       // ilevel= wins over bonus_id-derived levels, so this "upgrades" the item.
@@ -139,6 +162,7 @@ export function buildTopGearInput(profileText, options, items) {
       rest += `,ilevel=${item.targetIlvl}`;
     }
     for (const placement of placementsFor(slotMatch[1])) {
+      if (breaksSetMinimum(itemId, placement)) { skippedBySets++; continue; }
       let name = sanitizeSetName(
         `${item.name ?? slotMatch[1]}${upgraded ? ` +${item.targetIlvl}` : ''} @${placement}`);
       let n = 2;
@@ -156,7 +180,7 @@ export function buildTopGearInput(profileText, options, items) {
       };
     }
   }
-  return { input: lines.join('\n') + '\n', sets };
+  return { input: lines.join('\n') + '\n', sets, skippedBySets };
 }
 
 function sanitizeSetName(name) {

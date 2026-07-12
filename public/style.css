@@ -332,6 +332,9 @@ button.mini {
 /* --- disabled toggle label --- */
 .disabled-label { opacity: 0.45; }
 
+/* --- item set minimum buttons --- */
+.setmin.active { background: var(--accent); color: #1a1405; border-color: var(--accent); }
+
 /* --- compact difficulty toggle row --- */
 .diff-toggle-row { gap: 6px; flex-wrap: nowrap; }
 .diff-toggle-row .hint-inline { white-space: nowrap; }

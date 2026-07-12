@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { buildInput, buildTopGearInput, buildConsumableVariants, detectSpec } from './profileBuilder.js';
 import { SimQueue, findSimc, simcVersion } from './simRunner.js';
 import { parseGear, GEAR_SLOTS } from './gearParser.js';
-import { loadLootDb, buildLootDb, downloadTables, cacheStatus } from './wagoData.js';
+import { loadLootDb, buildLootDb, downloadTables, cacheStatus, loadItemSetMap } from './wagoData.js';
 import { buildSourceTree, buildDroptimizerInput, seasonConfig as fullSeasonConfig } from './droptimizer.js';
 import { probeKnownItems, loadProbeCache } from './simcProbe.js';
 import { CLASS_IDS } from './lootFilter.js';
@@ -86,6 +86,7 @@ app.post('/api/data/refresh', (req, res) => {
     await downloadTables((p) => { refreshState.step = `downloading ${p.table} (${p.index}/${p.total})`; });
     refreshState.step = 'building loot database';
     lootDb = buildLootDb(seasonConfig.droptimizer.mythicPlusDungeons);
+    itemSetMap = loadItemSetMap();
     knownItems = null; // probe cache is keyed on builtAt; it re-runs on next use
   })()
     .catch((err) => { refreshState.error = err.message; })
@@ -114,6 +115,48 @@ app.post('/api/droptimizer/sources', (req, res) => {
   });
 });
 
+let itemSetMap = loadItemSetMap();
+
+function equippedIdsFrom(equipped) {
+  const ids = {};
+  for (const [slot, line] of Object.entries(equipped)) {
+    const id = Number(line.match(/(?:^|,)id=(\d+)/)?.[1]);
+    if (id) ids[slot] = id;
+  }
+  return ids;
+}
+
+// Item sets present in the character's equipped + bagged gear.
+function detectItemSets(equipped, bagItems) {
+  if (!itemSetMap) return [];
+  const equippedIds = Object.values(equippedIdsFrom(equipped));
+  const bagIds = bagItems
+    .map((it) => Number(String(it.line).match(/(?:^|,)id=(\d+)/)?.[1]))
+    .filter(Boolean);
+  const counts = new Map(); // setId -> { equipped, owned }
+  for (const id of equippedIds) {
+    const sid = itemSetMap.byItem.get(id);
+    if (sid == null) continue;
+    const c = counts.get(sid) ?? { equipped: 0, owned: 0 };
+    c.equipped++; c.owned++;
+    counts.set(sid, c);
+  }
+  for (const id of bagIds) {
+    const sid = itemSetMap.byItem.get(id);
+    if (sid == null) continue;
+    const c = counts.get(sid) ?? { equipped: 0, owned: 0 };
+    c.owned++;
+    counts.set(sid, c);
+  }
+  const out = [];
+  for (const [setId, c] of counts) {
+    if (c.owned < 2) continue;
+    const info = itemSetMap.sets.get(setId);
+    out.push({ setId, name: info.name, size: info.items.length, equipped: c.equipped, owned: c.owned });
+  }
+  return out.sort((a, b) => b.equipped - a.equipped);
+}
+
 // Parse bagged/vault gear out of an export so the UI can offer checkboxes.
 app.post('/api/gear', (req, res) => {
   const { profile } = req.body ?? {};
@@ -121,7 +164,11 @@ app.post('/api/gear', (req, res) => {
     return res.status(400).json({ error: 'No profile text supplied.' });
   }
   const { equipped, items } = parseGear(profile);
-  res.json({ equippedSlots: Object.keys(equipped), items });
+  res.json({
+    equippedSlots: Object.keys(equipped),
+    items,
+    itemSets: detectItemSets(equipped, items),
+  });
 });
 
 app.post('/api/sim', (req, res) => {
@@ -143,14 +190,25 @@ app.post('/api/sim', (req, res) => {
     if (!clean.length && !compare.consumables) {
       return res.status(400).json({ error: 'Nothing to compare — tick some items or enable a comparison group.' });
     }
-    let { input, sets } = buildTopGearInput(profile, options ?? {}, clean);
+    let setCtx = null;
+    const minimums = req.body.setMinimums ?? {};
+    if (itemSetMap && Object.keys(minimums).length) {
+      const byItem = {};
+      for (const [id, sid] of itemSetMap.byItem) byItem[id] = sid;
+      setCtx = {
+        byItem,
+        equippedIds: equippedIdsFrom(parseGear(profile).equipped),
+        minimums,
+      };
+    }
+    let { input, sets, skippedBySets } = buildTopGearInput(profile, options ?? {}, clean, setCtx);
     if (compare.consumables) {
       const variants = buildConsumableVariants(profile, options ?? {}, seasonConfig.consumableOptions);
       input += variants.lines.join('\n') + '\n';
       Object.assign(sets, variants.sets);
     }
     const job = queue.submit(input, { spec, sets });
-    return res.json({ jobId: job.id });
+    return res.json({ jobId: job.id, skippedBySets: skippedBySets ?? 0 });
   }
 
   if (mode === 'droptimizer') {

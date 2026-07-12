@@ -26,6 +26,7 @@ const TABLES = {
   MythicPlusSeasonTrackedMap: ['MapChallengeModeID', 'DisplaySeasonID'],
   MapChallengeMode: ['ID', 'Name_lang', 'MapID'],
   Map: ['ID', 'InstanceType'],
+  ItemSet: null, // small table; need all ItemID_N columns
   Item: ['ID', 'ClassID', 'SubclassID', 'InventoryType', 'IconFileDataID'],
   ItemSparse: [
     'ID', 'Display_lang', 'ItemLevel', 'AllowableClass', 'InventoryType', 'OverallQualityID',
@@ -226,6 +227,27 @@ function shapeItem(itemId, sparse, itemMeta) {
     stats,
     icon: Number(m.IconFileDataID) || null,
   };
+}
+
+// Item-set membership from the game's ItemSet table:
+// { byItem: Map(itemId -> setId), sets: Map(setId -> { name, items: [ids] }) }
+export function loadItemSetMap() {
+  const path = join(CACHE_DIR, 'ItemSet.csv');
+  if (!existsSync(path)) return null;
+  const byItem = new Map();
+  const sets = new Map();
+  for (const r of parseCsv(readFileSync(path, 'utf8'))) {
+    const items = [];
+    for (let i = 0; i <= 16; i++) {
+      const id = Number(r[`ItemID_${i}`]);
+      if (id > 0) items.push(id);
+    }
+    if (items.length < 2) continue;
+    const setId = Number(r.ID);
+    sets.set(setId, { name: r.Name_lang, items });
+    for (const id of items) byItem.set(id, setId);
+  }
+  return { byItem, sets };
 }
 
 export function loadLootDb() {
