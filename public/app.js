@@ -497,10 +497,14 @@ async function startSim() {
       .filter((cb) => cb.checked)
       .map((cb) => gearItems[Number(cb.dataset.gearIndex)])
       .filter(Boolean);
-    payload.compare = { consumables: $('compare-consumables').checked };
+    payload.compare = {
+      consumables: $('compare-consumables').checked,
+      enchants: $('compare-enchants').checked,
+      gems: $('compare-gems').checked,
+    };
     payload.setMinimums = Object.fromEntries(
       Object.entries(setMinimums).filter(([, v]) => v > 0));
-    if (!payload.items.length && !payload.compare.consumables) {
+    if (!payload.items.length && !Object.values(payload.compare).some(Boolean)) {
       showError('Tick at least one item to compare (or enable a comparison group below).');
       return;
     }
@@ -556,7 +560,7 @@ function handleUpdate(u) {
     const p = u.progress;
     if (p) {
       const phase = p.item
-        ? `Item ${p.phaseNum - 1}/${p.phaseTotal - 1}: ${p.item.replace(/ @[a-z_0-9]+$/, '').replace(/ \[\d+\]$/, '')}`
+        ? `Item ${p.phaseNum - 1}/${p.phaseTotal - 1}: ${p.item.replace(/ @[a-z_0-9]+$/, '').replace(/ \[[a-z]?\d+\]$/, '')}`
         : p.phaseTotal > 1 ? `${p.phase} ${p.phaseNum}/${p.phaseTotal}` : p.phase;
       const detail = [
         `${p.iterDone.toLocaleString()} / ${p.iterTotal.toLocaleString()} iterations`,

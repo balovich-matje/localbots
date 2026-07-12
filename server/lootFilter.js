@@ -28,6 +28,10 @@ const SPEC_PRIMARY = {
   evoker_devastation: 5, evoker_preservation: 5, evoker_augmentation: 5,
 };
 
+export function primaryStat(specKey) {
+  return SPEC_PRIMARY[specKey] ?? null; // 3 agi, 4 str, 5 int
+}
+
 // stat id -> set of primary stats it grants (71-74 are the multi-stat combos)
 const STAT_GRANTS = {
   3: [3], 4: [4], 5: [5],

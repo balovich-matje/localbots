@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildInput, buildTopGearInput, buildConsumableVariants, detectSpec } from './profileBuilder.js';
+import { buildEnchantVariants, buildGemVariants } from './enhancements.js';
 import { SimQueue, findSimc, simcVersion } from './simRunner.js';
 import { parseGear, GEAR_SLOTS } from './gearParser.js';
 import { loadLootDb, buildLootDb, downloadTables, cacheStatus, loadItemSetMap } from './wagoData.js';
@@ -187,7 +188,7 @@ app.post('/api/sim', (req, res) => {
   if (mode === 'topgear') {
     const clean = validateItems(items);
     const compare = req.body.compare ?? {};
-    if (!clean.length && !compare.consumables) {
+    if (!clean.length && !compare.consumables && !compare.enchants && !compare.gems) {
       return res.status(400).json({ error: 'Nothing to compare — tick some items or enable a comparison group.' });
     }
     let setCtx = null;
@@ -204,6 +205,16 @@ app.post('/api/sim', (req, res) => {
     let { input, sets, skippedBySets } = buildTopGearInput(profile, options ?? {}, clean, setCtx);
     if (compare.consumables) {
       const variants = buildConsumableVariants(profile, options ?? {}, seasonConfig.consumableOptions);
+      input += variants.lines.join('\n') + '\n';
+      Object.assign(sets, variants.sets);
+    }
+    if (compare.enchants) {
+      const variants = buildEnchantVariants(profile, seasonConfig.enchantOptions);
+      input += variants.lines.join('\n') + '\n';
+      Object.assign(sets, variants.sets);
+    }
+    if (compare.gems) {
+      const variants = buildGemVariants(profile, seasonConfig.gemOptions);
       input += variants.lines.join('\n') + '\n';
       Object.assign(sets, variants.sets);
     }

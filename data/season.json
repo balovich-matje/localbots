@@ -2,40 +2,121 @@
   "season": "Midnight Season 1 (12.0.x)",
   "_comment": "Hand-curated once per season. Track arrays list every upgrade step's item level. voidcore.extraIlvls are offered for weapon/trinket slots only (Ascendant Voidcores apply to fully-upgraded Hero/Myth or max-rank crafted weapons and trinkets).",
   "tracks": {
-    "Adventurer": [220, 224, 227, 230, 233, 237],
-    "Veteran": [233, 237, 240, 243, 246, 250],
-    "Champion": [246, 250, 253, 256, 259, 263],
-    "Hero": [259, 263, 266, 269, 272, 276],
-    "Myth": [272, 276, 279, 282, 285, 289]
+    "Adventurer": [
+      220,
+      224,
+      227,
+      230,
+      233,
+      237
+    ],
+    "Veteran": [
+      233,
+      237,
+      240,
+      243,
+      246,
+      250
+    ],
+    "Champion": [
+      246,
+      250,
+      253,
+      256,
+      259,
+      263
+    ],
+    "Hero": [
+      259,
+      263,
+      266,
+      269,
+      272,
+      276
+    ],
+    "Myth": [
+      272,
+      276,
+      279,
+      282,
+      285,
+      289
+    ]
   },
   "consumableOptions": {
     "_comment": "Alternatives offered by the Top Gear consumables comparison. All names validated against simc (rank 2 is this season's cap).",
     "flask": [
-      { "value": "flask_of_the_shattered_sun_2", "label": "Flask of the Shattered Sun (Crit)" },
-      { "value": "flask_of_the_magisters_2", "label": "Flask of the Magisters (Haste)" },
-      { "value": "flask_of_the_blood_knights_2", "label": "Flask of the Blood Knights (Mastery)" },
-      { "value": "flask_of_thalassian_resistance_2", "label": "Flask of Thalassian Resistance (Vers)" }
+      {
+        "value": "flask_of_the_shattered_sun_2",
+        "label": "Flask of the Shattered Sun (Crit)"
+      },
+      {
+        "value": "flask_of_the_magisters_2",
+        "label": "Flask of the Magisters (Haste)"
+      },
+      {
+        "value": "flask_of_the_blood_knights_2",
+        "label": "Flask of the Blood Knights (Mastery)"
+      },
+      {
+        "value": "flask_of_thalassian_resistance_2",
+        "label": "Flask of Thalassian Resistance (Vers)"
+      }
     ],
     "food": [
-      { "value": "harandar_celebration", "label": "Harandar Celebration (feast)" },
-      { "value": "silvermoon_parade", "label": "Silvermoon Parade (feast)" },
-      { "value": "blooming_feast", "label": "Blooming Feast" },
-      { "value": "royal_roast", "label": "Royal Roast" }
+      {
+        "value": "harandar_celebration",
+        "label": "Harandar Celebration (feast)"
+      },
+      {
+        "value": "silvermoon_parade",
+        "label": "Silvermoon Parade (feast)"
+      },
+      {
+        "value": "blooming_feast",
+        "label": "Blooming Feast"
+      },
+      {
+        "value": "royal_roast",
+        "label": "Royal Roast"
+      }
     ],
     "potion": [
-      { "value": "lights_potential_2", "label": "Light's Potential" },
-      { "value": "potion_of_recklessness_2", "label": "Potion of Recklessness" },
-      { "value": "draught_of_rampant_abandon_2", "label": "Draught of Rampant Abandon" },
-      { "value": "potion_of_zealotry_2", "label": "Potion of Zealotry" }
+      {
+        "value": "lights_potential_2",
+        "label": "Light's Potential"
+      },
+      {
+        "value": "potion_of_recklessness_2",
+        "label": "Potion of Recklessness"
+      },
+      {
+        "value": "draught_of_rampant_abandon_2",
+        "label": "Draught of Rampant Abandon"
+      },
+      {
+        "value": "potion_of_zealotry_2",
+        "label": "Potion of Zealotry"
+      }
     ],
     "temporary_enchant": [
-      { "value": "thalassian_phoenix_oil_2", "label": "Thalassian Phoenix Oil" }
+      {
+        "value": "thalassian_phoenix_oil_2",
+        "label": "Thalassian Phoenix Oil"
+      }
     ]
   },
-  "crafted": { "maxIlvl": 285 },
+  "crafted": {
+    "maxIlvl": 285
+  },
   "voidcore": {
     "_comment": "Ascendant Voidforged ilvls, confirmed from live item tooltips: Hero 6/6 -> 285, Myth 6/6 -> 298.",
-    "slots": ["main_hand", "off_hand", "trinket1", "trinket2"],
+    "slots": [
+      "main_hand",
+      "off_hand",
+      "trinket1",
+      "trinket2"
+    ],
     "mythIlvl": 298,
     "heroIlvl": 285,
     "craftedIlvl": 295
@@ -44,10 +125,30 @@
   "droptimizer": {
     "_comment": "Drop item levels per source. raidDifficulties arrays are per boss-position bucket (early -> end bosses). mythicPlus maps key level to end-of-dungeon and Great Vault ilvls. worldBoss/outdoor are editable in the UI before each run.",
     "raidDifficulties": {
-      "LFR": [233, 237, 240, 243],
-      "Normal": [246, 250, 253, 256],
-      "Heroic": [259, 263, 266, 269],
-      "Mythic": [272, 276, 279, 282]
+      "LFR": [
+        233,
+        237,
+        240,
+        243
+      ],
+      "Normal": [
+        246,
+        250,
+        253,
+        256
+      ],
+      "Heroic": [
+        259,
+        263,
+        266,
+        269
+      ],
+      "Mythic": [
+        272,
+        276,
+        279,
+        282
+      ]
     },
     "mythicPlusDungeons": [
       "Magisters' Terrace",
@@ -60,8 +161,30 @@
       "Pit of Saron"
     ],
     "mythicPlus": {
-      "endOfDungeon": { "0": 246, "2": 250, "3": 250, "4": 253, "5": 256, "6": 259, "7": 259, "8": 263, "9": 263, "10": 266 },
-      "vault": { "0": 256, "2": 259, "3": 259, "4": 263, "5": 263, "6": 266, "7": 269, "8": 269, "9": 269, "10": 272 }
+      "endOfDungeon": {
+        "0": 246,
+        "2": 250,
+        "3": 250,
+        "4": 253,
+        "5": 256,
+        "6": 259,
+        "7": 259,
+        "8": 263,
+        "9": 263,
+        "10": 266
+      },
+      "vault": {
+        "0": 256,
+        "2": 259,
+        "3": 259,
+        "4": 263,
+        "5": 263,
+        "6": 266,
+        "7": 269,
+        "8": 269,
+        "9": 269,
+        "10": 272
+      }
     },
     "delveTracks": {
       "_comment": "Simplified: high-tier Bountiful Coffers drop Champion track (T8 = 250), Trovehunter's Bounty / delve Great Vault at T8+ drop Hero track (259).",
@@ -70,5 +193,223 @@
     },
     "worldBossIlvl": 256,
     "outdoorIlvl": 250
-  }
+  },
+  "enchantOptions": {
+    "_comment": "Per-slot enchant alternatives (rank-2 ids from SpellItemEnchantment, as used by simc tuning profiles). legs entries carry a stat filter (attack = str/agi specs, int = casters).",
+    "weapon": [
+      {
+        "id": 7979,
+        "label": "Strength of Halazzi"
+      },
+      {
+        "id": 7981,
+        "label": "Jan'alai's Precision"
+      },
+      {
+        "id": 7983,
+        "label": "Berserker's Rage"
+      },
+      {
+        "id": 8007,
+        "label": "Worldsoul Cradle"
+      },
+      {
+        "id": 8009,
+        "label": "Worldsoul Aegis"
+      },
+      {
+        "id": 8011,
+        "label": "Worldsoul Tenacity"
+      },
+      {
+        "id": 8037,
+        "label": "Flames of the Sin'dorei"
+      },
+      {
+        "id": 8039,
+        "label": "Acuity of the Ren'dorei"
+      },
+      {
+        "id": 8041,
+        "label": "Arcane Mastery"
+      }
+    ],
+    "chest": [
+      {
+        "id": 7957,
+        "label": "Mark of Nalorakk"
+      },
+      {
+        "id": 7985,
+        "label": "Mark of the Rootwarden"
+      },
+      {
+        "id": 7987,
+        "label": "Mark of the Worldsoul"
+      },
+      {
+        "id": 8013,
+        "label": "Mark of the Magister"
+      }
+    ],
+    "head": [
+      {
+        "id": 7961,
+        "label": "Empowered Hex of Leeching"
+      },
+      {
+        "id": 7991,
+        "label": "Empowered Blessing of Speed"
+      },
+      {
+        "id": 8017,
+        "label": "Empowered Rune of Avoidance"
+      }
+    ],
+    "feet": [
+      {
+        "id": 7963,
+        "label": "Lynx's Dexterity"
+      },
+      {
+        "id": 7993,
+        "label": "Shaladrassil's Roots"
+      },
+      {
+        "id": 8019,
+        "label": "Farstrider's Hunt"
+      }
+    ],
+    "ring": [
+      {
+        "id": 7965,
+        "label": "Amani Mastery"
+      },
+      {
+        "id": 7967,
+        "label": "Eyes of the Eagle"
+      },
+      {
+        "id": 7969,
+        "label": "Zul'jin's Mastery"
+      },
+      {
+        "id": 7995,
+        "label": "Nature's Wrath"
+      },
+      {
+        "id": 7997,
+        "label": "Nature's Fury"
+      },
+      {
+        "id": 8021,
+        "label": "Thalassian Haste"
+      },
+      {
+        "id": 8023,
+        "label": "Thalassian Versatility"
+      },
+      {
+        "id": 8025,
+        "label": "Silvermoon's Alacrity"
+      },
+      {
+        "id": 8027,
+        "label": "Silvermoon's Tenacity"
+      }
+    ],
+    "legs": [
+      {
+        "id": 8159,
+        "label": "Leg kit: Agi/Str + Stamina",
+        "stat": "attack"
+      },
+      {
+        "id": 8163,
+        "label": "Leg kit: Agi/Str + Armor",
+        "stat": "attack"
+      },
+      {
+        "id": 8161,
+        "label": "Leg kit: Agi/Str",
+        "stat": "attack"
+      },
+      {
+        "id": 7935,
+        "label": "Spellthread: Int + Stamina",
+        "stat": "int"
+      },
+      {
+        "id": 7937,
+        "label": "Spellthread: Int + Mana",
+        "stat": "int"
+      }
+    ]
+  },
+  "gemOptions": [
+    {
+      "id": 240898,
+      "label": "Flawless Deadly Amethyst"
+    },
+    {
+      "id": 240904,
+      "label": "Flawless Deadly Garnet"
+    },
+    {
+      "id": 240914,
+      "label": "Flawless Deadly Lapis"
+    },
+    {
+      "id": 240890,
+      "label": "Flawless Deadly Peridot"
+    },
+    {
+      "id": 240896,
+      "label": "Flawless Masterful Amethyst"
+    },
+    {
+      "id": 240908,
+      "label": "Flawless Masterful Garnet"
+    },
+    {
+      "id": 240918,
+      "label": "Flawless Masterful Lapis"
+    },
+    {
+      "id": 240892,
+      "label": "Flawless Masterful Peridot"
+    },
+    {
+      "id": 240900,
+      "label": "Flawless Quick Amethyst"
+    },
+    {
+      "id": 240906,
+      "label": "Flawless Quick Garnet"
+    },
+    {
+      "id": 240916,
+      "label": "Flawless Quick Lapis"
+    },
+    {
+      "id": 240888,
+      "label": "Flawless Quick Peridot"
+    },
+    {
+      "id": 240902,
+      "label": "Flawless Versatile Amethyst"
+    },
+    {
+      "id": 240910,
+      "label": "Flawless Versatile Garnet"
+    },
+    {
+      "id": 240912,
+      "label": "Flawless Versatile Lapis"
+    },
+    {
+      "id": 240894,
+      "label": "Flawless Versatile Peridot"
+    }
+  ]
 }
