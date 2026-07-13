@@ -22,7 +22,7 @@ const TABLES = {
   JournalTierXInstance: ['JournalTierID', 'JournalInstanceID', 'OrderIndex'],
   JournalInstance: ['ID', 'Name_lang', 'MapID', 'Flags'],
   JournalEncounter: ['ID', 'Name_lang', 'JournalInstanceID', 'OrderIndex', 'DifficultyMask'],
-  JournalEncounterItem: ['ID', 'JournalEncounterID', 'ItemID', 'DifficultyMask', 'Flags'],
+  JournalEncounterItem: ['ID', 'JournalEncounterID', 'ItemID', 'DifficultyMask', 'Flags', 'WorldStateExpressionID'],
   MythicPlusSeasonTrackedMap: ['MapChallengeModeID', 'DisplaySeasonID'],
   MapChallengeMode: ['ID', 'Name_lang', 'MapID'],
   Map: ['ID', 'InstanceType'],
@@ -125,12 +125,43 @@ export function buildLootDb(mplusDungeonNames = []) {
     dungeonInstances.push(matches[0]);
   }
 
-  const picked = []; // { inst, bosses, kind }
+  // Legacy dungeons keep their historical loot rows in the journal. Two
+  // filters recover the CURRENT drop table (matches the in-game journal):
+  //  1. difficulty mask must include Mythic/M+ (drops old leveling-only rows)
+  //  2. when rows are gated by WorldStateExpression (Blizzard's "which era
+  //     of this dungeon is active" switch), keep only the current group —
+  //     identified as the one containing current-expansion item ids.
+  const MYTHIC_BITS = (1 << 22) | (1 << 7); // difficulty 23 (Mythic) + 8 (M+)
+  const CURRENT_ITEM_ID = 240000;
+  const filterDungeonRows = (instId) => {
+    const encIds = (encByInstance.get(instId) ?? []).map((e) => e.ID);
+    const rows = encIds.flatMap((id) => itemsByEncounter.get(id) ?? []);
+    const wseGroups = new Set(rows.map((r) => r.WorldStateExpressionID).filter((w) => w !== '0'));
+    let currentWse = null;
+    if (wseGroups.size > 1) {
+      // the group holding newly-minted items is the live one; tie-break newest
+      const candidates = [...wseGroups].filter((w) =>
+        rows.some((r) => r.WorldStateExpressionID === w && Number(r.ItemID) >= CURRENT_ITEM_ID));
+      currentWse = (candidates.length ? candidates : [...wseGroups])
+        .sort((a, b) => Number(b) - Number(a))[0];
+    }
+    const keep = new Set();
+    for (const r of rows) {
+      const mask = Number(r.DifficultyMask);
+      if (mask !== -1 && !(mask & MYTHIC_BITS)) continue;
+      if (currentWse !== null && r.WorldStateExpressionID !== '0' && r.WorldStateExpressionID !== currentWse) continue;
+      keep.add(r.ID);
+    }
+    return keep;
+  };
+
+  const picked = []; // { inst, bosses, kind, keepRows }
   const addInstance = (inst, kind) => {
     const bosses = (encByInstance.get(inst.ID) ?? [])
       .sort((a, b) => Number(a.OrderIndex) - Number(b.OrderIndex));
     if (!bosses.some((b) => (itemsByEncounter.get(b.ID) ?? []).length > 0)) return;
-    picked.push({ inst, bosses, kind });
+    const keepRows = kind === 'dungeon' ? filterDungeonRows(inst.ID) : null;
+    picked.push({ inst, bosses, kind, keepRows });
   };
 
   // Map.InstanceType is the game's own raid/dungeon marker (2 = raid, 1 = dungeon)
@@ -155,9 +186,12 @@ export function buildLootDb(mplusDungeonNames = []) {
   const delveNames = new Set(delveEntries.filter((e) => e.name).map((e) => e.name));
 
   const wantedItemIds = new Set(delveIds);
-  for (const { bosses } of picked) {
+  for (const { bosses, keepRows } of picked) {
     for (const b of bosses) {
-      for (const r of itemsByEncounter.get(b.ID) ?? []) wantedItemIds.add(r.ItemID);
+      for (const r of itemsByEncounter.get(b.ID) ?? []) {
+        if (keepRows && !keepRows.has(r.ID)) continue;
+        wantedItemIds.add(r.ItemID);
+      }
     }
   }
 
@@ -184,7 +218,7 @@ export function buildLootDb(mplusDungeonNames = []) {
   for (const r of loadTable('Item')) if (wantedItemIds.has(r.ID)) itemMeta.set(r.ID, r);
 
   const sources = [];
-  for (const { inst, bosses, kind } of picked) {
+  for (const { inst, bosses, kind, keepRows } of picked) {
     const bossEntries = bosses.map((b, order) => {
       const seen = new Set();
       return {
@@ -192,6 +226,7 @@ export function buildLootDb(mplusDungeonNames = []) {
         name: b.Name_lang,
         order,
         items: (itemsByEncounter.get(b.ID) ?? [])
+          .filter((r) => !keepRows || keepRows.has(r.ID))
           .filter((r) => (seen.has(r.ItemID) ? false : (seen.add(r.ItemID), true)))
           .map((r) => shapeItem(r.ItemID, sparse, itemMeta))
           .filter(Boolean),
