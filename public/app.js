@@ -956,9 +956,15 @@ $('shutdown-button').addEventListener('click', async () => {
     await fetch('/api/shutdown', { method: 'POST' });
   } catch { /* server may die before responding — that is the point */ }
   document.body.innerHTML = `<div style="display:grid;place-items:center;height:80vh;color:#8b93a3;
-    font:16px -apple-system,sans-serif;text-align:center">
-    <div><h2 style="color:#f2b135">Server stopped</h2>
-    <p>You can close this tab. Double-click <code>Start Localbots.command</code> to start it again.</p></div></div>`;
+    font:15px -apple-system,'Segoe UI',sans-serif;text-align:center">
+    <div style="max-width:520px"><h2 style="color:#f2b135">Server stopped</h2>
+    <p>You can close this tab. To start Localbots again, open a terminal in the
+    localbots folder and run <code style="color:#f2b135">npm start</code>:</p>
+    <p style="text-align:left;background:#171a20;border:1px solid #2a2f3a;border-radius:8px;padding:12px 16px;font-size:13px;line-height:1.8">
+    <strong>macOS</strong> — Terminal: <code>cd /path/to/localbots &amp;&amp; npm start</code><br>
+    <strong>Windows</strong> — PowerShell: <code>cd C:\\path\\to\\localbots; npm start</code><br>
+    <strong>Linux</strong> — any shell: <code>cd /path/to/localbots &amp;&amp; npm start</code></p>
+    <p>then reload <code>http://localhost:4747</code>.</p></div></div>`;
 });
 
 function showError(msg) {
