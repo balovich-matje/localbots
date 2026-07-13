@@ -350,6 +350,16 @@ app.post('/api/sim/:id/cancel', (req, res) => {
   res.json({ cancelled: ok });
 });
 
+// Shut the server down from the UI (localhost app — the button is the
+// only way to stop it without a terminal). Kills any running sim first.
+app.post('/api/shutdown', (req, res) => {
+  const running = queue.running;
+  if (running) queue.cancel(running.id);
+  res.json({ ok: true });
+  console.log('\n  Shut down from the web UI. Bye!\n');
+  setTimeout(() => process.exit(0), 300);
+});
+
 app.listen(PORT, () => {
   console.log(`\n  Localbots running:  http://localhost:${PORT}\n`);
   console.log(`  simc: ${simcPath}`);

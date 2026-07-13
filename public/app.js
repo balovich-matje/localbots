@@ -949,6 +949,18 @@ function esc(s) {
   }[c]));
 }
 
+// ---------- shutdown ----------
+$('shutdown-button').addEventListener('click', async () => {
+  if (!confirm('Shut down the Localbots server? Any running sim is cancelled.')) return;
+  try {
+    await fetch('/api/shutdown', { method: 'POST' });
+  } catch { /* server may die before responding — that is the point */ }
+  document.body.innerHTML = `<div style="display:grid;place-items:center;height:80vh;color:#8b93a3;
+    font:16px -apple-system,sans-serif;text-align:center">
+    <div><h2 style="color:#f2b135">Server stopped</h2>
+    <p>You can close this tab. Double-click <code>Start Localbots.command</code> to start it again.</p></div></div>`;
+});
+
 function showError(msg) {
   $('error-box').textContent = msg;
   $('error-box').classList.remove('hidden');

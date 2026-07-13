@@ -376,6 +376,24 @@ button.mini {
 }
 .cg-opt input { accent-color: var(--accent); }
 
+/* --- footer / shutdown --- */
+footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 10px 22px 24px;
+  border-top: 1px solid var(--border);
+}
+button.danger-outline {
+  background: transparent;
+  color: var(--red);
+  border: 1px solid var(--red);
+}
+button.danger-outline:hover { background: rgba(224, 95, 95, 0.12); }
+
 /* --- slot group headers in results --- */
 .slot-group-row td {
   color: var(--accent);

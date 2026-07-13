@@ -80,6 +80,20 @@ npm start
 ```
 
 Open **http://localhost:4747**, paste your `/simc` export, hit **Sim it**.
+To stop the server, use the **Shut down server** button at the bottom of the page.
+
+**macOS tip:** drop a double-clickable launcher in the repo folder (it's gitignored):
+
+```bash
+cat > "Start Localbots.command" <<'EOF'
+#!/bin/zsh
+cd "$(dirname "$0")"
+if lsof -i :4747 >/dev/null 2>&1; then open "http://localhost:4747"; exit 0; fi
+(sleep 2 && open "http://localhost:4747") &
+npm start
+EOF
+chmod +x "Start Localbots.command"
+```
 
 ## Options explained
 

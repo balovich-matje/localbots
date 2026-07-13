@@ -3,3 +3,4 @@ data/cache/
 jobs/
 *.log
 .DS_Store
+*.command
