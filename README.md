@@ -88,7 +88,7 @@ To stop the server, use the **Shut down server** button at the bottom of the pag
 cat > "Start Localbots.command" <<'EOF'
 #!/bin/zsh
 cd "$(dirname "$0")"
-if lsof -i :4747 >/dev/null 2>&1; then open "http://localhost:4747"; exit 0; fi
+if lsof -iTCP:4747 -sTCP:LISTEN >/dev/null 2>&1; then open "http://localhost:4747"; exit 0; fi
 (sleep 2 && open "http://localhost:4747") &
 npm start
 EOF
