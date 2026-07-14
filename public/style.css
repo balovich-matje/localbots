@@ -220,6 +220,7 @@ button.mini {
   background: var(--panel-2);
   color: var(--text);
   border: 1px solid var(--border);
+  white-space: nowrap;
 }
 #gear-list {
   max-height: 320px;

@@ -154,7 +154,7 @@ fetch('/api/status')
   .catch(() => {
     setChip('status-app', 'unknown', 'Localbots — can’t check',
       'Could not run the update check. If you just updated Localbots, restart the server.');
-    setChip('status-simc', 'unknown', 'simc — can’t check',
+    setChip('status-simc', 'unknown', 'Simc — can’t check',
       'Could not run the update check. If you just updated Localbots, restart the server.');
   });
 
@@ -180,14 +180,14 @@ function renderStatus(s) {
   }
   const simc = s.simc ?? {};
   if (simc.state === 'ok') {
-    setChip('status-simc', 'ok', 'simc up to date',
+    setChip('status-simc', 'ok', 'Simc up to date',
       `${s.simcVersion ?? 'simc'} — matches the live game (${simc.liveGame}).`);
   } else if (simc.state === 'outdated') {
-    setChip('status-simc', 'outdated', 'simc outdated',
+    setChip('status-simc', 'outdated', 'Simc outdated',
       `The game updated to ${simc.liveGame}, but your simc is built for ${simc.simcGame}. ` +
       'Rebuild/redownload simc (see the README) to sim the latest patch.');
   } else {
-    setChip('status-simc', 'unknown', 'simc — can’t check',
+    setChip('status-simc', 'unknown', 'Simc — can’t check',
       `${s.simcVersion ?? 'simc'} — could not fetch the live game version (${simc.reason ?? 'no network?'}).`);
   }
 }
@@ -309,6 +309,15 @@ $('fight-style').addEventListener('change', () => {
 
 $('sim-button').addEventListener('click', startSim);
 $('cancel-button').addEventListener('click', cancelSim);
+
+// Raidbots-style presets: flip every raid buff and consumable at once,
+// so matching an "everything off" Raidbots run is one click.
+function setAllBuffsConsumables(on) {
+  document.querySelectorAll('#buffs input, #consumables input')
+    .forEach((cb) => { cb.checked = on; });
+}
+$('preset-all-on').addEventListener('click', () => setAllBuffsConsumables(true));
+$('preset-all-off').addEventListener('click', () => setAllBuffsConsumables(false));
 
 // ---------- tabs ----------
 const SIM_LABELS = { quick: 'Sim it', topgear: 'Compare gear', droptimizer: 'Run droptimizer' };
