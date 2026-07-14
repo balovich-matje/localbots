@@ -74,12 +74,14 @@ export function buildInput(profileText, options = {}) {
   lines.push(`fight_style=${opts.fightStyle}`);
   lines.push(`max_time=${opts.fightLength}`);
   lines.push(`desired_targets=${opts.numEnemies}`);
+  lines.push('vary_combat_length=0.2');
   if (opts.dummyMode) {
-    // Training dummies: fixed-length fight, no execute-phase length variance.
-    lines.push('vary_combat_length=0');
-    lines.push('fixed_time=1');
-  } else {
-    lines.push('vary_combat_length=0.2');
+    // In-game training dummies never lose health, so there is no sub-35%
+    // execute phase. Pin every target at 100% via an explicit named enemy
+    // (the pin only propagates to the extra targets when the base enemy is
+    // named). This reproduces Raidbots' "Target Dummy" fight style exactly.
+    lines.push('enemy="Target Dummy"');
+    lines.push('enemy_fixed_health_percentage=100');
   }
 
   if (opts.iterations) {

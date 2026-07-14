@@ -110,7 +110,7 @@ chmod +x "Start Localbots.command"
 | UI option | What it does (simc setting) |
 |---|---|
 | Fight style | `fight_style=` Patchwerk (stand-still boss), DungeonSlice (M+ style pulls), HecticAddCleave (adds spawning constantly) |
-| Training dummy | Patchwerk with a fixed fight length and no length variance — pure "stand and pump" |
+| Training dummy | boss pinned at 100% health (`enemy_fixed_health_percentage=100`) so there is no execute phase — pure rotational throughput, matching Raidbots' "Target Dummy" |
 | Enemies | `desired_targets=` 1–10 targets (Patchwerk/dummy) |
 | Fight length | `max_time=` in seconds |
 | Precision | `target_error=` — Fast 0.5% / Normal 0.2% / High 0.1% / Extreme 0.05% (≈ Raidbots Smart Sim), or a fixed iteration count |
@@ -214,6 +214,13 @@ Localbots uses the same SimulationCraft engine as Raidbots, so the same characte
 same settings should produce DPS within the margin of error (a fraction of a percent).
 On Raidbots pick Patchwerk, 300s fight, and leave buffs/consumables at their defaults —
 that matches Localbots' defaults.
+
+Match the **fight style** too: Localbots' Patchwerk = Raidbots' Patchwerk (the boss dies,
+so melee get an execute phase), and Localbots' **Training dummy = Raidbots' Target Dummy**
+(boss pinned at 100% health, no execute phase). Comparing a Localbots dummy run to a
+Raidbots Patchwerk run — or vice versa — can differ by several percent on execute-heavy
+specs (Fury Warrior, Arms, Assassination…) purely from that one setting, even with
+identical gear.
 
 ## For maintainers: new season checklist
 
