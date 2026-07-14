@@ -1,5 +1,6 @@
 node_modules/
 data/cache/
+data/history/
 jobs/
 *.log
 .DS_Store

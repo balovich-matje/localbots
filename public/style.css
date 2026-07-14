@@ -23,7 +23,8 @@ body {
 
 header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
   padding: 14px 22px;
   border-bottom: 1px solid var(--border);
@@ -35,15 +36,39 @@ header h1 {
   letter-spacing: 0.5px;
 }
 .tagline { color: var(--muted); font-size: 13px; }
-.version-pill {
-  margin-left: auto;
+
+/* --- header pages (New sim / History) --- */
+.page-nav { display: flex; gap: 6px; margin-left: 10px; }
+.page-btn {
+  background: var(--panel-2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 16px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.page-btn.active { background: var(--accent); color: #1a1405; border-color: var(--accent); }
+
+/* --- header status chips --- */
+#status-bar { margin-left: auto; display: flex; gap: 8px; }
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   font-size: 12px;
   color: var(--muted);
   background: var(--panel-2);
   border: 1px solid var(--border);
   border-radius: 20px;
   padding: 3px 12px;
+  cursor: default;
+  white-space: nowrap;
 }
+.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.dot-ok { background: var(--green); box-shadow: 0 0 6px rgba(76, 175, 125, 0.7); }
+.dot-outdated { background: #f2a13b; box-shadow: 0 0 6px rgba(242, 161, 59, 0.75); }
+.dot-unknown { background: var(--muted); }
 
 main {
   display: grid;
@@ -440,6 +465,38 @@ button.danger-outline:hover { background: rgba(224, 95, 95, 0.12); }
 @keyframes pulse-legendary {
   0%, 100% { box-shadow: 0 0 5px 1px rgba(255, 128, 0, 0.4); }
   50% { box-shadow: 0 0 14px 3px rgba(255, 128, 0, 0.75); }
+}
+
+/* --- history page --- */
+#history-list { display: flex; flex-direction: column; gap: 10px; }
+#history-list .empty { color: var(--muted); font-size: 13px; }
+.history-entry {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  padding: 10px 14px;
+  cursor: pointer;
+}
+.history-entry:hover { border-color: var(--accent-dim); }
+.history-entry.active { border-color: var(--accent); }
+.he-top { display: flex; align-items: center; gap: 10px; }
+.he-dps { font-size: 18px; font-weight: 700; color: var(--text); }
+.he-unit { font-size: 12px; font-weight: 500; color: var(--muted); }
+.he-when { margin-left: auto; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.he-delete { padding: 1px 8px; font-size: 11px; color: var(--muted); }
+.he-delete:hover { color: var(--red); border-color: var(--red); }
+.he-sub { margin: 2px 0 0; }
+.he-best { font-size: 13px; margin-top: 2px; }
+
+/* --- saved-sim banner in the results panel --- */
+.history-banner {
+  background: rgba(242, 177, 53, 0.08);
+  border: 1px solid var(--accent-dim);
+  color: var(--accent);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  margin: 0 0 14px;
 }
 
 /* --- results side --- */

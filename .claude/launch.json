@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["start"],
       "port": 4747
+    },
+    {
+      "name": "localbots-test",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["PORT=4748", "node", "server/index.js"],
+      "port": 4748
     }
   ]
 }

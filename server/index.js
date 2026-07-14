@@ -11,6 +11,8 @@ import { loadLootDb, buildLootDb, downloadTables, cacheStatus, loadItemSetMap, l
 import { buildSourceTree, buildDroptimizerInput, seasonConfig as fullSeasonConfig } from './droptimizer.js';
 import { probeKnownItems, loadProbeCache } from './simcProbe.js';
 import { CLASS_IDS } from './lootFilter.js';
+import { saveHistoryEntry, listHistory, getHistoryEntry, deleteHistoryEntry } from './history.js';
+import { updateStatus } from './status.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT) || 4747;
@@ -33,6 +35,38 @@ app.use(express.static(join(ROOT, 'public')));
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, simcPath, simcVersion: version });
+});
+
+// Header status bar: is the repo behind GitHub / is simc behind the live game?
+app.get('/api/status', async (req, res) => {
+  res.json(await updateStatus(version));
+});
+
+// ---------- sim history ----------
+// Finished sims are written to data/history/ so the History page can
+// show them again after the run (and across server restarts).
+function persistWhenDone(job, mode, options) {
+  const onUpdate = (j) => {
+    if (j.status === 'done') {
+      try { saveHistoryEntry(j, mode, options); } catch (e) { console.error('could not save sim history:', e.message); }
+    }
+    if (j.status === 'done' || j.status === 'failed' || j.status === 'cancelled') {
+      queue.off(`update:${job.id}`, onUpdate);
+    }
+  };
+  queue.on(`update:${job.id}`, onUpdate);
+}
+
+app.get('/api/history', (req, res) => res.json({ entries: listHistory() }));
+
+app.get('/api/history/:id', (req, res) => {
+  const entry = getHistoryEntry(req.params.id);
+  if (!entry) return res.status(404).json({ error: 'unknown history entry' });
+  res.json(entry);
+});
+
+app.delete('/api/history/:id', (req, res) => {
+  res.json({ deleted: deleteHistoryEntry(req.params.id) });
 });
 
 const seasonConfig = JSON.parse(readFileSync(join(ROOT, 'data', 'season.json'), 'utf8'));
@@ -268,6 +302,7 @@ app.post('/api/sim', async (req, res) => {
       }
     }
     const job = queue.submit(input, { spec, sets });
+    persistWhenDone(job, 'topgear', options ?? {});
     return res.json({ jobId: job.id, skippedBySets: skippedBySets ?? 0 });
   }
 
@@ -283,11 +318,13 @@ app.post('/api/sim', async (req, res) => {
       return res.status(400).json({ error: 'Nothing to sim — enable at least one source with usable items.' });
     }
     const job = queue.submit(input, { spec, sets });
+    persistWhenDone(job, 'droptimizer', options ?? {});
     return res.json({ jobId: job.id, profilesetCount, skippedUnknown });
   }
 
   const input = buildInput(profile, options ?? {});
   const job = queue.submit(input, { spec });
+  persistWhenDone(job, 'quick', options ?? {});
   res.json({ jobId: job.id });
 });
 

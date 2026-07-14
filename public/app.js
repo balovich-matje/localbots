@@ -146,10 +146,150 @@ function upgradeOptionsFor(item) {
 }
 
 // ---------- boot ----------
-fetch('/api/health')
-  .then((r) => r.json())
-  .then((h) => { $('simc-version').textContent = h.simcVersion ?? 'simc found'; })
-  .catch(() => { $('simc-version').textContent = 'server unreachable'; });
+// Header status bar: is this Localbots checkout behind GitHub, and is the
+// local simc build behind the live game version?
+fetch('/api/status')
+  .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+  .then(renderStatus)
+  .catch(() => {
+    setChip('status-app', 'unknown', 'Localbots — can’t check',
+      'Could not run the update check. If you just updated Localbots, restart the server.');
+    setChip('status-simc', 'unknown', 'simc — can’t check',
+      'Could not run the update check. If you just updated Localbots, restart the server.');
+  });
+
+function setChip(id, state, text, tooltip) {
+  const chip = $(id);
+  chip.querySelector('.dot').className = `dot dot-${state}`;
+  chip.querySelector('.chip-text').textContent = text;
+  chip.title = tooltip;
+}
+
+function renderStatus(s) {
+  const app = s.app ?? {};
+  if (app.state === 'ok') {
+    setChip('status-app', 'ok', 'Localbots up to date',
+      `You are on the latest version (${app.local}).`);
+  } else if (app.state === 'outdated') {
+    setChip('status-app', 'outdated', 'Localbots update available',
+      'A newer version is on GitHub. To update: open a terminal in the localbots folder, ' +
+      'run "git pull", then restart the server.');
+  } else {
+    setChip('status-app', 'unknown', 'Localbots — can’t check',
+      `Could not reach GitHub to compare versions (${app.reason ?? 'no network?'}).`);
+  }
+  const simc = s.simc ?? {};
+  if (simc.state === 'ok') {
+    setChip('status-simc', 'ok', 'simc up to date',
+      `${s.simcVersion ?? 'simc'} — matches the live game (${simc.liveGame}).`);
+  } else if (simc.state === 'outdated') {
+    setChip('status-simc', 'outdated', 'simc outdated',
+      `The game updated to ${simc.liveGame}, but your simc is built for ${simc.simcGame}. ` +
+      'Rebuild/redownload simc (see the README) to sim the latest patch.');
+  } else {
+    setChip('status-simc', 'unknown', 'simc — can’t check',
+      `${s.simcVersion ?? 'simc'} — could not fetch the live game version (${simc.reason ?? 'no network?'}).`);
+  }
+}
+
+// ---------- pages (New sim / History) ----------
+document.querySelectorAll('.page-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.page-btn').forEach((b) => b.classList.toggle('active', b === btn));
+    const page = btn.dataset.page;
+    document.querySelector('.input-panel').classList.toggle('hidden', page !== 'sim');
+    $('history-panel').classList.toggle('hidden', page !== 'history');
+    if (page === 'history') loadHistory();
+  });
+});
+
+async function loadHistory() {
+  $('history-list').innerHTML = '<p class="empty">Loading…</p>';
+  let body;
+  try {
+    const resp = await fetch('/api/history');
+    if (!resp.ok) throw new Error();
+    body = await resp.json();
+  } catch {
+    $('history-list').innerHTML =
+      '<p class="empty">Could not load the history — if you just updated Localbots, restart the server.</p>';
+    return;
+  }
+  const entries = body.entries ?? [];
+  if (!entries.length) {
+    $('history-list').innerHTML =
+      '<p class="empty">No saved sims yet — every sim that finishes lands here automatically.</p>';
+    return;
+  }
+  $('history-list').innerHTML = entries.map(historyRow).join('');
+}
+
+function historyRow(e) {
+  const when = new Date(e.savedAt).toLocaleString([], {
+    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+  const headline = e.dps != null
+    ? `${Math.round(e.dps).toLocaleString()} <span class="he-unit">${e.mode === 'quick' ? 'DPS' : 'baseline DPS'}</span>`
+    : '?';
+  const settings = [
+    e.player ? `${e.player.name} · ${prettySpec(e.player.spec)}` : null,
+    e.fightStyle,
+    e.targets ? `${e.targets} target${e.targets > 1 ? 's' : ''}` : null,
+    e.fightLength ? `${Math.round(e.fightLength)}s` : null,
+    e.compared ? `${e.compared} item${e.compared === 1 ? '' : 's'} compared` : null,
+  ].filter(Boolean).join(' · ');
+  const best = e.best && e.compared
+    ? `<div class="he-best ${e.best.delta > 0 ? 'delta-pos' : 'delta-zero'}">best: ${e.best.delta > 0 ? '+' : ''}${Math.round(e.best.delta).toLocaleString()} DPS — ${esc(e.best.name ?? '?')}</div>`
+    : '';
+  return `<div class="history-entry" data-hist="${esc(e.id)}">
+    <div class="he-top">
+      <span class="he-dps">${headline}</span>
+      <span class="source-tag">${esc(e.modeLabel ?? e.mode)}</span>
+      <span class="he-when">${esc(when)}</span>
+      <button class="mini he-delete" data-histdel="${esc(e.id)}" title="Delete this saved sim">✕</button>
+    </div>
+    <div class="he-sub hint">${esc(settings)}</div>
+    ${best}
+  </div>`;
+}
+
+function prettySpec(spec) {
+  return String(spec ?? '').replace(/_/g, ' ');
+}
+
+$('history-list').addEventListener('click', async (ev) => {
+  const del = ev.target.closest('[data-histdel]');
+  if (del) {
+    ev.stopPropagation();
+    await fetch(`/api/history/${del.dataset.histdel}`, { method: 'DELETE' }).catch(() => {});
+    loadHistory();
+    return;
+  }
+  const row = ev.target.closest('[data-hist]');
+  if (row) viewHistoryEntry(row.dataset.hist);
+});
+
+async function viewHistoryEntry(id) {
+  let entry;
+  try {
+    const resp = await fetch(`/api/history/${id}`);
+    if (!resp.ok) throw new Error();
+    entry = await resp.json();
+  } catch {
+    return;
+  }
+  document.querySelectorAll('.history-entry').forEach((el) =>
+    el.classList.toggle('active', el.dataset.hist === id));
+  $('empty-state').classList.add('hidden');
+  $('progress-area').classList.add('hidden');
+  $('results-area').classList.add('hidden');
+  $('topgear-area').classList.add('hidden');
+  if (entry.result.topgear) renderTopGear(entry.result);
+  else renderResult(entry.result);
+  const banner = $('history-banner');
+  banner.textContent = `Saved ${entry.modeLabel ?? 'sim'} from ${new Date(entry.savedAt).toLocaleString()}`;
+  banner.classList.remove('hidden');
+}
 
 // restore last session
 const saved = JSON.parse(localStorage.getItem('localbots') ?? '{}');
@@ -726,6 +866,7 @@ async function startSim() {
 
   currentJobId = body.jobId;
   $('cancel-button').classList.remove('hidden');
+  $('history-banner').classList.add('hidden');
   $('empty-state').classList.add('hidden');
   $('results-area').classList.add('hidden');
   $('topgear-area').classList.add('hidden');
@@ -763,6 +904,7 @@ function handleUpdate(u) {
     }
   } else if (u.status === 'done') {
     finishStream();
+    $('history-banner').classList.add('hidden');
     if (u.result?.topgear) renderTopGear(u.result);
     else renderResult(u.result);
   } else if (u.status === 'failed') {

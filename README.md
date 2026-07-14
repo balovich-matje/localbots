@@ -82,6 +82,16 @@ npm start
 Open **http://localhost:4747**, paste your `/simc` export, hit **Sim it**.
 To stop the server, use the **Shut down server** button at the bottom of the page.
 
+**Sim history:** every sim that finishes is saved on your machine (in `data/history/`,
+never uploaded anywhere). The **History** button in the header lists them all — click
+one to bring its full results back, ✕ deletes it.
+
+**Update lights:** the two dots in the header tell you whether your Localbots copy is
+behind GitHub (fix: `git pull` in the localbots folder, then restart the server) and
+whether your simc build still matches the live game version (fix: rebuild simc after a
+game patch — see the install section). Green = up to date, orange = update needed,
+gray = couldn't check (usually no internet). Hover a light for details.
+
 **macOS tip:** drop a double-clickable launcher in the repo folder (it's gitignored):
 
 ```bash

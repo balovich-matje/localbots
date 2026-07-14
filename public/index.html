@@ -11,7 +11,14 @@
   <header>
     <h1>Localbots</h1>
     <span class="tagline">your hardware, your sims</span>
-    <span id="simc-version" class="version-pill">checking simc…</span>
+    <nav class="page-nav">
+      <button class="page-btn active" data-page="sim">New sim</button>
+      <button class="page-btn" data-page="history">History</button>
+    </nav>
+    <span id="status-bar">
+      <span class="status-chip" id="status-app"><span class="dot dot-unknown"></span><span class="chip-text">Localbots</span></span>
+      <span class="status-chip" id="status-simc"><span class="dot dot-unknown"></span><span class="chip-text">simc</span></span>
+    </span>
   </header>
 
   <main>
@@ -169,7 +176,15 @@
       <p id="error-box" class="error hidden"></p>
     </section>
 
+    <section class="panel history-panel hidden" id="history-panel">
+      <h2>Sim history</h2>
+      <p class="hint">Every finished sim is saved here automatically. Click one to view its
+        results again on the right.</p>
+      <div id="history-list"></div>
+    </section>
+
     <section class="panel results-panel">
+      <p id="history-banner" class="history-banner hidden"></p>
       <div id="progress-area" class="hidden">
         <h2 id="progress-phase">Simulating…</h2>
         <div class="progress-track"><div id="progress-bar"></div></div>
