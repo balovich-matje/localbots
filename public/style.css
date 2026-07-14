@@ -145,6 +145,14 @@ textarea:focus, input:focus, select:focus {
   font-size: 14px;
 }
 
+/* stand-in for the Enemies input when the fight style fixes the target count */
+.fixed-note {
+  color: var(--muted);
+  font-size: 13px;
+  font-style: italic;
+  padding: 7px 0;
+}
+
 .checkbox-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

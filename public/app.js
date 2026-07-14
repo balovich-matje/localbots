@@ -295,14 +295,23 @@ async function viewHistoryEntry(id) {
 const saved = JSON.parse(localStorage.getItem('localbots') ?? '{}');
 if (saved.profile) $('profile').value = saved.profile;
 if (saved.options) restoreOptions(saved.options);
+applyEnemiesVisibility();
 
 $('precision').addEventListener('change', () => {
   $('iterations-label').classList.toggle('hidden', $('precision').value !== 'iterations');
 });
+// The target count only means something for Patchwerk / Training Dummy (N
+// stationary targets). DungeonSlice runs a fixed scripted route and
+// HecticAddCleave is 1 boss + scripted add waves — simc sets their targets
+// itself, so we hide the field there (matching Raidbots).
+function applyEnemiesVisibility() {
+  const editable = $('fight-style').value === 'Patchwerk' || $('fight-style').value === 'Dummy';
+  $('num-enemies').classList.toggle('hidden', !editable);
+  $('enemies-fixed').classList.toggle('hidden', editable);
+}
 $('fight-style').addEventListener('change', () => {
   const style = $('fight-style').value;
-  const fixedTargets = style === 'Patchwerk' || style === 'Dummy';
-  $('num-enemies').disabled = !fixedTargets;
+  applyEnemiesVisibility();
   // Defaults that match Raidbots: 5 min Patchwerk, 6 min DungeonSlice, long dummy parse
   $('fight-length').value = style === 'Dummy' ? 600 : style === 'DungeonSlice' ? 360 : 300;
 });

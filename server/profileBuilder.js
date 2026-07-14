@@ -10,6 +10,11 @@ const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
 const CONSUMABLE_DEFAULTS = JSON.parse(readFileSync(join(DATA_DIR, 'consumables.json'), 'utf8'));
 
 const FIGHT_STYLES = new Set(['Patchwerk', 'DungeonSlice', 'HecticAddCleave']);
+// Scripted styles set their own targets (DungeonSlice forces 1 + a fixed route;
+// HecticAddCleave is 1 boss + timed add waves). A user target count is ignored
+// at best and, for HecticAddCleave, wrongly stacks extra permanent bosses — so
+// force desired_targets=1 and let the fight style's raid events do the rest.
+const SCRIPTED_STYLES = new Set(['DungeonSlice', 'HecticAddCleave']);
 
 // Raid-buff override names accepted by simc (validated against the midnight branch).
 // These are the user-facing toggles; optimal_raid=1 additionally enables
@@ -270,7 +275,7 @@ export function normalizeOptions(options) {
   return {
     fightStyle,
     dummyMode,
-    numEnemies: clamp(options.numEnemies, 1, 10, 1),
+    numEnemies: SCRIPTED_STYLES.has(fightStyle) ? 1 : clamp(options.numEnemies, 1, 10, 1),
     fightLength: clamp(options.fightLength, 30, 1200, dummyMode ? 600 : 300),
     iterations: options.iterations ? clamp(options.iterations, 100, 100000, null) : null,
     targetError: clamp(options.targetError, 0.05, 2, 0.2),
