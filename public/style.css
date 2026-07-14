@@ -393,6 +393,8 @@ button.danger-outline {
   border: 1px solid var(--red);
 }
 button.danger-outline:hover { background: rgba(224, 95, 95, 0.12); }
+.footer-link { color: var(--muted); text-decoration: none; border-bottom: 1px dotted var(--muted); }
+.footer-link:hover { color: var(--accent); border-bottom-color: var(--accent); }
 
 /* --- slot group headers in results --- */
 .slot-group-row td {
