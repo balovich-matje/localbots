@@ -202,6 +202,9 @@ export class SimQueue extends EventEmitter {
         // Self-heal: if one profileset failed to initialize (e.g. an item simc
         // rejects), drop it from the input and rerun instead of losing the run.
         const bad = job.meta?.sets && job.error.match(/Profileset '([^']+)'/)?.[1];
+        // A baseline (equipped-gear) item simc can't load can't be dropped like a
+        // profileset — turn the cryptic message into something actionable.
+        if (!bad) job.error = humanizeInitError(job.error, job.meta?.gearBySlot);
         if (bad && (job.retries = (job.retries ?? 0) + 1) <= 5) {
           const inputPath = join(job.dir, 'input.simc');
           const kept = readFileSync(inputPath, 'utf8')
@@ -259,6 +262,25 @@ export function extractTopGear(json, sets, baselineDps) {
       deltaPct: baselineDps > 0 ? ((row.dps - baselineDps) / baselineDps) * 100 : 0,
     }))
     .sort((a, b) => b.delta - a.delta);
+}
+
+// simc reports an item it can't load as "Item 'inactive' Slot 'finger1':
+// Cannot initialize data." — cryptic, and fatal for the baseline character.
+// This almost always means the item is newer than the local simc build.
+// Rewrite it to name the actual item and point at the fix.
+function humanizeInitError(error, gearBySlot) {
+  const m = error?.match(/Slot '([^']+)':\s*Cannot initialize data/i);
+  if (!m) return error;
+  const slot = m[1];
+  const info = gearBySlot?.[slot];
+  const pretty = slot.replace(/(finger|trinket)(\d)/, '$1 $2').replace(/_/g, ' ');
+  const which = info?.name
+    ? `your equipped "${info.name}"${info.id ? ` (item ${info.id})` : ''} in the ${pretty} slot`
+    : `your equipped ${pretty} item${info?.id ? ` (item ${info.id})` : ''}`;
+  return `SimulationCraft couldn't load ${which}. This almost always means the item ` +
+    `is from a game patch newer than your simc build. Check the "Simc" light in the ` +
+    `header — if it's orange, update simc (git pull + rebuild, see the README) and try ` +
+    `again. Until simc catches up with the patch, this item can't be simmed.`;
 }
 
 function pickErrorFromLog(logTail) {

@@ -6,7 +6,8 @@
 //      # Item Name (289)
 //      # head=,id=250060,bonus_id=12806/13335
 //
-// Returns { equipped: {slot: line}, items: [{name, ilvl, slot, line, section}] }.
+// Returns { equipped: {slot: line}, equippedNames: {slot: name},
+//           items: [{name, ilvl, slot, line, section}] }.
 
 export const GEAR_SLOTS = [
   'head', 'neck', 'shoulder', 'back', 'chest', 'wrist', 'hands', 'waist',
@@ -19,6 +20,7 @@ const NAME_LINE = /^(.*?)\s*\((\d+)\)\s*$/;
 
 export function parseGear(profileText) {
   const equipped = {};
+  const equippedNames = {};
   const items = [];
   let section = null;
   let pendingName = null;
@@ -61,10 +63,15 @@ export function parseGear(profileText) {
     }
 
     const eq = line.match(SLOT_LINE);
-    if (eq) equipped[eq[1]] = line;
+    if (eq) {
+      equipped[eq[1]] = line;
+      // the item's display name is the comment line just above it, if any
+      if (pendingName?.name) equippedNames[eq[1]] = pendingName.name;
+      pendingName = null;
+    }
   }
 
-  return { equipped, items };
+  return { equipped, equippedNames, items };
 }
 
 function prettyNameFromLine(rest) {

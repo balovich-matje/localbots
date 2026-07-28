@@ -183,6 +183,20 @@ function equippedIdsFrom(equipped) {
   return ids;
 }
 
+// slot -> { id, name } for the equipped gear, so a simc "cannot initialize this
+// item" failure can be turned into a message that names the actual item.
+function gearBySlotFrom(profile) {
+  const { equipped, equippedNames } = parseGear(profile);
+  const out = {};
+  for (const [slot, line] of Object.entries(equipped)) {
+    out[slot] = {
+      id: Number(line.match(/(?:^|,)id=(\d+)/)?.[1]) || null,
+      name: equippedNames?.[slot] ?? null,
+    };
+  }
+  return out;
+}
+
 // Item sets present in the character's equipped + bagged gear.
 function detectItemSets(equipped, bagItems) {
   if (!itemSetMap) return [];
@@ -301,7 +315,7 @@ app.post('/api/sim', async (req, res) => {
         return res.status(500).json({ error: `Could not resolve equipped item levels: ${e.message}` });
       }
     }
-    const job = queue.submit(input, { spec, sets });
+    const job = queue.submit(input, { spec, sets, gearBySlot: gearBySlotFrom(profile) });
     persistWhenDone(job, 'topgear', options ?? {});
     return res.json({ jobId: job.id, skippedBySets: skippedBySets ?? 0 });
   }
@@ -317,13 +331,13 @@ app.post('/api/sim', async (req, res) => {
     if (!profilesetCount) {
       return res.status(400).json({ error: 'Nothing to sim — enable at least one source with usable items.' });
     }
-    const job = queue.submit(input, { spec, sets });
+    const job = queue.submit(input, { spec, sets, gearBySlot: gearBySlotFrom(profile) });
     persistWhenDone(job, 'droptimizer', options ?? {});
     return res.json({ jobId: job.id, profilesetCount, skippedUnknown });
   }
 
   const input = buildInput(profile, options ?? {});
-  const job = queue.submit(input, { spec });
+  const job = queue.submit(input, { spec, gearBySlot: gearBySlotFrom(profile) });
   persistWhenDone(job, 'quick', options ?? {});
   res.json({ jobId: job.id });
 });
