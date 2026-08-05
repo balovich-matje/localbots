@@ -89,14 +89,17 @@ export function specKeyFor(spec) {
 }
 
 // Returns null if unusable, otherwise the list of simc slots to try.
-export function usableSlots(item, classId, specKey) {
+// offspec=true relaxes the primary-stat gate (Raidbots' "Include Off-Spec
+// Items") — armor type and weapon proficiency stay enforced, since simc
+// hard-rejects some of those ("Invalid type") and they'd poison the run.
+export function usableSlots(item, classId, specKey, offspec = false) {
   if (item.quality < 3 && !item.curated) return null;
   if (item.allowableClass !== -1 && !(item.allowableClass & (1 << (classId - 1)))) return null;
 
   const primary = SPEC_PRIMARY[specKey];
   const primaries = new Set(item.stats.flatMap((s) => STAT_GRANTS[s] ?? []));
   // items with a primary stat must include ours; secondary-only items pass
-  if (primaries.size > 0 && primary && !primaries.has(primary)) return null;
+  if (!offspec && primaries.size > 0 && primary && !primaries.has(primary)) return null;
 
   let slots = INV_SLOTS[item.invType];
   if (!slots) return null;

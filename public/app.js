@@ -722,9 +722,17 @@ function renderDroptSources(tree, season, craftedCfg) {
         ${CRAFT_PAIRS.map(([pair, label]) => `
           <label><input type="checkbox" data-pair="${pair}" checked> ${label}</label>`).join('')}
       </div>
+      <div class="dropt-row">
+        <label title="Crafted weapons and trinkets at max craft can take an Ascendant Voidcore">
+          <input type="checkbox" id="dropt-crafted-voidcore">
+          Apply Voidcores <span class="hint-inline">weapons &amp; trinkets → ${craftedCfg?.voidcoreIlvl ?? 295}</span></label>
+        <label title="A few crafted designs carry a built-in embellishment effect — simc simulates it">
+          <input type="checkbox" id="dropt-crafted-emb" checked>
+          Include embellished crafts</label>
+      </div>
       <p class="hint">Every craftable slot is simmed at max quality with each ticked stat
-        combo (same-slot crafts share stats, so one item stands in per slot). For a
-        Voidcore'd crafted weapon or trinket, set the ilvl box to 295.</p>
+        combo (same-slot crafts share stats, so one item stands in per slot). Embellishments
+        added via optional reagents aren't simulated yet — only built-in ones.</p>
     </div>`);
   }
 
@@ -798,8 +806,11 @@ function collectDroptSelection() {
       enabled: true,
       ilvl: Number($('dropt-crafted-ilvl')?.value) || undefined,
       statPairs: [...document.querySelectorAll('#crafted-pairs input:checked')].map((cb) => cb.dataset.pair),
+      voidcores: !!$('dropt-crafted-voidcore')?.checked,
+      embellishments: !!$('dropt-crafted-emb')?.checked,
     };
   }
+  selection.offspec = !!$('dropt-offspec')?.checked;
   selection.upgradeTo = Number($('dropt-upgrade')?.value) || 0;
   selection.voidcores = !!($('dropt-voidcore')?.checked && !$('dropt-voidcore')?.disabled);
   return selection;

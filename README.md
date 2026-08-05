@@ -180,7 +180,13 @@ Paste your export, open the **Droptimizer** tab, pick your sources, hit
 - **Crafted gear** — every profession craft your class can wear, simmed at max quality
   with the stat combinations you tick (crafted gear lets you pick two secondary stats).
   Same-slot crafts share stats, so one item stands in per slot. Off by default — tick
-  the group to include it.
+  the group to include it. Options: **Apply Voidcores** (crafted weapons/trinkets sim
+  at the Voidcore level) and **Include embellished crafts** (designs with a built-in
+  effect, which simc simulates; embellishments added via optional reagents aren't
+  modeled yet).
+- **Include off-spec items** — also sims items whose primary stat isn't yours
+  (armor type and weapon proficiency stay enforced). Weapons your spec *can* use are
+  always included — e.g. Outlaw off-hand daggers sim out of the box.
 - **Upgrade items to X/6** — sim every item upgraded within its own track, like
   Raidbots' "Upgrade up to": a Mythic raid drop at Myth 6/6, a delve Hero drop at
   Hero 6/6, and so on. Upgraded items show as "272 → 289" in the results.

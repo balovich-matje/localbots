@@ -155,7 +155,10 @@ app.post('/api/droptimizer/sources', (req, res) => {
     spec,
     tree,
     season: seasonConfig.droptimizer,
-    crafted: seasonConfig.crafted ?? null,
+    crafted: {
+      ...(seasonConfig.crafted ?? {}),
+      voidcoreIlvl: seasonConfig.voidcore?.craftedIlvl ?? null,
+    },
     status: dataStatus(),
   });
 });

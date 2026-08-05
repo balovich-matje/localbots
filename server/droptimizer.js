@@ -116,6 +116,7 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
     : Number.isInteger(rawUpgrade) && rawUpgrade >= 1 && rawUpgrade <= 5 ? rawUpgrade : null;
   const voidcoreSlots = new Set(fullSeason.voidcore?.slots ?? []);
   const voidcoreIlvl = { Myth: fullSeason.voidcore?.mythIlvl, Hero: fullSeason.voidcore?.heroIlvl };
+  const offspec = selection.offspec === true;
   let skippedUnknown = 0;
 
   const base = buildInput(profileText, options);
@@ -126,7 +127,7 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
 
   const addItem = (item, baseIlvl, track, labels) => {
     if (knownItems && !knownItems.has(item.id)) { skippedUnknown++; return; }
-    const slots = usableSlots(item, classId, specKey);
+    const slots = usableSlots(item, classId, specKey, offspec);
     if (!slots || !baseIlvl) return;
     let ilvl = upgradedIlvl(baseIlvl, track, upgradeTo, tracks);
     // Voidcores apply only to fully upgraded Hero/Myth-track weapons and trinkets
@@ -153,19 +154,23 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
   // Crafted gear: the player picks the two secondary stats, so the item line
   // carries crafted_stats=A/B + crafting_quality (always max) instead of a
   // dropped item's plain ilevel-only payload.
-  const addCrafted = (item, ilvl, pair) => {
+  const addCrafted = (item, baseIlvl, pair, craftedVoidcoreIlvl) => {
     if (knownItems && !knownItems.has(item.id)) { skippedUnknown++; return; }
-    const slots = usableSlots(item, classId, specKey);
-    if (!slots || !ilvl) return;
+    const slots = usableSlots(item, classId, specKey, offspec);
+    if (!slots || !baseIlvl) return;
+    // crafted Voidcores: weapons/trinkets at max craft can go higher
+    const ilvl = craftedVoidcoreIlvl && slots.some((s) => voidcoreSlots.has(s))
+      ? craftedVoidcoreIlvl : baseIlvl;
     const [a, b] = pair.split('/').map(Number);
     const pairLabel = `${CRAFT_STAT_LABELS[a] ?? a} / ${CRAFT_STAT_LABELS[b] ?? b}`;
+    const embTag = item.embellished ? ' — embellished' : '';
     group++;
     for (const placement of slots) {
       const name = `${String(item.name).replace(/["\r\n$\\]/g, "'").slice(0, 46)} ${pairLabel} [${++counter}]`;
       lines.push(`profileset."${name}"=${placement}=,id=${item.id},ilevel=${ilvl},crafted_stats=${pair},crafting_quality=5`);
       sets[name] = {
         group,
-        itemName: `${item.name} (${pairLabel})`,
+        itemName: `${item.name}${embTag} (${pairLabel})`,
         itemId: item.id,
         ilvl,
         origIlvl: ilvl,
@@ -241,16 +246,21 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
         .map(String).filter((p) => /^\d+\/\d+$/.test(p));
       if (!pairs.length) continue;
       const ilvl = Number(c.ilvl) || fullSeason.crafted?.maxIlvl || 285;
+      const craftedVoidcoreIlvl = c.voidcores === true
+        ? (fullSeason.voidcore?.craftedIlvl ?? null) : null;
       // Same-slot crafts are stat-identical (every plate helm sims the same),
       // so keep one usable representative per (class, subclass, inventory
       // type) — highest quality wins, so the epic craft names the row rather
       // than a rare or PvP twin that would fail the usability gate anyway.
+      // Embellished designs carry their own effect, so they never collapse
+      // into a plain twin (and can be excluded outright).
       const best = new Map();
       for (const boss of source.bosses) {
         for (const item of dedupe(boss.items)) {
+          if (item.embellished && c.embellishments === false) continue;
           if (knownItems && !knownItems.has(item.id)) { skippedUnknown++; continue; }
-          if (!usableSlots(item, classId, specKey)) continue;
-          const key = `${item.classId}:${item.subclassId}:${item.invType}`;
+          if (!usableSlots(item, classId, specKey, offspec)) continue;
+          const key = `${item.classId}:${item.subclassId}:${item.invType}:${item.embellished ? 1 : 0}`;
           const prev = best.get(key);
           if (!prev || item.quality > prev.quality
               || (item.quality === prev.quality && item.id > prev.id)) {
@@ -259,7 +269,7 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
         }
       }
       for (const item of best.values()) {
-        for (const pair of pairs) addCrafted(item, ilvl, pair);
+        for (const pair of pairs) addCrafted(item, ilvl, pair, craftedVoidcoreIlvl);
       }
     }
   }

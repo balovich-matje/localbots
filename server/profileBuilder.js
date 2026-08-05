@@ -80,14 +80,6 @@ export function buildInput(profileText, options = {}) {
   lines.push(`max_time=${opts.fightLength}`);
   lines.push(`desired_targets=${opts.numEnemies}`);
   lines.push('vary_combat_length=0.2');
-  if (opts.dummyMode) {
-    // In-game training dummies never lose health, so there is no sub-35%
-    // execute phase. Pin every target at 100% via an explicit named enemy
-    // (the pin only propagates to the extra targets when the base enemy is
-    // named). This reproduces Raidbots' "Target Dummy" fight style exactly.
-    lines.push('enemy="Target Dummy"');
-    lines.push('enemy_fixed_health_percentage=100');
-  }
 
   if (opts.iterations) {
     lines.push(`iterations=${opts.iterations}`);
@@ -123,6 +115,19 @@ export function buildInput(profileText, options = {}) {
     } else {
       lines.push(`${key}=disabled`);
     }
+  }
+
+  if (opts.dummyMode) {
+    // In-game training dummies never lose health, so there is no sub-35%
+    // execute phase. Pin every target at 100% via an explicit named enemy
+    // (the pin only propagates to the extra targets when the base enemy is
+    // named). This reproduces Raidbots' "Target Dummy" fight style exactly.
+    // MUST come after the character: simc's profileset engine attaches
+    // overrides to the FIRST-defined actor, so an enemy defined before the
+    // player would receive every Top Gear / Droptimizer item line
+    // ("Enemy 'Target Dummy' ... Invalid type").
+    lines.push('enemy="Target Dummy"');
+    lines.push('enemy_fixed_health_percentage=100');
   }
 
   return lines.join('\n') + '\n';

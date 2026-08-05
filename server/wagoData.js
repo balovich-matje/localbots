@@ -17,7 +17,9 @@ const LOOT_DB = join(CACHE_DIR, 'lootdb.json');
 
 const CURRENT_SEASON_TIER = 505; // JournalTier "Current Season" — stable across seasons
 const CRAFT_EXPANSION = 11; // ItemSparse.ExpansionID for Midnight — bump each expansion
-const LOOT_DB_VERSION = 2; // bump to force a rebuild when the db shape changes
+const LOOT_DB_VERSION = 3; // bump to force a rebuild when the db shape changes
+// ItemLimitCategory ids marking inherently-embellished crafted designs
+const EMBELLISHED_LIMIT_CATEGORIES = new Set([512, 697]);
 
 // table -> columns we keep (null = all)
 const TABLES = {
@@ -32,6 +34,7 @@ const TABLES = {
   Item: ['ID', 'ClassID', 'SubclassID', 'InventoryType', 'IconFileDataID'],
   ItemSparse: [
     'ID', 'Display_lang', 'ItemLevel', 'AllowableClass', 'InventoryType', 'OverallQualityID', 'ExpansionID',
+    'LimitCategory',
     'StatModifier_bonusStat_0', 'StatModifier_bonusStat_1', 'StatModifier_bonusStat_2',
     'StatModifier_bonusStat_3', 'StatModifier_bonusStat_4', 'StatModifier_bonusStat_5',
   ],
@@ -345,6 +348,8 @@ function shapeItem(itemId, sparse, itemMeta) {
     subclassId: Number(m.SubclassID),
     stats,
     icon: Number(m.IconFileDataID) || null,
+    // inherently-embellished crafted designs (effect baked into the item)
+    ...(EMBELLISHED_LIMIT_CATEGORIES.has(Number(s.LimitCategory)) ? { embellished: true } : {}),
   };
 }
 
