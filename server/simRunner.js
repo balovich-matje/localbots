@@ -201,7 +201,12 @@ export class SimQueue extends EventEmitter {
         job.error = pickErrorFromLog(job.logTail) ?? `simc exited with code ${code}`;
         // Self-heal: if one profileset failed to initialize (e.g. an item simc
         // rejects), drop it from the input and rerun instead of losing the run.
-        const bad = job.meta?.sets && job.error.match(/Profileset '([^']+)'/)?.[1];
+        // Match the failing profileset by looking the full known names up in
+        // the error text (longest first) — a regex capture would truncate at
+        // the first quote for names that themselves contain one.
+        const bad = job.meta?.sets && Object.keys(job.meta.sets)
+          .sort((a, b) => b.length - a.length)
+          .find((n) => job.error.includes(`Profileset '${n}'`));
         // A baseline (equipped-gear) item simc can't load can't be dropped like a
         // profileset — turn the cryptic message into something actionable.
         if (!bad) job.error = humanizeInitError(job.error, job.meta?.gearBySlot);

@@ -30,6 +30,10 @@ Dungeons, Delves, Prey, PvP (Conquest / Bloody Tokens / Honor), Catalyst,
 Epic/Rare/PvP Profession Items, plus "Show Previous Tiers" and per-source
 Voidforged tiers.
 
+Full feasibility research (verified against wago + the local simc build) lives
+in [docs/research/](research/) — every Raidbots feature except armory import is
+achievable under the no-Blizzard-API constraint.
+
 ## Already covered
 
 - ✅ All five season raids with per-difficulty pickers and per-boss item levels
@@ -37,6 +41,17 @@ Voidforged tiers.
 - ✅ Mythic+ (full season pool, key level, end-of-dungeon vs vault)
 - ✅ Delves (Champion/Hero tracks; pool vendor-verified via Zah'ran)
 - ✅ Upgrade-track picker incl. Voidforged (Hero 285 / Myth 298)
+- ✅ Crafted gear (per-slot representatives, user-picked stat pairs, max
+  quality; see research/crafted.md)
+- ✅ Talent loadout comparison in Top Gear (saved loadouts from the export;
+  see research/talents.md)
+
+## Decided against
+
+- PvP gear — the user doesn't PvP; the full recipe is in research/pvp.md if it
+  ever comes back (blocked anyway until simc's live data includes the season's
+  Gladiator set).
+- Armory/account import — needs the Blizzard API; permanently out of scope.
 
 ## Planned sources
 
@@ -76,14 +91,10 @@ instanced-PvP scaling won't be modeled — sims reflect world/PvE value, same
 as Raidbots).
 **Effort:** small–medium.
 
-### 5. Crafted gear (Epic/Rare profession items)
-Crafted items are identifiable in the item tables (and simc's own profiles use
-them). Two complications: crafted stats are player-chosen (crafted_stats
-combos) and embellishments add effects. **Plan:** v1 sims each craftable slot
-at max craft (285) with the spec's default stat pair (reuse the per-spec
-defaults idea from consumables), Voidforged 295 for weapons/trinkets; sim all
-stat combos as variants later; embellishments last.
-**Effort:** the largest of the list.
+### 5. ~~Crafted gear~~ (DONE) — embellishments still open
+Shipped: craftable slots simmed at max quality with user-picked stat pairs.
+Still open: **embellishments** (crafted-gear effects) — needs the
+embellishment→effect mapping and stacking rules; the largest remaining item.
 
 ### 6. Show previous tiers / multi-season
 Turn `data/season.json` into per-season files with a season selector. Only

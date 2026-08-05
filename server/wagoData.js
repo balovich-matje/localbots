@@ -16,6 +16,8 @@ const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
 const LOOT_DB = join(CACHE_DIR, 'lootdb.json');
 
 const CURRENT_SEASON_TIER = 505; // JournalTier "Current Season" — stable across seasons
+const CRAFT_EXPANSION = 11; // ItemSparse.ExpansionID for Midnight — bump each expansion
+const LOOT_DB_VERSION = 2; // bump to force a rebuild when the db shape changes
 
 // table -> columns we keep (null = all)
 const TABLES = {
@@ -29,11 +31,16 @@ const TABLES = {
   ItemSet: null, // small table; need all ItemID_N columns
   Item: ['ID', 'ClassID', 'SubclassID', 'InventoryType', 'IconFileDataID'],
   ItemSparse: [
-    'ID', 'Display_lang', 'ItemLevel', 'AllowableClass', 'InventoryType', 'OverallQualityID',
+    'ID', 'Display_lang', 'ItemLevel', 'AllowableClass', 'InventoryType', 'OverallQualityID', 'ExpansionID',
     'StatModifier_bonusStat_0', 'StatModifier_bonusStat_1', 'StatModifier_bonusStat_2',
     'StatModifier_bonusStat_3', 'StatModifier_bonusStat_4', 'StatModifier_bonusStat_5',
   ],
+  CraftingData: ['ID', 'CraftedItemID'],
 };
+
+// Tables added after the first release: an older cache without them still
+// counts as present (the features they power just stay off until a refresh).
+const OPTIONAL_TABLES = new Set(['CraftingData']);
 
 export async function downloadTables(onProgress = () => {}) {
   mkdirSync(CACHE_DIR, { recursive: true });
@@ -75,8 +82,12 @@ export function loadBonusUpgradeMap() {
 }
 
 export function cacheStatus() {
-  const missing = Object.keys(TABLES).filter((t) => !existsSync(join(CACHE_DIR, `${t}.csv`)));
-  if (missing.length === Object.keys(TABLES).length) return { present: false };
+  const missing = Object.keys(TABLES)
+    .filter((t) => !OPTIONAL_TABLES.has(t))
+    .filter((t) => !existsSync(join(CACHE_DIR, `${t}.csv`)));
+  if (missing.length === Object.keys(TABLES).length - OPTIONAL_TABLES.size) return { present: false };
+  const missingOptional = [...OPTIONAL_TABLES]
+    .filter((t) => !existsSync(join(CACHE_DIR, `${t}.csv`)));
   let oldest = null;
   for (const t of Object.keys(TABLES)) {
     const p = join(CACHE_DIR, `${t}.csv`);
@@ -85,7 +96,15 @@ export function cacheStatus() {
       if (oldest === null || m < oldest) oldest = m;
     }
   }
-  return { present: missing.length === 0, missing, downloadedAt: oldest };
+  return {
+    present: missing.length === 0,
+    // complete = every table incl. optional ones; a silent startup rebuild is
+    // only safe then — otherwise the UI prompts for a refresh instead
+    complete: missing.length === 0 && missingOptional.length === 0,
+    missing,
+    missingOptional,
+    downloadedAt: oldest,
+  };
 }
 
 function loadTable(name) {
@@ -195,12 +214,37 @@ export function buildLootDb(mplusDungeonNames = []) {
     }
   }
 
+  // Profession-crafted gear with selectable secondary stats: the two
+  // placeholder codes 24 & 25 in the stat slots mark the player-choice
+  // slots, and CraftingData.CraftedItemID confirms it's an actual craft.
+  const craftedRecipeIds = new Set();
+  const craftingPath = join(CACHE_DIR, 'CraftingData.csv');
+  if (existsSync(craftingPath)) {
+    for (const r of parseCsv(readFileSync(craftingPath, 'utf8'), TABLES.CraftingData)) {
+      craftedRecipeIds.add(r.CraftedItemID);
+    }
+  }
+  const hasSelectableStats = (r) => {
+    let has24 = false, has25 = false;
+    for (let i = 0; i < 6; i++) {
+      const v = Number(r[`StatModifier_bonusStat_${i}`]);
+      if (v === 24) has24 = true;
+      if (v === 25) has25 = true;
+    }
+    return has24 && has25;
+  };
+
   // Resolve delve names to the best item version (some names have old or
   // low-quality doppelgangers): highest quality wins, then newest id.
   const nameCandidates = new Map();
   const sparse = new Map();
+  const craftedIds = [];
   for (const r of loadTable('ItemSparse')) {
     if (wantedItemIds.has(r.ID)) sparse.set(r.ID, r);
+    if (craftedRecipeIds.has(r.ID) && Number(r.ExpansionID) === CRAFT_EXPANSION && hasSelectableStats(r)) {
+      craftedIds.push(r.ID);
+      sparse.set(r.ID, r);
+    }
     if (delveNames.has(r.Display_lang)) {
       const prev = nameCandidates.get(r.Display_lang);
       const better = !prev
@@ -214,6 +258,7 @@ export function buildLootDb(mplusDungeonNames = []) {
     sparse.set(r.ID, r);
     delveIds.add(r.ID);
   }
+  for (const id of craftedIds) wantedItemIds.add(id);
   const itemMeta = new Map();
   for (const r of loadTable('Item')) if (wantedItemIds.has(r.ID)) itemMeta.set(r.ID, r);
 
@@ -258,7 +303,20 @@ export function buildLootDb(mplusDungeonNames = []) {
     });
   }
 
-  const db = { builtAt: Date.now(), sources };
+  // Craftable gear pool (one source; the stat pair is chosen at sim time)
+  const craftedItems = craftedIds
+    .map((id) => shapeItem(id, sparse, itemMeta))
+    .filter(Boolean);
+  if (craftedItems.length) {
+    sources.push({
+      instanceId: 'crafted',
+      name: 'Crafted gear',
+      kind: 'crafted',
+      bosses: [{ id: 'crafted-pool', name: 'Profession crafts', order: 0, items: craftedItems }],
+    });
+  }
+
+  const db = { builtAt: Date.now(), version: LOOT_DB_VERSION, sources };
   writeFileSync(LOOT_DB, JSON.stringify(db));
   return db;
 }
@@ -314,7 +372,10 @@ export function loadItemSetMap() {
 export function loadLootDb() {
   if (!existsSync(LOOT_DB)) return null;
   try {
-    return JSON.parse(readFileSync(LOOT_DB, 'utf8'));
+    const db = JSON.parse(readFileSync(LOOT_DB, 'utf8'));
+    // an older db shape forces a rebuild from the cached CSVs at startup
+    if (db.version !== LOOT_DB_VERSION) return null;
+    return db;
   } catch {
     return null;
   }

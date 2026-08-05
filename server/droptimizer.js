@@ -30,6 +30,10 @@ function bossBucket(order, bossCount) {
 
 // Which upgrade track a drop belongs to, per source.
 const RAID_DIFF_TRACK = { LFR: 'Veteran', Normal: 'Champion', Heroic: 'Hero', Mythic: 'Myth' };
+
+// simc crafted_stats codes for the four selectable secondaries
+// (verified empirically: 32/36 raise crit+haste, 40/49 raise vers+mastery)
+export const CRAFT_STAT_LABELS = { 32: 'Crit', 36: 'Haste', 40: 'Vers', 49: 'Mastery' };
 function mplusTrack(keyLevel, reward) {
   const k = Number(keyLevel);
   if (reward === 'vault') return k === 0 ? 'Champion' : k >= 10 ? 'Myth' : 'Hero';
@@ -52,7 +56,7 @@ function upgradedIlvl(baseIlvl, trackName, upgradeTo, tracks) {
 // can actually sim — sources with zero simmable items are flagged
 // unavailable (usually content that isn't released yet).
 export function buildSourceTree(lootDb, classId, specKey, knownItems = null) {
-  const tree = { raids: [], dungeons: [], worldBosses: [], outdoor: [], delves: [] };
+  const tree = { raids: [], dungeons: [], worldBosses: [], outdoor: [], delves: [], crafted: [] };
   for (const source of lootDb.sources) {
     const bosses = source.bosses.map((b) => ({
       name: b.name,
@@ -75,6 +79,7 @@ export function buildSourceTree(lootDb, classId, specKey, knownItems = null) {
     else if (source.kind === 'dungeon') tree.dungeons.push(entry);
     else if (source.kind === 'worldboss') tree.worldBosses.push(entry);
     else if (source.kind === 'delves') tree.delves.push(entry);
+    else if (source.kind === 'crafted') tree.crafted.push(entry);
     else tree.outdoor.push(entry);
   }
   return tree;
@@ -145,6 +150,34 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
     }
   };
 
+  // Crafted gear: the player picks the two secondary stats, so the item line
+  // carries crafted_stats=A/B + crafting_quality (always max) instead of a
+  // dropped item's plain ilevel-only payload.
+  const addCrafted = (item, ilvl, pair) => {
+    if (knownItems && !knownItems.has(item.id)) { skippedUnknown++; return; }
+    const slots = usableSlots(item, classId, specKey);
+    if (!slots || !ilvl) return;
+    const [a, b] = pair.split('/').map(Number);
+    const pairLabel = `${CRAFT_STAT_LABELS[a] ?? a} / ${CRAFT_STAT_LABELS[b] ?? b}`;
+    group++;
+    for (const placement of slots) {
+      const name = `${String(item.name).replace(/["\r\n$\\]/g, "'").slice(0, 46)} ${pairLabel} [${++counter}]`;
+      lines.push(`profileset."${name}"=${placement}=,id=${item.id},ilevel=${ilvl},crafted_stats=${pair},crafting_quality=5`);
+      sets[name] = {
+        group,
+        itemName: `${item.name} (${pairLabel})`,
+        itemId: item.id,
+        ilvl,
+        origIlvl: ilvl,
+        slot: placement,
+        placement,
+        section: 'Crafted gear',
+        boss: pairLabel,
+        sourceKind: 'crafted',
+      };
+    }
+  };
+
   for (const source of lootDb.sources) {
     if (source.kind === 'raid') {
       const diffs = selection.raids?.[source.instanceId] ?? [];
@@ -200,6 +233,33 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
               { section: `Delves · ${track}`, boss: 'Bountiful pool', sourceKind: 'delves' });
           }
         }
+      }
+    } else if (source.kind === 'crafted') {
+      const c = selection.crafted;
+      if (!c?.enabled) continue;
+      const pairs = (Array.isArray(c.statPairs) ? c.statPairs : [])
+        .map(String).filter((p) => /^\d+\/\d+$/.test(p));
+      if (!pairs.length) continue;
+      const ilvl = Number(c.ilvl) || fullSeason.crafted?.maxIlvl || 285;
+      // Same-slot crafts are stat-identical (every plate helm sims the same),
+      // so keep one usable representative per (class, subclass, inventory
+      // type) — highest quality wins, so the epic craft names the row rather
+      // than a rare or PvP twin that would fail the usability gate anyway.
+      const best = new Map();
+      for (const boss of source.bosses) {
+        for (const item of dedupe(boss.items)) {
+          if (knownItems && !knownItems.has(item.id)) { skippedUnknown++; continue; }
+          if (!usableSlots(item, classId, specKey)) continue;
+          const key = `${item.classId}:${item.subclassId}:${item.invType}`;
+          const prev = best.get(key);
+          if (!prev || item.quality > prev.quality
+              || (item.quality === prev.quality && item.id > prev.id)) {
+            best.set(key, item);
+          }
+        }
+      }
+      for (const item of best.values()) {
+        for (const pair of pairs) addCrafted(item, ilvl, pair);
       }
     }
   }

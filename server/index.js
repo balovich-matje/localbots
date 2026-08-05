@@ -13,6 +13,7 @@ import { probeKnownItems, loadProbeCache } from './simcProbe.js';
 import { CLASS_IDS } from './lootFilter.js';
 import { saveHistoryEntry, listHistory, getHistoryEntry, deleteHistoryEntry } from './history.js';
 import { updateStatus } from './status.js';
+import { parseLoadouts, buildLoadoutVariants } from './talents.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT) || 4747;
@@ -74,7 +75,10 @@ app.get('/api/season', (req, res) => res.json(seasonConfig));
 
 // ---------- droptimizer data state ----------
 let lootDb = loadLootDb();
-if (!lootDb && cacheStatus().present) {
+// Silent startup rebuild only when the cache has every table (incl. optional
+// ones added by updates) — otherwise the UI prompts for a "Refresh data",
+// which downloads what's missing and rebuilds with everything.
+if (!lootDb && cacheStatus().complete) {
   try { lootDb = buildLootDb(seasonConfig.droptimizer.mythicPlusDungeons); } catch { /* refresh will rebuild */ }
 }
 let knownItems = lootDb ? loadProbeCache(version, lootDb.builtAt) : null;
@@ -95,9 +99,12 @@ function ensureProbe(profileText) {
   if (!lootDb || knownItems || probeRunning) return;
   probeRunning = true;
   probeError = null;
-  probeKnownItems(simcPath, version, lootDb.builtAt, profileText, uniqueLootItems(),
+  // if a data refresh replaces the loot db while we probe, the result is
+  // stale — drop it and let the next request probe the new db
+  const builtAt = lootDb.builtAt;
+  probeKnownItems(simcPath, version, builtAt, profileText, uniqueLootItems(),
     (p) => { probeProgress = p; })
-    .then((set) => { knownItems = set; })
+    .then((set) => { if (lootDb && lootDb.builtAt === builtAt) knownItems = set; })
     .catch((err) => { probeError = err.message; })
     .finally(() => { probeRunning = false; probeProgress = null; });
 }
@@ -148,6 +155,7 @@ app.post('/api/droptimizer/sources', (req, res) => {
     spec,
     tree,
     season: seasonConfig.droptimizer,
+    crafted: seasonConfig.crafted ?? null,
     status: dataStatus(),
   });
 });
@@ -241,6 +249,7 @@ app.post('/api/gear', async (req, res) => {
     equippedSlots: Object.keys(equipped),
     items,
     itemSets: detectItemSets(equipped, items),
+    loadouts: parseLoadouts(profile).loadouts.map((l) => ({ name: l.name, isActive: l.isActive })),
   };
   if (resolveIlvls) {
     try {
@@ -271,7 +280,7 @@ app.post('/api/sim', async (req, res) => {
     const compare = req.body.compare ?? {};
     const trackUpgrades = req.body.trackUpgrades ?? null;
     if (!clean.length && !compare.consumables && !compare.enchants && !compare.gems && !compare.folio
-        && !(trackUpgrades?.slots?.length)) {
+        && !compare.talents && !(trackUpgrades?.slots?.length)) {
       return res.status(400).json({ error: 'Nothing to compare — tick some items or enable a comparison group.' });
     }
     let setCtx = null;
@@ -306,6 +315,9 @@ app.post('/api/sim', async (req, res) => {
     }
     if (compare.folio) {
       append(buildFolioVariants(profile, seasonConfig.omniumFolio));
+    }
+    if (compare.talents) {
+      append(buildLoadoutVariants(profile, sel('talents')?.loadouts ?? null));
     }
     if (trackUpgrades?.slots?.length) {
       try {

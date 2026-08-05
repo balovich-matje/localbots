@@ -53,6 +53,10 @@ function renderCompareGroups() {
   // folio (no picker — 13 runes always cheap)
   groups.push(['folio', 'Omnium Folio', '<p class="hint">All rune alternatives, one row at a time. Needs the omnium_talents line from a current /simc export.</p>']);
 
+  // talent loadouts (options come from the pasted export, filled by refreshGearList)
+  groups.push(['talents', 'Talent loadouts',
+    '<div id="talent-loadout-options"><p class="hint">Paste your /simc export — the loadouts you saved in game appear here.</p></div>']);
+
   $('compare-groups').innerHTML = groups.map(([id, title, body]) => `
     <div class="compare-group" data-group="${id}">
       <label class="cg-head"><input type="checkbox" id="compare-${id}"> ${title}
@@ -91,14 +95,44 @@ function selectedOptions(group) {
   const out = {};
   document.querySelectorAll(`input[data-cgroup="${group}"]`).forEach((cb) => {
     out[cb.dataset.cat] ??= []; // an all-unchecked category means "none", not "all"
-    if (cb.checked) out[cb.dataset.cat].push(isNaN(Number(cb.dataset.key)) ? cb.dataset.key : Number(cb.dataset.key));
+    if (cb.checked) {
+      const key = cb.dataset.key;
+      // loadout keys are names, not ids — never numeric-coerce them
+      // (a loadout literally named "2" must stay the string "2")
+      out[cb.dataset.cat].push(cb.dataset.cat === 'loadouts' || isNaN(Number(key)) ? key : Number(key));
+    }
   });
   return out;
 }
 
+// Saved talent loadouts parsed out of the export — one checkbox each; the
+// active build is the baseline so it gets a note instead of a checkbox.
+function renderLoadoutOptions(loadouts) {
+  const el = $('talent-loadout-options');
+  if (!el) return;
+  // keep the user's unticks across re-renders; new loadouts default to on
+  const prev = new Map([...el.querySelectorAll('input[data-cgroup]')]
+    .map((cb) => [cb.dataset.key, cb.checked]));
+  if (!loadouts?.length) {
+    el.innerHTML = '<p class="hint">No saved loadouts found in this export — save a loadout in game and re-copy /simc.</p>';
+    updateCompareCounts();
+    return;
+  }
+  el.innerHTML = loadouts.map((l) => l.isActive
+    ? `<div class="cg-opt hint-inline">${esc(prettyLoadout(l.name))} — active build (the baseline)</div>`
+    : `<label class="cg-opt"><input type="checkbox" data-cgroup="talents" data-cat="loadouts" data-key="${esc(l.name)}" ${(prev.get(l.name) ?? true) ? 'checked' : ''}> ${esc(prettyLoadout(l.name))}</label>`).join('');
+  el.querySelectorAll('input[data-cgroup]').forEach((cb) => cb.addEventListener('change', updateCompareCounts));
+  updateCompareCounts();
+}
+
+function prettyLoadout(name) {
+  return String(name).replace(/^Class Codex:\s*/, '');
+}
+
 // rough variant-count preview so long runs don't surprise anyone
 function updateCompareCounts() {
-  const counts = { consumables: 0, enchants: 0, gems: 0, folio: 13 };
+  const counts = { consumables: 0, enchants: 0, gems: 0, folio: 13, talents: 0 };
+  counts.talents = (selectedOptions('talents').loadouts ?? []).length;
   const consSel = selectedOptions('consumables');
   counts.consumables = Object.values(consSel).reduce((n, a) => n + a.length, 0);
   const enchSel = selectedOptions('enchants');
@@ -395,6 +429,7 @@ async function refreshGearList() {
     gearItems = body.items ?? [];
     itemSets = body.itemSets ?? [];
     renderItemSets();
+    renderLoadoutOptions(body.loadouts ?? []);
   } catch {
     $('gear-list').innerHTML = '<p class="empty">Could not reach the server.</p>';
     return;
@@ -565,7 +600,9 @@ async function refreshDroptimizer() {
   if (r.needsData || r.status?.refresh?.running) {
     const step = r.status?.refresh?.running
       ? `Downloading game data: ${r.status.refresh.step ?? '…'}`
-      : 'Game data not downloaded yet — hit "Refresh data" (one-time, ~60 MB from wago.tools).';
+      : r.status?.cache?.downloadedAt
+        ? 'Localbots was updated and needs fresh game data — hit "Refresh data" (~60 MB from wago.tools).'
+        : 'Game data not downloaded yet — hit "Refresh data" (one-time, ~60 MB from wago.tools).';
     $('dropt-status').textContent = step;
     $('dropt-sources').innerHTML = '';
     if (r.status?.refresh?.running) droptPoll = setTimeout(refreshDroptimizer, 2500);
@@ -589,16 +626,22 @@ async function refreshDroptimizer() {
   }
 
   droptTree = r.tree;
-  renderDroptSources(r.tree, r.season);
+  renderDroptSources(r.tree, r.season, r.crafted);
 }
 
-function renderDroptSources(tree, season) {
+// the six unordered combinations of the four selectable secondaries
+const CRAFT_PAIRS = [
+  ['32/36', 'Crit + Haste'], ['32/49', 'Crit + Mastery'], ['32/40', 'Crit + Vers'],
+  ['36/49', 'Haste + Mastery'], ['36/40', 'Haste + Vers'], ['49/40', 'Mastery + Vers'],
+];
+
+function renderDroptSources(tree, season, craftedCfg) {
   const html = [];
   const hidden = []; // unreleased sources (in game data, not in simc yet)
   const avail = (list) => list.filter((s) => (s.available ? true : (hidden.push(s.name), false)));
 
-  const groupHeader = (title) =>
-    `<h3><label><input type="checkbox" class="group-toggle" checked> ${title}</label></h3>`;
+  const groupHeader = (title, on = true) =>
+    `<h3><label><input type="checkbox" class="group-toggle" ${on ? 'checked' : ''}> ${title}</label></h3>`;
 
   const raids = avail(tree.raids);
   if (raids.length) {
@@ -660,8 +703,29 @@ function renderDroptSources(tree, season) {
     html.push('</div>');
   }
 
+  // register crafted with avail() before the hint below so an unavailable
+  // crafted source is listed as "not yet released" instead of vanishing
+  const crafted = avail(tree.crafted ?? []);
+
   if (hidden.length) {
     html.push(`<p class="hint">Not yet released (found in game data, but not live): ${hidden.map(esc).join(', ')} — these appear automatically once the patch drops and simc is updated.</p>`);
+  }
+
+  if (crafted.length) {
+    html.push(`<div class="dropt-group" data-group="crafted">${groupHeader('Crafted gear', false)}
+      <div class="dropt-row">
+        <label><input type="checkbox" id="dropt-crafted">
+          Profession crafts <span class="hint-inline">${crafted[0].usable} craftable items · you pick the two stats</span></label>
+        <label>ilvl <input type="number" id="dropt-crafted-ilvl" value="${craftedCfg?.maxIlvl ?? 285}" min="200" max="320"></label>
+      </div>
+      <div class="dropt-row" id="crafted-pairs">
+        ${CRAFT_PAIRS.map(([pair, label]) => `
+          <label><input type="checkbox" data-pair="${pair}" checked> ${label}</label>`).join('')}
+      </div>
+      <p class="hint">Every craftable slot is simmed at max quality with each ticked stat
+        combo (same-slot crafts share stats, so one item stands in per slot). For a
+        Voidcore'd crafted weapon or trinket, set the ilvl box to 295.</p>
+    </div>`);
   }
 
   html.push(`<div class="dropt-group" data-group="delves">${groupHeader('Delves')}`);
@@ -728,6 +792,13 @@ function collectDroptSelection() {
   const delveHero = $('dropt-delves-hero')?.checked;
   if (delveChamp || delveHero) {
     selection.delves = { champion: !!delveChamp, hero: !!delveHero };
+  }
+  if ($('dropt-crafted')?.checked) {
+    selection.crafted = {
+      enabled: true,
+      ilvl: Number($('dropt-crafted-ilvl')?.value) || undefined,
+      statPairs: [...document.querySelectorAll('#crafted-pairs input:checked')].map((cb) => cb.dataset.pair),
+    };
   }
   selection.upgradeTo = Number($('dropt-upgrade')?.value) || 0;
   selection.voidcores = !!($('dropt-voidcore')?.checked && !$('dropt-voidcore')?.disabled);
@@ -839,6 +910,9 @@ async function startSim() {
       enchants: $('compare-enchants')?.checked ? { selection: selectedOptions('enchants') } : false,
       gems: $('compare-gems')?.checked ? { selection: selectedOptions('gems') } : false,
       folio: !!$('compare-folio')?.checked,
+      // always send an explicit list — a missing array means "all" server-side
+      talents: $('compare-talents')?.checked
+        ? { selection: { loadouts: selectedOptions('talents').loadouts ?? [] } } : false,
     };
     payload.setMinimums = Object.fromEntries(
       Object.entries(setMinimums).filter(([, v]) => v > 0));
@@ -859,6 +933,10 @@ async function startSim() {
   } else if (mode === 'droptimizer') {
     payload.mode = 'droptimizer';
     payload.selection = collectDroptSelection();
+    if (payload.selection.crafted && !payload.selection.crafted.statPairs.length) {
+      showError('Crafted gear is ticked but no stat combo is selected — tick at least one stat pair.');
+      return;
+    }
   }
 
   $('sim-button').disabled = true;

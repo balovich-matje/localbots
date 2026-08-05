@@ -151,6 +151,9 @@ count) so you can exclude options you'd never use:
 - **Gems** — your setup with all stat gems swapped to each type, plus the four
   **Eversong Diamonds** compared in your diamond socket.
 - **Omnium Folio** — each rune alternative, one row at a time.
+- **Talent loadouts** — every loadout you saved in game (the addon exports them
+  automatically) simmed against your active build, ranked in the same table. Great for
+  "is my single-target build actually better here?"
 
 Your current choice is tagged "(current)", and when viewing one comparison group the
 table splits into per-slot sections (Weapons, Rings, Flask, …). All options live in
@@ -174,6 +177,10 @@ Paste your export, open the **Droptimizer** tab, pick your sources, hit
   end-of-dungeon or Great Vault item level.
 - **World bosses & outdoor events** — with editable item levels.
 - **Delves** — the (unverified, datamined) bountiful gear pool at Champion or Hero track.
+- **Crafted gear** — every profession craft your class can wear, simmed at max quality
+  with the stat combinations you tick (crafted gear lets you pick two secondary stats).
+  Same-slot crafts share stats, so one item stands in per slot. Off by default — tick
+  the group to include it.
 - **Upgrade items to X/6** — sim every item upgraded within its own track, like
   Raidbots' "Upgrade up to": a Mythic raid drop at Myth 6/6, a delve Hero drop at
   Hero 6/6, and so on. Upgraded items show as "272 → 289" in the results.
