@@ -117,6 +117,22 @@
   "crafted": {
     "maxIlvl": 285
   },
+  "embellishmentOptions": {
+    "_comment": "Craft-time embellishments, simmed by appending the effect bonus id to a crafted host item. All verified against simc 12.0.7.68974 (bonus id applies, effect visible in the sim). markerBonusIds identify embellished items in an export (8960 = Embellished(2) cap marker, 13555 = Outdoor Embellished(1)). Excluded on purpose: B1P Scorcher (on-use, net DPS loss), B0P Curator (~0 on single target), M0LL1 (not implemented in simc), Blessed Pango Charm (healer), outdoor utility embellishments.",
+    "markerBonusIds": [8960, 13555],
+    "options": [
+      { "key": "darkmoon_hunt", "label": "Darkmoon Sigil: Hunt", "bonus": 12693 },
+      { "key": "arcanoweave", "label": "Arcanoweave Lining", "bonus": 12384 },
+      { "key": "darkmoon_void", "label": "Darkmoon Sigil: Void", "bonus": 13640 },
+      { "key": "iris", "label": "Prismatic Focusing Iris", "bonus": 13453 },
+      { "key": "iris_bandolier", "label": "Iris + Stabilizing Bandolier (pair)", "bonus": 13453, "secondBonus": 13454 },
+      { "key": "devouring", "label": "Devouring Banding", "bonus": 12685 },
+      { "key": "spore", "label": "Primal Spore Binding", "bonus": 12687 },
+      { "key": "sunfire", "label": "Sunfire Silk Lining", "bonus": 12385 },
+      { "key": "darkmoon_blood", "label": "Darkmoon Sigil: Blood", "bonus": 12705 },
+      { "key": "darkmoon_rot", "label": "Darkmoon Sigil: Rot", "bonus": 12692 }
+    ]
+  },
   "voidcore": {
     "_comment": "Ascendant Voidforged ilvls, confirmed from live item tooltips: Hero 6/6 -> 285, Myth 6/6 -> 298.",
     "slots": [

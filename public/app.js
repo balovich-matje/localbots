@@ -859,9 +859,17 @@ function renderDroptSources(tree, season, craftedCfg) {
           <input type="checkbox" id="dropt-crafted-emb" checked>
           Include embellished crafts</label>
       </div>
+      ${(craftedCfg?.embellishments?.length ?? 0) ? `
+      <div class="cg-slot-head">Embellishments — which craft-time effect is worth the most?</div>
+      <div class="dropt-row" id="crafted-emb-picker">
+        ${craftedCfg.embellishments.map((o) => `
+          <label><input type="checkbox" data-embkey="${esc(o.key)}" checked> ${esc(o.label)}</label>`).join('')}
+      </div>
+      <p class="hint">Each ticked embellishment is simmed on a crafted piece — once, and
+        doubled (×2) where two copies stack. Only 2 embellished items can be worn at a
+        time; rows respect what your character already has equipped.</p>` : ''}
       <p class="hint">Every craftable slot is simmed at max quality with each ticked stat
-        combo (same-slot crafts share stats, so one item stands in per slot). Embellishments
-        added via optional reagents aren't simulated yet — only built-in ones.</p>
+        combo (same-slot crafts share stats, so one item stands in per slot).</p>
     </div>`);
   }
 
@@ -937,6 +945,7 @@ function collectDroptSelection() {
       statPairs: [...document.querySelectorAll('#crafted-pairs input:checked')].map((cb) => cb.dataset.pair),
       voidcores: !!$('dropt-crafted-voidcore')?.checked,
       embellishments: !!$('dropt-crafted-emb')?.checked,
+      embellishmentSel: [...document.querySelectorAll('#crafted-emb-picker input:checked')].map((cb) => cb.dataset.embkey),
     };
   }
   selection.offspec = !!$('dropt-offspec')?.checked;

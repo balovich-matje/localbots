@@ -297,6 +297,8 @@ app.post('/api/droptimizer/sources', (req, res) => {
     crafted: {
       ...(p.config.crafted ?? {}),
       voidcoreIlvl: p.config.voidcore?.craftedIlvl ?? null,
+      embellishments: (p.config.embellishmentOptions?.options ?? [])
+        .map((o) => ({ key: o.key, label: o.label })),
     },
     status: dataStatus(p),
   });

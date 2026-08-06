@@ -7,6 +7,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { usableSlots, CLASS_IDS } from './lootFilter.js';
 import { buildInput } from './profileBuilder.js';
+import { parseGear } from './gearParser.js';
 
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
 
@@ -268,8 +269,106 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
           }
         }
       }
+      // The 2-embellished cap is a GAME rule simc does not enforce — count
+      // what the character already wears (embellished items carry a marker
+      // bonus id) so suggestions stay actually equippable.
+      const markers = new Set((fullSeason.embellishmentOptions?.markerBonusIds ?? [8960]).map(Number));
+      const equippedEmbSlots = new Set();
+      for (const [slot, line] of Object.entries(parseGear(profileText).equipped)) {
+        const ids = (line.match(/bonus_id=([\d/]+)/)?.[1] ?? '').split('/').map(Number);
+        if (ids.some((id) => markers.has(id))) equippedEmbSlots.add(slot);
+      }
+      const capOk = (usedSlots, added) =>
+        [...equippedEmbSlots].filter((s) => !usedSlots.includes(s)).length + added <= 2;
+
       for (const item of best.values()) {
+        // inherently-embellished designs count toward the cap too
+        if (item.embellished) {
+          const slots = usableSlots(item, classId, specKey, offspec) ?? [];
+          if (!capOk(slots, 1)) continue;
+        }
         for (const pair of pairs) addCrafted(item, ilvl, pair, craftedVoidcoreIlvl);
+      }
+
+      // --- embellishment rows: which craft-time effect is worth the most? ---
+      const embOptions = fullSeason.embellishmentOptions?.options ?? [];
+      const embSel = Array.isArray(c.embellishmentSel) ? new Set(c.embellishmentSel.map(String)) : null;
+      if (embOptions.length && embSel?.size && pairs.length) {
+        // hosts: plain crafted armor pieces to carry the effect; prefer slots
+        // that REPLACE an already-embellished piece (keeps the cap legal)
+        const HOST_PREF = [16, 9, 6, 8, 1, 3, 5, 7, 10]; // back, wrist, waist, feet, then other armor
+        const hosts = [...best.values()]
+          .filter((it) => !it.embellished)
+          .map((it) => {
+            const us = usableSlots(it, classId, specKey, offspec) ?? [];
+            // land on an already-embellished slot when possible (replacing
+            // that piece keeps the 2-cap satisfied, e.g. an off-hand craft)
+            return { it, slot: us.find((s) => equippedEmbSlots.has(s)) ?? us[0] };
+          })
+          .filter((h) => h.slot && h.slot !== 'finger2' && h.slot !== 'trinket2')
+          .sort((a, b) => {
+            const ae = equippedEmbSlots.has(a.slot) ? 0 : 1;
+            const be = equippedEmbSlots.has(b.slot) ? 0 : 1;
+            if (ae !== be) return ae - be;
+            return HOST_PREF.indexOf(a.it.invType) - HOST_PREF.indexOf(b.it.invType);
+          })
+          // two-piece rows need two DIFFERENT slots — one host per slot
+          .filter(((seen) => (h) => (seen.has(h.slot) ? false : (seen.add(h.slot), true)))(new Set()));
+        const pair = pairs[0];
+        const emitEmb = (label, placements, opts = {}) => {
+          // placements: [{host, bonus|null}] — one profileset row, cap-checked
+          if (!capOk(placements.map((pl) => pl.host.slot), placements.filter((pl) => pl.bonus).length)) return null;
+          group++;
+          const name = `${opts.refRow ? 'Emb host' : 'Embellishment:'} ${label.replace(/["\r\n$\\]/g, "'").slice(0, 52)} [${++counter}]`;
+          const lines2 = placements.map((pl, i) =>
+            `profileset."${name}"${i ? '+' : ''}=${pl.host.slot}=,id=${pl.host.it.id},ilevel=${ilvl},crafted_stats=${pair},crafting_quality=5${pl.bonus ? `,bonus_id=${pl.bonus}` : ''}`);
+          lines.push(...lines2);
+          sets[name] = {
+            group,
+            itemName: `Embellishment: ${label}`,
+            itemId: placements[0].host.it.id,
+            ilvl,
+            origIlvl: ilvl,
+            slot: placements[0].host.slot,
+            placement: placements[0].host.slot,
+            section: 'Crafted gear',
+            boss: 'Embellishments',
+            sourceKind: 'crafted',
+            // reference rows exist only as a comparison point and stay hidden;
+            // embellishment rows rank against their plain host, so the delta
+            // reads as "what the embellishment itself is worth"
+            ...(opts.refRow ? { hidden: true } : {}),
+            ...(opts.rebaseTo ? { rebaseTo: opts.rebaseTo } : {}),
+          };
+          return name;
+        };
+        // hidden plain-host references: same items, no embellishment
+        const ref1 = hosts.length >= 1
+          ? emitEmb('host ×1', [{ host: hosts[0], bonus: null }], { refRow: true }) : null;
+        const ref2 = hosts.length >= 2
+          ? emitEmb('host ×2', [{ host: hosts[0], bonus: null }, { host: hosts[1], bonus: null }], { refRow: true }) : null;
+        for (const opt of embOptions) {
+          if (!embSel.has(String(opt.key))) continue;
+          if (!hosts.length) break;
+          if (opt.secondBonus) {
+            // a two-piece pairing (e.g. Iris + Bandolier) — needs two hosts
+            if (hosts.length >= 2) {
+              emitEmb(opt.label, [
+                { host: hosts[0], bonus: opt.bonus },
+                { host: hosts[1], bonus: opt.secondBonus },
+              ], { rebaseTo: ref2 });
+            }
+            continue;
+          }
+          emitEmb(opt.label, [{ host: hosts[0], bonus: opt.bonus }], { rebaseTo: ref1 });
+          // the same embellishment on two items stacks its value in game
+          if (hosts.length >= 2) {
+            emitEmb(`${opt.label} ×2 (two items)`, [
+              { host: hosts[0], bonus: opt.bonus },
+              { host: hosts[1], bonus: opt.bonus },
+            ], { rebaseTo: ref2 });
+          }
+        }
       }
     }
   }

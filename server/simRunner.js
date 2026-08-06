@@ -246,8 +246,10 @@ export class SimQueue extends EventEmitter {
 // Turns raw profileset results into one ranked row per bag item,
 // keeping only the best placement for rings/trinkets.
 export function extractTopGear(json, sets, baselineDps) {
+  const results = json.sim.profilesets?.results ?? [];
+  const rawByName = new Map(results.map((r) => [r.name, r]));
   const byGroup = new Map();
-  for (const r of json.sim.profilesets?.results ?? []) {
+  for (const r of results) {
     const info = sets[r.name];
     if (!info) continue;
     const row = {
@@ -262,11 +264,20 @@ export function extractTopGear(json, sets, baselineDps) {
     if (!existing || row.dps > existing.dps) byGroup.set(info.group, row);
   }
   return [...byGroup.values()]
-    .map((row) => ({
-      ...row,
-      delta: row.dps - baselineDps,
-      deltaPct: baselineDps > 0 ? ((row.dps - baselineDps) / baselineDps) * 100 : 0,
-    }))
+    // reference rows (hidden) exist only as comparison points
+    .filter((row) => !row.hidden)
+    .map((row) => {
+      // rebased rows rank against a named reference profileset (e.g. an
+      // embellished item vs its plain twin) instead of the equipped baseline
+      const base = (row.rebaseTo && rawByName.get(row.rebaseTo)?.mean) || baselineDps;
+      const out = {
+        ...row,
+        delta: row.dps - base,
+        deltaPct: base > 0 ? ((row.dps - base) / base) * 100 : 0,
+      };
+      delete out.rebaseTo;
+      return out;
+    })
     .sort((a, b) => b.delta - a.delta);
 }
 

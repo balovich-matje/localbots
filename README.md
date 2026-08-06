@@ -195,8 +195,14 @@ Paste your export, open the **Droptimizer** tab, pick your sources, hit
   Same-slot crafts share stats, so one item stands in per slot. Off by default — tick
   the group to include it. Options: **Apply Voidcores** (crafted weapons/trinkets sim
   at the Voidcore level) and **Include embellished crafts** (designs with a built-in
-  effect, which simc simulates; embellishments added via optional reagents aren't
-  modeled yet).
+  effect, which simc simulates).
+- **Embellishments** — every craft-time embellishment simc can model, ranked by what
+  the effect itself is worth (each row compares an embellished crafted piece against
+  the same piece without it). Includes **×2 rows** (the same embellishment on two
+  items — its value stacks) and the Iris + Bandolier pairing. Rows respect the
+  game's 2-embellished-items limit, counting what your character already wears.
+  A few are deliberately excluded: effects simc doesn't implement yet, the on-use
+  robot (a net DPS loss in practice), and healer/utility effects.
 - **Include off-spec items** — also sims items whose primary stat isn't yours
   (armor type and weapon proficiency stay enforced). Weapons your spec *can* use are
   always included — e.g. Outlaw off-hand daggers sim out of the box.
