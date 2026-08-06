@@ -64,6 +64,13 @@ async function checkSimc(versionString) {
   }
 }
 
+// Forget the cached result — used after a simc update so the header light
+// reflects the new build immediately instead of up to 30 minutes later.
+export function invalidateStatus() {
+  cached = null;
+  cachedAt = 0;
+}
+
 export async function updateStatus(simcVersionString) {
   if (cached && Date.now() - cachedAt < TTL_MS) return cached;
   if (!pending) {

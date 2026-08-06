@@ -88,9 +88,14 @@ one to bring its full results back, ✕ deletes it.
 
 **Update lights:** the two dots in the header tell you whether your Localbots copy is
 behind GitHub (fix: `git pull` in the localbots folder, then restart the server) and
-whether your simc build still matches the live game version (fix: rebuild simc after a
-game patch — see the install section). Green = up to date, orange = update needed,
-gray = couldn't check (usually no internet). Hover a light for details.
+whether your simc build still matches the live game version. Green = up to date,
+orange = update needed, gray = couldn't check (usually no internet). Hover a light
+for details.
+
+When simc was built from source on this machine (the macOS/Linux recipe above), the
+orange Simc light is **clickable** — one click pulls the latest simc and rebuilds it
+right there, with progress in the chip; sims wait until it's done. Windows nightly
+installs can't be rebuilt automatically — grab the newest nightly instead.
 
 **macOS tip:** drop a double-clickable launcher in the repo folder (it's gitignored):
 

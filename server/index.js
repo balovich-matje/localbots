@@ -14,6 +14,8 @@ import { CLASS_IDS } from './lootFilter.js';
 import { saveHistoryEntry, listHistory, getHistoryEntry, deleteHistoryEntry } from './history.js';
 import { updateStatus } from './status.js';
 import { parseLoadouts, buildLoadoutVariants } from './talents.js';
+import { detectSimcSource, startSimcUpdate } from './simcUpdater.js';
+import { invalidateStatus } from './status.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT) || 4747;
@@ -27,8 +29,11 @@ if (!simcPath) {
   );
   process.exit(1);
 }
-const version = simcVersion(simcPath);
+let version = simcVersion(simcPath);
 const queue = new SimQueue(simcPath);
+// from-source installs (macOS/Linux README recipe) can update simc in place
+const simcSource = detectSimcSource(simcPath);
+const simcUpdateState = { running: false, step: null, progress: null, error: null, log: [] };
 
 const app = express();
 app.use(express.json({ limit: '2mb' }));
@@ -40,7 +45,39 @@ app.get('/api/health', (req, res) => {
 
 // Header status bar: is the repo behind GitHub / is simc behind the live game?
 app.get('/api/status', async (req, res) => {
-  res.json(await updateStatus(version));
+  const s = await updateStatus(version);
+  res.json({ ...s, simc: { ...s.simc, updatable: !!simcSource } });
+});
+
+// One-click simc update (only for from-source installs). Runs in the
+// background; the UI polls /api/simc/update/status for progress.
+app.post('/api/simc/update', (req, res) => {
+  if (!simcSource) {
+    return res.status(400).json({
+      error: 'This simc was not built from source on this machine — update it the way it was installed (see the README).',
+    });
+  }
+  if (simcUpdateState.running) return res.json({ started: false, reason: 'already running' });
+  if (queue.running) {
+    return res.status(409).json({ error: 'A sim is running — try again when it finishes.' });
+  }
+  startSimcUpdate(simcSource, simcUpdateState, (err) => {
+    if (err) {
+      console.error('simc update failed:', err.message);
+      return;
+    }
+    // the binary changed under us: refresh the version banner, drop the item
+    // probe (its cache is keyed on the simc build), and re-check the light
+    version = simcVersion(simcPath);
+    knownItems = lootDb ? loadProbeCache(version, lootDb.builtAt) : null;
+    invalidateStatus();
+    console.log(`simc updated: ${version}`);
+  });
+  res.json({ started: true });
+});
+
+app.get('/api/simc/update/status', (req, res) => {
+  res.json({ ...simcUpdateState, updatable: !!simcSource });
 });
 
 // ---------- sim history ----------
@@ -267,6 +304,9 @@ app.post('/api/gear', async (req, res) => {
 
 app.post('/api/sim', async (req, res) => {
   const { profile, options, mode, items } = req.body ?? {};
+  if (simcUpdateState.running) {
+    return res.status(409).json({ error: 'SimulationCraft is updating right now — try again in a minute.' });
+  }
   if (!profile || typeof profile !== 'string' || !profile.trim()) {
     return res.status(400).json({ error: 'No profile text supplied. Paste your /simc addon export.' });
   }

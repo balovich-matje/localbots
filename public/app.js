@@ -213,17 +213,85 @@ function renderStatus(s) {
       `Could not reach GitHub to compare versions (${app.reason ?? 'no network?'}).`);
   }
   const simc = s.simc ?? {};
+  simcChipClickable = false;
   if (simc.state === 'ok') {
     setChip('status-simc', 'ok', 'Simc up to date',
       `${s.simcVersion ?? 'simc'} — matches the live game (${simc.liveGame}).`);
   } else if (simc.state === 'outdated') {
-    setChip('status-simc', 'outdated', 'Simc outdated',
-      `The game updated to ${simc.liveGame}, but your simc is built for ${simc.simcGame}. ` +
-      'Rebuild/redownload simc (see the README) to sim the latest patch.');
+    if (simc.updatable) {
+      simcChipClickable = true;
+      setChip('status-simc', 'outdated', 'Simc outdated — click to update',
+        `The game updated to ${simc.liveGame}, but your simc is built for ${simc.simcGame}. ` +
+        'Click to pull the latest simc and rebuild it right here (a minute or two; sims wait meanwhile).');
+    } else {
+      setChip('status-simc', 'outdated', 'Simc outdated',
+        `The game updated to ${simc.liveGame}, but your simc is built for ${simc.simcGame}. ` +
+        'Rebuild/redownload simc (see the README) to sim the latest patch.');
+    }
   } else {
     setChip('status-simc', 'unknown', 'Simc — can’t check',
       `${s.simcVersion ?? 'simc'} — could not fetch the live game version (${simc.reason ?? 'no network?'}).`);
   }
+  $('status-simc').classList.toggle('clickable', simcChipClickable);
+}
+
+// ---------- one-click simc update ----------
+let simcChipClickable = false;
+let simcUpdating = false;
+
+$('status-simc').addEventListener('click', async () => {
+  if (!simcChipClickable || simcUpdating) return;
+  if (!confirm('Update SimulationCraft now? It takes a minute or two, and sims wait until it finishes.')) return;
+  simcUpdating = true;
+  simcChipClickable = false;
+  $('status-simc').classList.remove('clickable');
+  try {
+    const resp = await fetch('/api/simc/update', { method: 'POST' });
+    const body = await resp.json();
+    if (!resp.ok) {
+      setChip('status-simc', 'outdated', 'Simc update failed', body.error ?? 'unknown error');
+      simcUpdating = false;
+      return;
+    }
+  } catch {
+    setChip('status-simc', 'outdated', 'Simc update failed', 'Could not reach the server.');
+    simcUpdating = false;
+    return;
+  }
+  setChip('status-simc', 'unknown', 'Simc updating…', 'Pulling the latest simc source.');
+  pollSimcUpdate();
+});
+
+async function pollSimcUpdate() {
+  let st;
+  try {
+    st = await (await fetch('/api/simc/update/status')).json();
+  } catch {
+    setTimeout(pollSimcUpdate, 3000);
+    return;
+  }
+  if (st.running) {
+    const pct = st.progress ? ` ${Math.round((st.progress.done / st.progress.total) * 100)}%` : '';
+    setChip('status-simc', 'unknown', `Simc updating…${pct}`, st.step ?? 'working');
+    setTimeout(pollSimcUpdate, 2000);
+    return;
+  }
+  simcUpdating = false;
+  if (st.error) {
+    setChip('status-simc', 'outdated', 'Simc update failed',
+      `${st.error} — you can update manually instead (see the README).`);
+    return;
+  }
+  // done — re-check the light against the fresh build
+  try {
+    const s = await (await fetch('/api/status')).json();
+    renderStatus(s);
+    if (s.simc?.state === 'outdated') {
+      setChip('status-simc', 'outdated', 'Simc still outdated',
+        `You now have the latest simc, but simc itself has not shipped data for game build ${s.simc.liveGame} yet — ` +
+        'it usually catches up within a day or two. Click to try again later.');
+    }
+  } catch { /* next page load re-checks */ }
 }
 
 // ---------- pages (New sim / History) ----------

@@ -65,6 +65,8 @@ header h1 {
   cursor: default;
   white-space: nowrap;
 }
+.status-chip.clickable { cursor: pointer; border-color: var(--accent-dim); }
+.status-chip.clickable:hover { color: var(--text); border-color: var(--accent); }
 .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .dot-ok { background: var(--green); box-shadow: 0 0 6px rgba(76, 175, 125, 0.7); }
 .dot-outdated { background: #f2a13b; box-shadow: 0 0 6px rgba(242, 161, 59, 0.75); }
