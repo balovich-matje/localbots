@@ -9,13 +9,14 @@ const HISTORY_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 
 
 const MODE_LABELS = { quick: 'Quick Sim', topgear: 'Top Gear', droptimizer: 'Droptimizer' };
 
-export function saveHistoryEntry(job, mode, options) {
+export function saveHistoryEntry(job, mode, options, patch = null) {
   if (!job.result) return;
   const entry = {
     id: job.id,
     savedAt: new Date(job.finishedAt ?? Date.now()).toISOString(),
     mode,
     modeLabel: MODE_LABELS[mode] ?? mode,
+    ...(patch ? { patch } : {}), // caller only passes non-default patches
     options: {
       fightStyle: options?.fightStyle ?? null,
       numEnemies: options?.numEnemies ?? null,
@@ -44,6 +45,7 @@ export function listHistory() {
         savedAt: e.savedAt,
         mode: e.mode,
         modeLabel: e.modeLabel,
+        patchLabel: e.patch?.label ?? null,
         player: r.player ?? null,
         dps: r.dps ?? null,
         targets: r.targets ?? null,

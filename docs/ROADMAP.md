@@ -96,10 +96,11 @@ Shipped: craftable slots simmed at max quality with user-picked stat pairs.
 Still open: **embellishments** (crafted-gear effects) — needs the
 embellishment→effect mapping and stacking rules; the largest remaining item.
 
-### 6. Show previous tiers / multi-season
-Turn `data/season.json` into per-season files with a season selector. Only
-becomes meaningful once season 2 exists.
-**Effort:** small, do when needed.
+### 6. ~~Show previous tiers / multi-season~~ (DONE as the patch switch)
+The header's Live/PTR switch is exactly this machinery: per-patch season files,
+data caches, loot dbs and probes (data/patches.json is the registry). When 12.1
+ships, its entry is promoted to live and 12.0 can be retired — and any future
+"previous tier" view is one more registry entry.
 
 ### 7. Extras
 - Vault socket option (Raidbots' "Add Vault Socket"): append a gem to simmed

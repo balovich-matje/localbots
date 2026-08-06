@@ -1,0 +1,21 @@
+{
+  "_comment": "Patch registry for the header switch. Each patch has its own season config, consumable defaults, delve pool and data cache. ptr:true runs simc against its test-realm dataset (ptr=1). When 12.1 goes live: make it the first entry, set ptr:false, and retire the old one.",
+  "patches": [
+    {
+      "id": "live",
+      "label": "Live 12.0",
+      "seasonFile": "season.json",
+      "consumablesFile": "consumables.json",
+      "delveFile": "delve-loot.json",
+      "ptr": false
+    },
+    {
+      "id": "12_1",
+      "label": "PTR 12.1",
+      "seasonFile": "season-12_1.json",
+      "consumablesFile": "consumables-12_1.json",
+      "delveFile": "delve-loot-12_1.json",
+      "ptr": true
+    }
+  ]
+}

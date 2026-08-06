@@ -19,17 +19,29 @@ const SLOT_NAMES = { shoulders: 'shoulder', wrists: 'wrist' };
 
 const cache = new Map(); // profile hash -> [{slot, name, ilvl}]
 
-export async function resolveEquipped(simcPath, profileText) {
-  const key = createHash('sha1').update(profileText).digest('hex');
+// a simc binary update changes what ilvls resolve to — drop everything
+export function clearResolveCache() {
+  cache.clear();
+}
+
+export async function resolveEquipped(simcPath, profileText, ptr = false) {
+  const key = createHash('sha1').update(`${ptr ? 'ptr:' : ''}${profileText}`).digest('hex');
   if (cache.has(key)) return cache.get(key);
 
   mkdirSync(WORK_DIR, { recursive: true });
   const inputPath = join(WORK_DIR, `${key.slice(0, 12)}.simc`);
   const jsonPath = join(WORK_DIR, `${key.slice(0, 12)}.json`);
   const input = [
+    ...(ptr ? ['ptr=1'] : []), // must be first — see profileBuilder
     'item_db_source=local', 'iterations=1', 'max_time=10',
     'fight_style=Patchwerk', 'optimal_raid=0', '',
-    sanitizeProfile(profileText).trim(), '',
+    // talents never affect gear decoding, and a cross-patch talent hash
+    // would fail the whole run — strip them like the item probe does
+    sanitizeProfile(profileText)
+      .split('\n')
+      .filter((l) => !/^\s*(talents|omnium_talents)\s*=/.test(l))
+      .join('\n')
+      .trim(), '',
   ].join('\n');
   writeFileSync(inputPath, input);
   try {

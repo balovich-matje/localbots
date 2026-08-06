@@ -103,10 +103,10 @@ function countUsable(items, classId, specKey, knownItems) {
 //   worldBoss: { enabled: true, ilvl: 256 },
 //   outdoor: { instanceIds: [...], ilvl: 250 },
 // }
-export function buildDroptimizerInput(profileText, options, selection, lootDb, spec, knownItems = null) {
+export function buildDroptimizerInput(profileText, options, selection, lootDb, spec, knownItems = null, seasonOverride = null) {
   const classId = CLASS_IDS[spec.class];
   const specKey = spec.key;
-  const fullSeason = seasonConfig();
+  const fullSeason = seasonOverride ?? seasonConfig();
   const season = fullSeason.droptimizer;
   const tracks = fullSeason.tracks ?? {};
   const rawUpgrade = Number(selection.upgradeTo);

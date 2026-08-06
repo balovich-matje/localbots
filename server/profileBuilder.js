@@ -59,7 +59,7 @@ function clamp(n, lo, hi, fallback) {
 
 // Strip any global directives from the pasted profile that would fight with our
 // UI-controlled settings (people sometimes paste full simc files, not just exports).
-const BLOCKED_LINE = /^\s*(iterations|target_error|fight_style|max_time|desired_targets|threads|json2|output|html|report_details|optimal_raid)\s*=/i;
+const BLOCKED_LINE = /^\s*(iterations|target_error|fight_style|max_time|desired_targets|threads|json2|output|html|report_details|optimal_raid|ptr)\s*=/i;
 
 export function sanitizeProfile(text) {
   return text
@@ -73,6 +73,10 @@ export function buildInput(profileText, options = {}) {
   const lines = [];
 
   // --- global sim settings ---
+  // ptr=1 swaps simc's whole dataset to the test-realm build. It MUST be the
+  // very first line: items are resolved against the database the moment their
+  // line is parsed, so a later ptr flag silently fails to load PTR-only items.
+  if (opts.ptr) lines.push('ptr=1');
   // Never fall back to the Blizzard API for unknown items (no key available;
   // the fallback can crash simc mid-profileset). Local-only fails cleanly.
   lines.push('item_db_source=local');
@@ -105,7 +109,8 @@ export function buildInput(profileText, options = {}) {
 
   // --- consumables: appended after the profile so they win ---
   const specKey = detectSpec(profileText).key;
-  const defaults = (specKey && CONSUMABLE_DEFAULTS[specKey]) || {};
+  const defaultsMap = options.consumableDefaults ?? CONSUMABLE_DEFAULTS;
+  const defaults = (specKey && defaultsMap[specKey]) || {};
   for (const key of CONSUMABLE_KEYS) {
     if (opts.consumables[key]) {
       // Only inject a default when the pasted profile doesn't name one itself.
@@ -211,7 +216,8 @@ function sanitizeSetName(name) {
 export function buildConsumableVariants(profileText, options, consumableOptions, selection = null, startGroup = 5000) {
   const opts = normalizeOptions(options);
   const spec = detectSpec(profileText);
-  const defaults = (spec.key && CONSUMABLE_DEFAULTS[spec.key]) || {};
+  const defaultsMap = options.consumableDefaults ?? CONSUMABLE_DEFAULTS;
+  const defaults = (spec.key && defaultsMap[spec.key]) || {};
   const lines = [];
   const sets = {};
   let group = startGroup;
@@ -280,6 +286,7 @@ export function normalizeOptions(options) {
   return {
     fightStyle,
     dummyMode,
+    ptr: options.ptr === true,
     numEnemies: SCRIPTED_STYLES.has(fightStyle) ? 1 : clamp(options.numEnemies, 1, 10, 1),
     fightLength: clamp(options.fightLength, 30, 1200, dummyMode ? 600 : 300),
     iterations: options.iterations ? clamp(options.iterations, 100, 100000, null) : null,

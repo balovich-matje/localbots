@@ -86,6 +86,14 @@ To stop the server, use the **Shut down server** button at the bottom of the pag
 never uploaded anywhere). The **History** button in the header lists them all — click
 one to bring its full results back, ✕ deletes it.
 
+**Patch switch:** the header has a **Live / PTR** switch. The PTR patch sims against
+the test-realm dataset your simc already carries (next patch's items, tuning and loot),
+with its own game data and season numbers — handy for planning gear before a patch
+drops. PTR numbers are provisional until release. Each patch keeps its own data cache
+(first PTR use needs its own "Refresh data" download), and history entries are tagged
+with the patch they ran on. Patches are defined in [data/patches.json](data/patches.json);
+when a patch goes live, its entry just gets promoted there.
+
 **Update lights:** the two dots in the header tell you whether your Localbots copy is
 behind GitHub (fix: `git pull` in the localbots folder, then restart the server) and
 whether your simc build still matches the live game version. Green = up to date,

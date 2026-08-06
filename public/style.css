@@ -50,6 +50,21 @@ header h1 {
 }
 .page-btn.active { background: var(--accent); color: #1a1405; border-color: var(--accent); }
 
+/* --- patch switch (Live / PTR) --- */
+.patch-switch { display: flex; gap: 4px; }
+.patch-btn {
+  background: var(--panel-2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.patch-btn.active { background: #3d64a8; color: #fff; border-color: #3d64a8; }
+.patch-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.ptr-tag { color: #7fb1ff; border-color: #3d64a8; }
+
 /* --- header status chips --- */
 #status-bar { margin-left: auto; display: flex; gap: 8px; }
 .status-chip {

@@ -24,9 +24,10 @@ export function findSimc() {
   return candidates.find(existsSync) ?? null;
 }
 
-export function simcVersion(simcPath) {
+export function simcVersion(simcPath, ptr = false) {
+  const args = ptr ? ['ptr=1', 'display_build=1'] : ['display_build=1'];
   try {
-    const out = execFileSync(simcPath, ['display_build=1'], { encoding: 'utf8', timeout: 15000 });
+    const out = execFileSync(simcPath, args, { encoding: 'utf8', timeout: 15000 });
     const m = out.match(/SimulationCraft \S+ for World of Warcraft [^\n]+/);
     return m ? m[0] : out.split('\n')[0];
   } catch (e) {
@@ -274,6 +275,14 @@ export function extractTopGear(json, sets, baselineDps) {
 // This almost always means the item is newer than the local simc build.
 // Rewrite it to name the actual item and point at the fix.
 function humanizeInitError(error, gearBySlot) {
+  // A talent string that doesn't decode usually means a live export simmed
+  // on the PTR patch (or vice versa) — talent trees changed between patches.
+  if (/Hash '[^']*':.*(choice node|talent)/i.test(error ?? '') || /Invalid talent/i.test(error ?? '')) {
+    return 'Your export\'s talent build could not be read by this patch\'s data — talent trees ' +
+      'changed between patches. If you are simming on the PTR patch, copy /simc from the PTR ' +
+      'client (or temporarily remove the talents= line to sim without talents). Live exports ' +
+      'usually stop working on the PTR patch and vice versa.';
+  }
   const m = error?.match(/Slot '([^']+)':\s*Cannot initialize data/i);
   if (!m) return error;
   const slot = m[1];

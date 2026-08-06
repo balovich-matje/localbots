@@ -10,10 +10,13 @@ import { promisify } from 'node:util';
 import { writeFileSync, readFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { sanitizeProfile } from './profileBuilder.js';
 
 const execFileP = promisify(execFile);
 const CACHE_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'cache');
 const PROBE_CACHE = join(CACHE_DIR, 'simc-known-items.json');
+// per-patch probe caches must never share a file: a live probe would mark
+// every PTR-only item unknown for the PTR patch (and vice versa)
 
 // inventory type -> a slot simc will accept for the probe
 const PROBE_SLOT = {
@@ -25,37 +28,52 @@ const PROBE_SLOT = {
 
 // The probe equips items onto the user's own character (a naked synthetic
 // character fails simc init). iterations=1 keeps each run near-pure init cost.
-function probeBase(profileText) {
+function probeBase(profileText, ptr) {
+  // The probe only tests whether ITEMS initialize — talents are irrelevant,
+  // and a live export's talent hash may not decode under a PTR dataset
+  // (which would fail the baseline and mark every item unknown). Strip them.
+  // sanitizeProfile also strips a pasted ptr= line, which would otherwise
+  // override our own flag below and poison the persisted probe cache.
+  const noTalents = sanitizeProfile(profileText)
+    .split('\n')
+    .filter((l) => !/^\s*(talents|omnium_talents)\s*=/.test(l))
+    .join('\n');
   return [
+    // ptr must be the FIRST line — items resolve against the database at parse time
+    ...(ptr ? ['ptr=1'] : []),
     'item_db_source=local',
     'iterations=1',
     'max_time=10',
     'fight_style=Patchwerk',
     'optimal_raid=0',
     '',
-    profileText.trim(),
+    noTalents.trim(),
     '',
   ].join('\n');
 }
 
-export function loadProbeCache(simcBuild, lootDbBuiltAt) {
-  if (!existsSync(PROBE_CACHE)) return null;
+export function loadProbeCache(simcBuild, lootDbBuiltAt, cachePath = PROBE_CACHE) {
+  if (!existsSync(cachePath)) return null;
   try {
-    const c = JSON.parse(readFileSync(PROBE_CACHE, 'utf8'));
+    const c = JSON.parse(readFileSync(cachePath, 'utf8'));
     if (c.simcBuild === simcBuild && c.lootDbBuiltAt === lootDbBuiltAt) return new Set(c.knownIds);
   } catch { /* rebuilt below */ }
   return null;
 }
 
 // items: [{id, invType}] — returns Set of item ids simc knows.
-export async function probeKnownItems(simcPath, simcBuild, lootDbBuiltAt, profileText, items, onProgress = () => {}) {
-  const cached = loadProbeCache(simcBuild, lootDbBuiltAt);
+// opts.ptr probes against simc's PTR dataset; opts.cachePath keeps each
+// patch's result in its own file.
+export async function probeKnownItems(simcPath, simcBuild, lootDbBuiltAt, profileText, items, onProgress = () => {}, opts = {}) {
+  const ptr = opts.ptr === true;
+  const cachePath = opts.cachePath ?? PROBE_CACHE;
+  const cached = loadProbeCache(simcBuild, lootDbBuiltAt, cachePath);
   if (cached) return cached;
 
-  const dir = join(CACHE_DIR, 'probe');
+  const dir = join(dirname(cachePath), ptr ? 'probe-ptr' : 'probe');
   mkdirSync(dir, { recursive: true });
 
-  const base = probeBase(profileText);
+  const base = probeBase(profileText, ptr);
   const candidates = items.filter((it) => PROBE_SLOT[it.invType]);
   const bad = [];
   let runs = 0;
@@ -92,7 +110,7 @@ export async function probeKnownItems(simcPath, simcBuild, lootDbBuiltAt, profil
 
   const badSet = new Set(bad);
   const knownIds = candidates.filter((it) => !badSet.has(it.id)).map((it) => it.id);
-  writeFileSync(PROBE_CACHE, JSON.stringify({
+  writeFileSync(cachePath, JSON.stringify({
     simcBuild, lootDbBuiltAt, probedAt: Date.now(), runs,
     knownIds, unknownIds: bad,
   }));

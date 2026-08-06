@@ -1,0 +1,544 @@
+{
+  "season": "Midnight Season 2 (12.1 PTR)",
+  "_comment": "PTR-derived config — tracks/crafted/voidcore-Myth are EXACT from client data at build 12.1.0.69111; raid/M+/delve/world ilvls are inferred from the same track positions season 1 used and can shift before release. Re-verify on launch day.",
+  "tracks": {
+    "Adventurer": [
+      266,
+      269,
+      272,
+      276,
+      279,
+      282
+    ],
+    "Veteran": [
+      279,
+      282,
+      285,
+      289,
+      292,
+      295
+    ],
+    "Champion": [
+      292,
+      295,
+      298,
+      302,
+      305,
+      308
+    ],
+    "Hero": [
+      305,
+      308,
+      311,
+      315,
+      318,
+      321
+    ],
+    "Myth": [
+      318,
+      321,
+      324,
+      328,
+      331,
+      334
+    ]
+  },
+  "consumableOptions": {
+    "_comment": "Season 1 consumables carry over on the PTR; the two new 12.1 feast foods are appended (stats not yet measured).",
+    "flask": [
+      {
+        "value": "flask_of_the_shattered_sun_2",
+        "label": "Flask of the Shattered Sun (+165 Crit)"
+      },
+      {
+        "value": "flask_of_the_blood_knights_2",
+        "label": "Flask of the Blood Knights (+165 Haste)"
+      },
+      {
+        "value": "flask_of_the_magisters_2",
+        "label": "Flask of the Magisters (+165 Mastery)"
+      },
+      {
+        "value": "flask_of_thalassian_resistance_2",
+        "label": "Flask of Thalassian Resistance (+165 Vers)"
+      }
+    ],
+    "food": [
+      {
+        "value": "royal_roast",
+        "label": "Royal Roast (+50 primary stat)"
+      },
+      {
+        "value": "queldorei_medley",
+        "label": "Quel'dorei Medley (+64 highest secondary)"
+      },
+      {
+        "value": "arcano_cutlets",
+        "label": "Arcano Cutlets (+64 Crit)"
+      },
+      {
+        "value": "felkissed_filet",
+        "label": "Fel-Kissed Filet (+64 Haste)"
+      },
+      {
+        "value": "warped_wise_wings",
+        "label": "Warped Wise Wings (+64 Mastery)"
+      },
+      {
+        "value": "voidkissed_fish_rolls",
+        "label": "Void-Kissed Fish Rolls (+64 Vers)"
+      },
+      {
+        "value": "silvermoon_parade",
+        "label": "Silvermoon Parade (new in 12.1)"
+      },
+      {
+        "value": "harandar_celebration",
+        "label": "Harandar Celebration (new in 12.1)"
+      }
+    ],
+    "potion": [
+      {
+        "value": "lights_potential_2",
+        "label": "Light's Potential"
+      },
+      {
+        "value": "potion_of_recklessness_2",
+        "label": "Potion of Recklessness"
+      },
+      {
+        "value": "draught_of_rampant_abandon_2",
+        "label": "Draught of Rampant Abandon"
+      },
+      {
+        "value": "potion_of_zealotry_2",
+        "label": "Potion of Zealotry"
+      }
+    ],
+    "temporary_enchant": [
+      {
+        "value": "thalassian_phoenix_oil_2",
+        "label": "Thalassian Phoenix Oil"
+      }
+    ]
+  },
+  "crafted": {
+    "maxIlvl": 331
+  },
+  "voidcore": {
+    "_comment": "S2 successor confirmed in client data: Myth 6/6 -> 344 (exact, bonus 13848). Hero 331 and crafted 341 are inferred from the season-1 pattern; slots copied from S1 until datamined.",
+    "slots": [
+      "main_hand",
+      "off_hand",
+      "trinket1",
+      "trinket2"
+    ],
+    "mythIlvl": 344,
+    "heroIlvl": 331,
+    "craftedIlvl": 341
+  },
+  "maxIlvl": 344,
+  "droptimizer": {
+    "_comment": "Inferred from season-1 track positions; PTR tooltips may adjust these before release.",
+    "raidDifficulties": {
+      "LFR": [
+        279,
+        282,
+        285,
+        289
+      ],
+      "Normal": [
+        292,
+        295,
+        298,
+        302
+      ],
+      "Heroic": [
+        305,
+        308,
+        311,
+        315
+      ],
+      "Mythic": [
+        318,
+        321,
+        324,
+        328
+      ]
+    },
+    "mythicPlusDungeons": [
+      "Altar of Fangs",
+      "Ruby Life Pools",
+      "Temple of Sethraliss",
+      "Kings' Rest",
+      "The Blinding Vale",
+      "Voidscar Arena",
+      "Den of Nalorakk",
+      "Murder Row"
+    ],
+    "mythicPlus": {
+      "endOfDungeon": {
+        "0": 292,
+        "2": 295,
+        "3": 295,
+        "4": 298,
+        "5": 302,
+        "6": 305,
+        "7": 305,
+        "8": 308,
+        "9": 308,
+        "10": 311
+      },
+      "vault": {
+        "0": 302,
+        "2": 305,
+        "3": 305,
+        "4": 308,
+        "5": 308,
+        "6": 311,
+        "7": 315,
+        "8": 315,
+        "9": 315,
+        "10": 318
+      }
+    },
+    "delveTracks": {
+      "_comment": "Same simplified model as season 1.",
+      "Champion": 295,
+      "Hero": 305
+    },
+    "worldBossIlvl": 302,
+    "outdoorIlvl": 295
+  },
+  "enchantOptions": {
+    "_comment": "Per-slot enchant alternatives (rank-2 ids from SpellItemEnchantment, as used by simc tuning profiles). legs entries carry a stat filter (attack = str/agi specs, int = casters).",
+    "weapon": [
+      {
+        "id": 7979,
+        "label": "Strength of Halazzi"
+      },
+      {
+        "id": 7981,
+        "label": "Jan'alai's Precision"
+      },
+      {
+        "id": 7983,
+        "label": "Berserker's Rage"
+      },
+      {
+        "id": 8007,
+        "label": "Worldsoul Cradle"
+      },
+      {
+        "id": 8009,
+        "label": "Worldsoul Aegis"
+      },
+      {
+        "id": 8011,
+        "label": "Worldsoul Tenacity"
+      },
+      {
+        "id": 8037,
+        "label": "Flames of the Sin'dorei"
+      },
+      {
+        "id": 8039,
+        "label": "Acuity of the Ren'dorei"
+      },
+      {
+        "id": 8041,
+        "label": "Arcane Mastery"
+      }
+    ],
+    "chest": [
+      {
+        "id": 7957,
+        "label": "Mark of Nalorakk"
+      },
+      {
+        "id": 7985,
+        "label": "Mark of the Rootwarden"
+      },
+      {
+        "id": 7987,
+        "label": "Mark of the Worldsoul"
+      },
+      {
+        "id": 8013,
+        "label": "Mark of the Magister"
+      }
+    ],
+    "head": [
+      {
+        "id": 7961,
+        "label": "Empowered Hex of Leeching"
+      },
+      {
+        "id": 7991,
+        "label": "Empowered Blessing of Speed"
+      },
+      {
+        "id": 8017,
+        "label": "Empowered Rune of Avoidance"
+      }
+    ],
+    "feet": [
+      {
+        "id": 7963,
+        "label": "Lynx's Dexterity"
+      },
+      {
+        "id": 7993,
+        "label": "Shaladrassil's Roots"
+      },
+      {
+        "id": 8019,
+        "label": "Farstrider's Hunt"
+      }
+    ],
+    "ring": [
+      {
+        "id": 7965,
+        "label": "Amani Mastery"
+      },
+      {
+        "id": 7967,
+        "label": "Eyes of the Eagle"
+      },
+      {
+        "id": 7969,
+        "label": "Zul'jin's Mastery"
+      },
+      {
+        "id": 7995,
+        "label": "Nature's Wrath"
+      },
+      {
+        "id": 7997,
+        "label": "Nature's Fury"
+      },
+      {
+        "id": 8021,
+        "label": "Thalassian Haste"
+      },
+      {
+        "id": 8023,
+        "label": "Thalassian Versatility"
+      },
+      {
+        "id": 8025,
+        "label": "Silvermoon's Alacrity"
+      },
+      {
+        "id": 8027,
+        "label": "Silvermoon's Tenacity"
+      }
+    ],
+    "legs": [
+      {
+        "id": 8159,
+        "label": "Leg kit: Agi/Str + Stamina",
+        "stat": "attack"
+      },
+      {
+        "id": 8163,
+        "label": "Leg kit: Agi/Str + Armor",
+        "stat": "attack"
+      },
+      {
+        "id": 8161,
+        "label": "Leg kit: Agi/Str",
+        "stat": "attack"
+      },
+      {
+        "id": 7935,
+        "label": "Spellthread: Int + Stamina",
+        "stat": "int"
+      },
+      {
+        "id": 7937,
+        "label": "Spellthread: Int + Mana",
+        "stat": "int"
+      }
+    ]
+  },
+  "gemOptions": [
+    {
+      "id": 240898,
+      "label": "Flawless Deadly Amethyst"
+    },
+    {
+      "id": 240904,
+      "label": "Flawless Deadly Garnet"
+    },
+    {
+      "id": 240914,
+      "label": "Flawless Deadly Lapis"
+    },
+    {
+      "id": 240890,
+      "label": "Flawless Deadly Peridot"
+    },
+    {
+      "id": 240896,
+      "label": "Flawless Masterful Amethyst"
+    },
+    {
+      "id": 240908,
+      "label": "Flawless Masterful Garnet"
+    },
+    {
+      "id": 240918,
+      "label": "Flawless Masterful Lapis"
+    },
+    {
+      "id": 240892,
+      "label": "Flawless Masterful Peridot"
+    },
+    {
+      "id": 240900,
+      "label": "Flawless Quick Amethyst"
+    },
+    {
+      "id": 240906,
+      "label": "Flawless Quick Garnet"
+    },
+    {
+      "id": 240916,
+      "label": "Flawless Quick Lapis"
+    },
+    {
+      "id": 240888,
+      "label": "Flawless Quick Peridot"
+    },
+    {
+      "id": 240902,
+      "label": "Flawless Versatile Amethyst"
+    },
+    {
+      "id": 240910,
+      "label": "Flawless Versatile Garnet"
+    },
+    {
+      "id": 240912,
+      "label": "Flawless Versatile Lapis"
+    },
+    {
+      "id": 240894,
+      "label": "Flawless Versatile Peridot"
+    }
+  ],
+  "omniumFolio": {
+    "_comment": "Omnium Folio rune choices (expansion trait tree from game data; entry ids are what omnium_talents= uses). One choice per row.",
+    "rows": [
+      {
+        "row": 1,
+        "choices": [
+          {
+            "entry": 136825,
+            "label": "Void-Touched Orbs"
+          },
+          {
+            "entry": 136822,
+            "label": "Unleashed Fire"
+          }
+        ]
+      },
+      {
+        "row": 2,
+        "choices": [
+          {
+            "entry": 136819,
+            "label": "Self-Mending"
+          },
+          {
+            "entry": 136816,
+            "label": "Void-Tainted Shell"
+          },
+          {
+            "entry": 136823,
+            "label": "Lynxlike Reflexes"
+          }
+        ]
+      },
+      {
+        "row": 3,
+        "choices": [
+          {
+            "entry": 136817,
+            "label": "Lingering"
+          }
+        ]
+      },
+      {
+        "row": 4,
+        "choices": [
+          {
+            "entry": 136815,
+            "label": "Critical Power"
+          },
+          {
+            "entry": 136821,
+            "label": "Burning Haste"
+          },
+          {
+            "entry": 136818,
+            "label": "Masterful Cunning"
+          },
+          {
+            "entry": 136820,
+            "label": "The Versatile Warrior"
+          }
+        ]
+      },
+      {
+        "row": 5,
+        "choices": [
+          {
+            "entry": 136814,
+            "label": "Overload"
+          },
+          {
+            "entry": 136824,
+            "label": "Residual Energy"
+          },
+          {
+            "entry": 136826,
+            "label": "Echoes"
+          }
+        ]
+      }
+    ]
+  },
+  "diamondOptions": {
+    "_comment": "Eversong Diamonds — the unique special-socket gems. Compared by swapping whichever socket currently holds one.",
+    "options": [
+      {
+        "id": 240967,
+        "label": "Powerful Eversong Diamond (main stat)"
+      },
+      {
+        "id": 240969,
+        "label": "Telluric Eversong Diamond"
+      },
+      {
+        "id": 240971,
+        "label": "Stoic Eversong Diamond"
+      },
+      {
+        "id": 240983,
+        "label": "Indecipherable Eversong Diamond"
+      }
+    ],
+    "knownIds": [
+      240966,
+      240967,
+      240968,
+      240969,
+      240970,
+      240971,
+      240982,
+      240983
+    ]
+  }
+}

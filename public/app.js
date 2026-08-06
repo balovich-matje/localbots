@@ -6,9 +6,61 @@ let mode = 'quick';
 let gearItems = []; // last parsed bag/vault items, indexes match checkboxes
 let itemSets = []; // detected item sets from /api/gear
 let setMinimums = {}; // setId -> chosen minimum bonus (0/2/4)
-let season = null; // upgrade tracks + voidcore info from data/season.json
+let season = null; // upgrade tracks + voidcore info from the patch's season config
 
-fetch('/api/season').then((r) => r.json()).then((s) => { season = s; renderCompareGroups(); }).catch(() => {});
+// ---------- patch switch (Live / PTR) ----------
+let patch = localStorage.getItem('localbots-patch') ?? 'live';
+let patchDefs = [];
+
+async function reloadSeason() {
+  try {
+    season = await (await fetch(`/api/season?patch=${encodeURIComponent(patch)}`)).json();
+    renderCompareGroups();
+  } catch { /* unreachable server is reported by the status chips */ }
+}
+
+async function initPatches() {
+  try {
+    patchDefs = (await (await fetch('/api/patches')).json()).patches ?? [];
+  } catch { patchDefs = []; }
+  const cur = patchDefs.find((d) => d.id === patch);
+  if (!cur || !cur.available) {
+    patch = (patchDefs.find((d) => d.available) ?? patchDefs[0])?.id ?? 'live';
+  }
+  renderPatchSwitch();
+  await reloadSeason();
+}
+initPatches();
+
+function renderPatchSwitch() {
+  const el = $('patch-switch');
+  if (!el) return;
+  if (patchDefs.length < 2) { el.innerHTML = ''; return; }
+  el.innerHTML = patchDefs.map((d) => `
+    <button class="patch-btn ${d.id === patch ? 'active' : ''}" data-patchid="${esc(d.id)}"
+      ${d.available ? '' : 'disabled'}
+      title="${d.available
+        ? (d.ptr ? 'Sim against the test-realm (PTR) data — numbers are provisional until release' : 'Sim against the live game')
+        : esc(d.reason ?? 'unavailable')}">${esc(d.label)}</button>`).join('');
+  el.querySelectorAll('.patch-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (btn.disabled || btn.dataset.patchid === patch) return;
+      patch = btn.dataset.patchid;
+      localStorage.setItem('localbots-patch', patch);
+      renderPatchSwitch();
+      // patch-specific state is stale now
+      equippedItems = null;
+      delete $('tu-list').dataset.rendered;
+      droptTree = null;
+      await reloadSeason();
+      if (mode === 'topgear') {
+        refreshGearList();
+        if ($('track-upgrades-toggle').checked) loadEquippedItems();
+      }
+      if (mode === 'droptimizer') refreshDroptimizer();
+    });
+  });
+}
 
 // ---------- "Also compare" pickers ----------
 // Each group: header checkbox + expandable panel of options (all on by
@@ -282,7 +334,9 @@ async function pollSimcUpdate() {
       `${st.error} — you can update manually instead (see the README).`);
     return;
   }
-  // done — re-check the light against the fresh build
+  // done — re-check the light and the patch list against the fresh build
+  // (a simc update can gain or lose PTR data, changing patch availability)
+  initPatches();
   try {
     const s = await (await fetch('/api/status')).json();
     renderStatus(s);
@@ -347,6 +401,7 @@ function historyRow(e) {
     <div class="he-top">
       <span class="he-dps">${headline}</span>
       <span class="source-tag">${esc(e.modeLabel ?? e.mode)}</span>
+      ${e.patchLabel ? `<span class="source-tag ptr-tag">${esc(e.patchLabel)}</span>` : ''}
       <span class="he-when">${esc(when)}</span>
       <button class="mini he-delete" data-histdel="${esc(e.id)}" title="Delete this saved sim">✕</button>
     </div>
@@ -491,7 +546,7 @@ async function refreshGearList() {
     const resp = await fetch('/api/gear', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profile }),
+      body: JSON.stringify({ profile, patch }),
     });
     const body = await resp.json();
     gearItems = body.items ?? [];
@@ -583,7 +638,7 @@ async function loadEquippedItems() {
     const r = await (await fetch('/api/gear', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profile: $('profile').value, resolveIlvls: true }),
+      body: JSON.stringify({ profile: $('profile').value, resolveIlvls: true, patch }),
     })).json();
     equippedItems = r.equippedItems ?? null;
     $('tu-status').textContent = r.equippedItemsError ? `Failed: ${r.equippedItemsError}` : '';
@@ -631,7 +686,11 @@ let droptPoll = null;
 $('dropt-all').addEventListener('click', () => setAllDropt(true));
 $('dropt-none').addEventListener('click', () => setAllDropt(false));
 $('dropt-refresh').addEventListener('click', async () => {
-  await fetch('/api/data/refresh', { method: 'POST' });
+  await fetch('/api/data/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ patch }),
+  });
   refreshDroptimizer();
 });
 
@@ -654,7 +713,7 @@ async function refreshDroptimizer() {
     r = await (await fetch('/api/droptimizer/sources', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profile }),
+      body: JSON.stringify({ profile, patch }),
     })).json();
   } catch {
     $('dropt-status').textContent = 'Could not reach the server.';
@@ -668,9 +727,11 @@ async function refreshDroptimizer() {
   if (r.needsData || r.status?.refresh?.running) {
     const step = r.status?.refresh?.running
       ? `Downloading game data: ${r.status.refresh.step ?? '…'}`
-      : r.status?.cache?.downloadedAt
-        ? 'Localbots was updated and needs fresh game data — hit "Refresh data" (~60 MB from wago.tools).'
-        : 'Game data not downloaded yet — hit "Refresh data" (one-time, ~60 MB from wago.tools).';
+      : r.status?.cache?.buildMismatch
+        ? 'Your cached game data is from the wrong game build — hit "Refresh data" to re-download the right one (~60 MB).'
+        : r.status?.cache?.downloadedAt
+          ? 'Localbots was updated and needs fresh game data — hit "Refresh data" (~60 MB from wago.tools).'
+          : 'Game data not downloaded yet — hit "Refresh data" (one-time, ~60 MB from wago.tools).';
     $('dropt-status').textContent = step;
     $('dropt-sources').innerHTML = '';
     if (r.status?.refresh?.running) droptPoll = setTimeout(refreshDroptimizer, 2500);
@@ -977,7 +1038,7 @@ async function startSim() {
 
   hideError();
 
-  const payload = { profile, options };
+  const payload = { profile, options, patch };
   if (mode === 'topgear') {
     payload.mode = 'topgear';
     payload.items = [...document.querySelectorAll('#gear-list input[type="checkbox"]')]

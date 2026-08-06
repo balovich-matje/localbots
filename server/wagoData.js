@@ -45,29 +45,53 @@ const TABLES = {
 // counts as present (the features they power just stay off until a refresh).
 const OPTIONAL_TABLES = new Set(['CraftingData']);
 
-export async function downloadTables(onProgress = () => {}) {
-  mkdirSync(CACHE_DIR, { recursive: true });
+// Per-patch file locations. The live patch keeps the original flat layout
+// (no migration for existing installs); other patches get a subdirectory.
+export function patchPaths(patchId = 'live', delveFile = null) {
+  const cacheDir = patchId === 'live' ? CACHE_DIR : join(CACHE_DIR, patchId);
+  return {
+    cacheDir,
+    lootDbPath: patchId === 'live' ? LOOT_DB : join(cacheDir, 'lootdb.json'),
+    delvePath: join(DATA_DIR, delveFile ?? (patchId === 'live' ? 'delve-loot.json' : `delve-loot-${patchId}.json`)),
+    probeCachePath: join(cacheDir, 'simc-known-items.json'),
+  };
+}
+
+// opts.build pins the exact game build wago serves (never trust wago's
+// default — it sometimes points at a test build); opts.cacheDir selects the
+// patch; opts.bonusesChannel picks Raidbots' live vs ptr bonus map.
+export async function downloadTables(onProgress = () => {}, opts = {}) {
+  const cacheDir = opts.cacheDir ?? CACHE_DIR;
+  const buildParam = opts.build ? `?build=${encodeURIComponent(opts.build)}` : '';
+  mkdirSync(cacheDir, { recursive: true });
   const names = Object.keys(TABLES);
   for (const [i, table] of names.entries()) {
     onProgress({ table, index: i + 1, total: names.length });
-    const resp = await fetch(`https://wago.tools/db2/${table}/csv`, {
+    const resp = await fetch(`https://wago.tools/db2/${table}/csv${buildParam}`, {
       headers: { 'User-Agent': 'localbots (github.com/balovich-matje/localbots)' },
     });
     if (!resp.ok) throw new Error(`wago.tools ${table}: HTTP ${resp.status}`);
-    writeFileSync(join(CACHE_DIR, `${table}.csv`), await resp.text());
+    writeFileSync(join(cacheDir, `${table}.csv`), await resp.text());
   }
   // Raidbots' public bonus-id map: the community-standard decode of upgrade
   // tracks ("Hero 6/6"), sockets etc. Static file, cached like the CSVs.
   onProgress({ table: 'bonuses.json (raidbots)', index: names.length, total: names.length });
-  const resp = await fetch('https://www.raidbots.com/static/data/live/bonuses.json', {
+  const channel = opts.bonusesChannel === 'ptr' ? 'ptr' : 'live';
+  const resp = await fetch(`https://www.raidbots.com/static/data/${channel}/bonuses.json`, {
     headers: { 'User-Agent': 'localbots (github.com/balovich-matje/localbots)' },
   });
-  if (resp.ok) writeFileSync(join(CACHE_DIR, 'bonuses.json'), await resp.text());
+  if (resp.ok) writeFileSync(join(cacheDir, 'bonuses.json'), await resp.text());
+  // Record which game build these tables came from — cacheStatus compares it
+  // against the build the local simc expects, so a cache downloaded from the
+  // wrong build (e.g. wago's default while it pointed at a test build) is
+  // flagged for a re-download instead of silently served.
+  writeFileSync(join(cacheDir, 'meta.json'),
+    JSON.stringify({ build: opts.build ?? null, downloadedAt: Date.now() }));
 }
 
 // bonus id -> { track, level, max, ilvl } for upgrade-track bonuses
-export function loadBonusUpgradeMap() {
-  const path = join(CACHE_DIR, 'bonuses.json');
+export function loadBonusUpgradeMap(cacheDir = CACHE_DIR) {
+  const path = join(cacheDir, 'bonuses.json');
   if (!existsSync(path)) return null;
   try {
     const raw = JSON.parse(readFileSync(path, 'utf8'));
@@ -84,16 +108,24 @@ export function loadBonusUpgradeMap() {
   }
 }
 
-export function cacheStatus() {
+export function cacheStatus(cacheDir = CACHE_DIR, expectedBuild = null) {
   const missing = Object.keys(TABLES)
     .filter((t) => !OPTIONAL_TABLES.has(t))
-    .filter((t) => !existsSync(join(CACHE_DIR, `${t}.csv`)));
+    .filter((t) => !existsSync(join(cacheDir, `${t}.csv`)));
   if (missing.length === Object.keys(TABLES).length - OPTIONAL_TABLES.size) return { present: false };
   const missingOptional = [...OPTIONAL_TABLES]
-    .filter((t) => !existsSync(join(CACHE_DIR, `${t}.csv`)));
+    .filter((t) => !existsSync(join(cacheDir, `${t}.csv`)));
+  let cachedBuild = null;
+  try {
+    cachedBuild = JSON.parse(readFileSync(join(cacheDir, 'meta.json'), 'utf8')).build ?? null;
+  } catch { /* pre-marker cache — treated as unknown build */ }
+  // A cache from the wrong (or unknown) game build must be re-downloaded:
+  // wago's default build sometimes points at a test build, and serving those
+  // tables as "live" quietly corrupts the loot database.
+  const buildMismatch = expectedBuild !== null && cachedBuild !== expectedBuild;
   let oldest = null;
   for (const t of Object.keys(TABLES)) {
-    const p = join(CACHE_DIR, `${t}.csv`);
+    const p = join(cacheDir, `${t}.csv`);
     if (existsSync(p)) {
       const m = statSync(p).mtimeMs;
       if (oldest === null || m < oldest) oldest = m;
@@ -101,29 +133,34 @@ export function cacheStatus() {
   }
   return {
     present: missing.length === 0,
-    // complete = every table incl. optional ones; a silent startup rebuild is
-    // only safe then — otherwise the UI prompts for a refresh instead
-    complete: missing.length === 0 && missingOptional.length === 0,
+    // complete = every table incl. optional ones AND the right game build; a
+    // silent startup rebuild is only safe then — otherwise the UI prompts
+    complete: missing.length === 0 && missingOptional.length === 0 && !buildMismatch,
     missing,
     missingOptional,
+    cachedBuild,
+    buildMismatch,
     downloadedAt: oldest,
   };
 }
 
-function loadTable(name) {
-  return parseCsv(readFileSync(join(CACHE_DIR, `${name}.csv`), 'utf8'), TABLES[name]);
+function loadTable(name, cacheDir = CACHE_DIR) {
+  return parseCsv(readFileSync(join(cacheDir, `${name}.csv`), 'utf8'), TABLES[name]);
 }
 
 // Build (and persist) the joined loot database from the cached CSVs.
 // Raids / world bosses / outdoor events come from the "Current Season"
 // journal tier. The live M+ dungeon pool rotates out of the DB2 tables,
 // so it is named explicitly in data/season.json (mythicPlusDungeons).
-export function buildLootDb(mplusDungeonNames = []) {
-  const txi = loadTable('JournalTierXInstance')
+export function buildLootDb(mplusDungeonNames = [], paths = {}) {
+  const cacheDir = paths.cacheDir ?? CACHE_DIR;
+  const lootDbPath = paths.lootDbPath ?? LOOT_DB;
+  const delvePath = paths.delvePath ?? join(DATA_DIR, 'delve-loot.json');
+  const txi = loadTable('JournalTierXInstance', cacheDir)
     .filter((r) => Number(r.JournalTierID) === CURRENT_SEASON_TIER);
-  const instances = loadTable('JournalInstance');
-  const encounters = loadTable('JournalEncounter');
-  const jei = loadTable('JournalEncounterItem');
+  const instances = loadTable('JournalInstance', cacheDir);
+  const encounters = loadTable('JournalEncounter', cacheDir);
+  const jei = loadTable('JournalEncounterItem', cacheDir);
 
   const instById = new Map(instances.map((r) => [r.ID, r]));
   const encByInstance = new Map();
@@ -187,7 +224,7 @@ export function buildLootDb(mplusDungeonNames = []) {
   };
 
   // Map.InstanceType is the game's own raid/dungeon marker (2 = raid, 1 = dungeon)
-  const instanceTypeByMap = new Map(loadTable('Map').map((r) => [r.ID, Number(r.InstanceType)]));
+  const instanceTypeByMap = new Map(loadTable('Map', cacheDir).map((r) => [r.ID, Number(r.InstanceType)]));
 
   for (const t of txi) {
     const inst = instById.get(t.JournalInstanceID);
@@ -199,10 +236,11 @@ export function buildLootDb(mplusDungeonNames = []) {
   }
   for (const inst of dungeonInstances) addInstance(inst, 'dungeon');
 
-  // curated delve pool (server-side loot; see data/delve-loot.json)
+  // curated delve pool (server-side loot; see data/delve-loot.json —
+  // per-patch file, optional: a patch without one just has no delve source)
   let delveEntries = [];
   try {
-    delveEntries = JSON.parse(readFileSync(join(DATA_DIR, 'delve-loot.json'), 'utf8')).items ?? [];
+    delveEntries = JSON.parse(readFileSync(delvePath, 'utf8')).items ?? [];
   } catch { /* optional */ }
   const delveIds = new Set(delveEntries.filter((e) => e.id).map((e) => String(e.id)));
   const delveNames = new Set(delveEntries.filter((e) => e.name).map((e) => e.name));
@@ -221,7 +259,7 @@ export function buildLootDb(mplusDungeonNames = []) {
   // placeholder codes 24 & 25 in the stat slots mark the player-choice
   // slots, and CraftingData.CraftedItemID confirms it's an actual craft.
   const craftedRecipeIds = new Set();
-  const craftingPath = join(CACHE_DIR, 'CraftingData.csv');
+  const craftingPath = join(cacheDir, 'CraftingData.csv');
   if (existsSync(craftingPath)) {
     for (const r of parseCsv(readFileSync(craftingPath, 'utf8'), TABLES.CraftingData)) {
       craftedRecipeIds.add(r.CraftedItemID);
@@ -242,7 +280,7 @@ export function buildLootDb(mplusDungeonNames = []) {
   const nameCandidates = new Map();
   const sparse = new Map();
   const craftedIds = [];
-  for (const r of loadTable('ItemSparse')) {
+  for (const r of loadTable('ItemSparse', cacheDir)) {
     if (wantedItemIds.has(r.ID)) sparse.set(r.ID, r);
     if (craftedRecipeIds.has(r.ID) && Number(r.ExpansionID) === CRAFT_EXPANSION && hasSelectableStats(r)) {
       craftedIds.push(r.ID);
@@ -263,7 +301,7 @@ export function buildLootDb(mplusDungeonNames = []) {
   }
   for (const id of craftedIds) wantedItemIds.add(id);
   const itemMeta = new Map();
-  for (const r of loadTable('Item')) if (wantedItemIds.has(r.ID)) itemMeta.set(r.ID, r);
+  for (const r of loadTable('Item', cacheDir)) if (wantedItemIds.has(r.ID)) itemMeta.set(r.ID, r);
 
   const sources = [];
   for (const { inst, bosses, kind, keepRows } of picked) {
@@ -320,7 +358,7 @@ export function buildLootDb(mplusDungeonNames = []) {
   }
 
   const db = { builtAt: Date.now(), version: LOOT_DB_VERSION, sources };
-  writeFileSync(LOOT_DB, JSON.stringify(db));
+  writeFileSync(lootDbPath, JSON.stringify(db));
   return db;
 }
 
@@ -355,8 +393,8 @@ function shapeItem(itemId, sparse, itemMeta) {
 
 // Item-set membership from the game's ItemSet table:
 // { byItem: Map(itemId -> setId), sets: Map(setId -> { name, items: [ids] }) }
-export function loadItemSetMap() {
-  const path = join(CACHE_DIR, 'ItemSet.csv');
+export function loadItemSetMap(cacheDir = CACHE_DIR) {
+  const path = join(cacheDir, 'ItemSet.csv');
   if (!existsSync(path)) return null;
   const byItem = new Map();
   const sets = new Map();
@@ -374,10 +412,10 @@ export function loadItemSetMap() {
   return { byItem, sets };
 }
 
-export function loadLootDb() {
-  if (!existsSync(LOOT_DB)) return null;
+export function loadLootDb(lootDbPath = LOOT_DB) {
+  if (!existsSync(lootDbPath)) return null;
   try {
-    const db = JSON.parse(readFileSync(LOOT_DB, 'utf8'));
+    const db = JSON.parse(readFileSync(lootDbPath, 'utf8'));
     // an older db shape forces a rebuild from the cached CSVs at startup
     if (db.version !== LOOT_DB_VERSION) return null;
     return db;
