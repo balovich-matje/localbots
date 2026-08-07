@@ -86,12 +86,15 @@ function renderCompareGroups() {
   }
   groups.push(['consumables', 'Consumables', cons.join('')]);
 
-  // enchants
+  // enchants — options measured as having no DPS effect are left out
   const ench = [];
   for (const [cat, choices] of Object.entries(season.enchantOptions ?? {})) {
     if (cat.startsWith('_') || !Array.isArray(choices)) continue;
+    const usable = choices.filter((c) => c.dps !== false);
     ench.push(`<div class="cg-slot-head">${esc(SLOT_TITLES[cat] ?? cat)}</div>`);
-    ench.push(...choices.map((c) => optionRow('enchants', cat, c.id, c.label)));
+    ench.push(usable.length
+      ? usable.map((c) => optionRow('enchants', cat, c.id, c.label)).join('')
+      : `<div class="cg-opt hint-inline">no DPS-affecting ${esc(cat)} enchant this season — this season's only give tertiary stats</div>`);
   }
   groups.push(['enchants', 'Enchants', ench.join('')]);
 
@@ -102,8 +105,11 @@ function renderCompareGroups() {
   gems.push(...(season.diamondOptions?.options ?? []).map((d) => optionRow('gems', 'diamonds', d.id, d.label)));
   groups.push(['gems', 'Gems', gems.join('')]);
 
-  // folio (no picker — 13 runes always cheap)
-  groups.push(['folio', 'Omnium Folio', '<p class="hint">All rune alternatives, one row at a time. Needs the omnium_talents line from a current /simc export.</p>']);
+  // folio (no picker — the runes are always cheap to sim)
+  const folioRows = (season.omniumFolio?.rows ?? []).filter((r) => r.choices.some((c) => c.dps !== false));
+  const folioSkipped = (season.omniumFolio?.rows ?? []).length - folioRows.length;
+  groups.push(['folio', 'Omnium Folio',
+    `<p class="hint">Every rune that can move DPS, one row at a time${folioSkipped ? ` (${folioSkipped} defensive row${folioSkipped === 1 ? '' : 's'} left out — healing, absorbs and movement speed)` : ''}. Needs the omnium_talents line from a current /simc export.</p>`]);
 
   // talent builds (cards come from the pasted export, filled by refreshGearList)
   groups.push(['talents', 'Talent builds',
@@ -270,7 +276,10 @@ function prettyLoadout(name) {
 
 // rough variant-count preview so long runs don't surprise anyone
 function updateCompareCounts() {
-  const counts = { consumables: 0, enchants: 0, gems: 0, folio: 13, talents: 0 };
+  const folioCount = (season?.omniumFolio?.rows ?? [])
+    .filter((r) => r.choices.some((c) => c.dps !== false))
+    .reduce((n, r) => n + r.choices.filter((c) => c.dps !== false).length, 0);
+  const counts = { consumables: 0, enchants: 0, gems: 0, folio: folioCount, talents: 0 };
   counts.talents = (selectedOptions('talents').loadouts ?? []).length;
   const consSel = selectedOptions('consumables');
   counts.consumables = Object.values(consSel).reduce((n, a) => n + a.length, 0);
@@ -1342,6 +1351,10 @@ function renderTopGear(r) {
   tgActiveChip = null;
   tgActiveSlot = null;
   $('tg-search').value = '';
+  // a fresh result always opens on the detailed table
+  document.querySelectorAll('.result-tab').forEach((t) => t.classList.toggle('active', t.dataset.restab === 'details'));
+  $('best-setup').classList.add('hidden');
+  $('topgear-table').classList.remove('hidden');
 
   // filter chips (droptimizer runs have many sections; top gear has few)
   const sections = [...new Set(tgRows.map((t) => t.section))];
@@ -1463,6 +1476,86 @@ function rowHtml(t, maxAbs) {
 }
 
 let tgDetailSeq = 0;
+
+// ---------- "Best setup": the winner of every independent choice ----------
+// Each row was measured on its own against the current character, so the
+// picks combine well but their gains are an estimate, not a promise.
+function bucketFor(t) {
+  const k = t.sourceKind;
+  if (k === 'talents') return { key: 'talents', label: 'Talent build', order: 1 };
+  if (k === 'enchants') return { key: `e:${t.boss}`, label: `Enchant — ${t.boss}`, order: 2 };
+  if (k === 'gems') return { key: `g:${t.boss}`, label: t.boss, order: 3 };
+  if (k === 'consumables') return { key: `c:${t.boss}`, label: t.boss, order: 4 };
+  if (k === 'folio') return { key: `f:${t.boss}`, label: `Omnium Folio · ${t.boss}`, order: 5 };
+  if (k === 'upgrades') return null; // upgrading is not an either/or choice
+  return { key: `s:${t.placement}`, label: prettySlot(t.placement), order: 6 };
+}
+
+function renderBestSetup() {
+  const el = $('best-setup');
+  const buckets = new Map();
+  for (const t of tgRows) {
+    const b = bucketFor(t);
+    if (!b) continue;
+    const cur = buckets.get(b.key);
+    if (!cur || t.delta > cur.row.delta) buckets.set(b.key, { ...b, row: t });
+  }
+  const picks = [...buckets.values()]
+    // a category whose winner is what you already use needs no change
+    .filter((b) => !/\(current\)/.test(b.row.itemName ?? ''))
+    // and only wins that clear their own error bar are worth acting on
+    .filter((b) => b.row.delta > b.row.error)
+    .sort((a, b) => a.order - b.order || b.row.delta - a.row.delta);
+
+  const alreadyBest = [...buckets.values()].filter((b) => /\(current\)/.test(b.row.itemName ?? '')).length;
+  if (!picks.length) {
+    el.innerHTML = `<p class="hint">Nothing in this run clearly beat what you already have${alreadyBest ? ` — you are already on the best option in ${alreadyBest} categor${alreadyBest === 1 ? 'y' : 'ies'}` : ''}. If several rows were close, re-run at a higher precision to separate them.</p>`;
+    return;
+  }
+  const total = picks.reduce((n, p) => n + p.row.delta, 0);
+  el.innerHTML = `
+    <div class="bs-head">
+      <span class="bs-total">+${Math.round(total).toLocaleString()} DPS</span>
+      <span class="hint">estimated if you make all ${picks.length} change${picks.length === 1 ? '' : 's'}
+        (${(total / (tgRows[0]?.dps - tgRows[0]?.delta || 1) * 100).toFixed(1)}%)</span>
+    </div>
+    <ul class="bs-list">
+      ${picks.map((p) => {
+    const t = p.row;
+    const changes = Array.isArray(t.changes) && t.changes.length
+      ? `<ul class="change-list">${t.changes.map((c) => `<li>${esc(c.item ?? prettySlot(c.slot))}
+            <span class="hint-inline">(${esc(prettySlot(c.slot))})</span>: ${esc(c.from)} → <strong>${esc(c.to)}</strong></li>`).join('')}</ul>`
+      : '';
+    const eq = REAL_SLOTS.has(t.placement) ? tgEquipped?.[t.placement] : null;
+    const swap = eq?.name ? `<span class="hint-inline">replaces ${esc(eq.name)}</span>` : '';
+    // a gain under twice its error bar could still be simulation noise
+    const shaky = t.delta < t.error * 2
+      ? ' <span class="bs-shaky" title="This gain is small next to the run\'s margin of error — re-run at a higher precision to confirm it">close to the margin</span>' : '';
+    return `<li class="bs-item">
+        <div class="bs-row">
+          <span class="bs-label">${esc(p.label)}</span>
+          <span class="bs-pick">${esc(t.itemName ?? '?')}${t.ilvl && eq?.ilvl ? ` <span class="ilvl">(${eq.ilvl} → ${t.ilvl})</span>` : ''}</span>
+          <span class="bs-gain delta-pos">+${Math.round(t.delta).toLocaleString()}${shaky}</span>
+        </div>
+        ${swap}${changes}
+      </li>`;
+  }).join('')}
+    </ul>
+    <p class="hint">Each change was simmed on its own against your current character. Stacking them
+      usually lands close to the total above, but stat changes shift each other's value — re-run a
+      sim after making them to see the real number.</p>`;
+}
+
+document.querySelectorAll('.result-tab').forEach((tab) => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.result-tab').forEach((t) => t.classList.toggle('active', t === tab));
+    const best = tab.dataset.restab === 'best';
+    $('best-setup').classList.toggle('hidden', !best);
+    $('topgear-table').classList.toggle('hidden', best);
+    $('tg-filters').classList.toggle('hidden', best || !tgRows.length);
+    if (best) renderBestSetup();
+  });
+});
 
 // one delegated listener: toggling a row's change details
 document.querySelector('#topgear-table tbody').addEventListener('click', (ev) => {

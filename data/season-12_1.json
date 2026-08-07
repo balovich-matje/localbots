@@ -127,22 +127,82 @@
   },
   "embellishmentOptions": {
     "_comment": "Season-1 embellishments carry over; the four 12.1-gated ones are appended (simc activates them only under ptr/12.1).",
-    "markerBonusIds": [8960, 13555],
+    "markerBonusIds": [
+      8960,
+      13555
+    ],
     "options": [
-      { "key": "darkmoon_hunt", "label": "Darkmoon Sigil: Hunt", "bonus": 12693 },
-      { "key": "arcanoweave", "label": "Arcanoweave Lining", "bonus": 12384 },
-      { "key": "darkmoon_void", "label": "Darkmoon Sigil: Void", "bonus": 13640 },
-      { "key": "iris", "label": "Prismatic Focusing Iris", "bonus": 13453 },
-      { "key": "iris_bandolier", "label": "Iris + Stabilizing Bandolier (pair)", "bonus": 13453, "secondBonus": 13454 },
-      { "key": "devouring", "label": "Devouring Banding", "bonus": 12685 },
-      { "key": "spore", "label": "Primal Spore Binding", "bonus": 12687 },
-      { "key": "sunfire", "label": "Sunfire Silk Lining", "bonus": 12385 },
-      { "key": "darkmoon_blood", "label": "Darkmoon Sigil: Blood", "bonus": 12705 },
-      { "key": "darkmoon_rot", "label": "Darkmoon Sigil: Rot", "bonus": 12692 },
-      { "key": "ammolite", "label": "Polished Ammolite (12.1)", "bonus": 13768 },
-      { "key": "snakeskin", "label": "Snakeskin Lining (12.1)", "bonus": 13764 },
-      { "key": "adorned_fang", "label": "Adorned Fang (12.1)", "bonus": 13767 },
-      { "key": "ritual_stone", "label": "Hunter's Ritual Stone (12.1)", "bonus": 13771 }
+      {
+        "key": "darkmoon_hunt",
+        "label": "Darkmoon Sigil: Hunt",
+        "bonus": 12693
+      },
+      {
+        "key": "arcanoweave",
+        "label": "Arcanoweave Lining",
+        "bonus": 12384
+      },
+      {
+        "key": "darkmoon_void",
+        "label": "Darkmoon Sigil: Void",
+        "bonus": 13640
+      },
+      {
+        "key": "iris",
+        "label": "Prismatic Focusing Iris",
+        "bonus": 13453
+      },
+      {
+        "key": "iris_bandolier",
+        "label": "Iris + Stabilizing Bandolier (pair)",
+        "bonus": 13453,
+        "secondBonus": 13454
+      },
+      {
+        "key": "devouring",
+        "label": "Devouring Banding",
+        "bonus": 12685
+      },
+      {
+        "key": "spore",
+        "label": "Primal Spore Binding",
+        "bonus": 12687
+      },
+      {
+        "key": "sunfire",
+        "label": "Sunfire Silk Lining",
+        "bonus": 12385
+      },
+      {
+        "key": "darkmoon_blood",
+        "label": "Darkmoon Sigil: Blood",
+        "bonus": 12705
+      },
+      {
+        "key": "darkmoon_rot",
+        "label": "Darkmoon Sigil: Rot",
+        "bonus": 12692
+      },
+      {
+        "key": "ammolite",
+        "label": "Polished Ammolite (12.1)",
+        "bonus": 13768
+      },
+      {
+        "key": "snakeskin",
+        "label": "Snakeskin Lining (12.1)",
+        "bonus": 13764
+      },
+      {
+        "key": "adorned_fang",
+        "label": "Adorned Fang (12.1)",
+        "bonus": 13767
+      },
+      {
+        "key": "ritual_stone",
+        "label": "Hunter's Ritual Stone (12.1)",
+        "bonus": 13771
+      }
     ]
   },
   "voidcore": {
@@ -231,7 +291,7 @@
     "outdoorIlvl": 295
   },
   "enchantOptions": {
-    "_comment": "Per-slot enchant alternatives (rank-2 ids from SpellItemEnchantment, as used by simc tuning profiles). legs entries carry a stat filter (attack = str/agi specs, int = casters).",
+    "_comment": "Per-slot enchant alternatives (rank-2 ids from SpellItemEnchantment, as used by simc tuning profiles). legs entries carry a stat filter (attack = str/agi specs, int = casters). Options marked \"dps\": false were measured in simc as having no DPS effect (tertiary stats, healer/tank procs) and are hidden. \"stat\" restricts an option to specs with that primary stat.",
     "weapon": [
       {
         "id": 7979,
@@ -247,11 +307,13 @@
       },
       {
         "id": 8007,
-        "label": "Worldsoul Cradle"
+        "label": "Worldsoul Cradle",
+        "dps": false
       },
       {
         "id": 8009,
-        "label": "Worldsoul Aegis"
+        "label": "Worldsoul Aegis",
+        "dps": false
       },
       {
         "id": 8011,
@@ -273,47 +335,57 @@
     "chest": [
       {
         "id": 7957,
-        "label": "Mark of Nalorakk"
+        "label": "Mark of Nalorakk",
+        "stat": "str"
       },
       {
         "id": 7985,
-        "label": "Mark of the Rootwarden"
+        "label": "Mark of the Rootwarden",
+        "stat": "agi"
       },
       {
         "id": 7987,
-        "label": "Mark of the Worldsoul"
+        "label": "Mark of the Worldsoul",
+        "stat": "all"
       },
       {
         "id": 8013,
-        "label": "Mark of the Magister"
+        "label": "Mark of the Magister",
+        "stat": "int"
       }
     ],
     "head": [
       {
         "id": 7961,
-        "label": "Empowered Hex of Leeching"
+        "label": "Empowered Hex of Leeching",
+        "dps": false
       },
       {
         "id": 7991,
-        "label": "Empowered Blessing of Speed"
+        "label": "Empowered Blessing of Speed",
+        "dps": false
       },
       {
         "id": 8017,
-        "label": "Empowered Rune of Avoidance"
+        "label": "Empowered Rune of Avoidance",
+        "dps": false
       }
     ],
     "feet": [
       {
         "id": 7963,
-        "label": "Lynx's Dexterity"
+        "label": "Lynx's Dexterity",
+        "dps": false
       },
       {
         "id": 7993,
-        "label": "Shaladrassil's Roots"
+        "label": "Shaladrassil's Roots",
+        "dps": false
       },
       {
         "id": 8019,
-        "label": "Farstrider's Hunt"
+        "label": "Farstrider's Hunt",
+        "dps": false
       }
     ],
     "ring": [
@@ -469,15 +541,18 @@
         "choices": [
           {
             "entry": 136819,
-            "label": "Self-Mending"
+            "label": "Self-Mending",
+            "dps": false
           },
           {
             "entry": 136816,
-            "label": "Void-Tainted Shell"
+            "label": "Void-Tainted Shell",
+            "dps": false
           },
           {
             "entry": 136823,
-            "label": "Lynxlike Reflexes"
+            "label": "Lynxlike Reflexes",
+            "dps": false
           }
         ]
       },

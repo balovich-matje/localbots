@@ -26,10 +26,16 @@ function currentEnchantId(line) {
   return Number(line?.match(/,enchant_id=(\d+)/)?.[1]) || null;
 }
 
+// Options flagged dps:false in the season config were measured in simc as
+// having no DPS effect at all (tertiary stats, healer/tank procs). Simming
+// them only produces noise rows, so they never enter a comparison.
+const affectsDps = (c) => c?.dps !== false;
+
 function pickSelected(choices, selectedIds) {
-  if (!Array.isArray(selectedIds)) return choices;
+  const usable = (choices ?? []).filter(affectsDps);
+  if (!Array.isArray(selectedIds)) return usable;
   const wanted = new Set(selectedIds.map(Number));
-  return choices.filter((c) => wanted.has(Number(c.id)));
+  return usable.filter((c) => wanted.has(Number(c.id)));
 }
 
 export function buildEnchantVariants(profileText, enchantOptions, selection = null, ctx = {}, startGroup = 6000) {
@@ -60,8 +66,13 @@ export function buildEnchantVariants(profileText, enchantOptions, selection = nu
     };
   };
 
-  const statOk = (choice) =>
-    !(choice.stat === 'attack' && primary === 5) && !(choice.stat === 'int' && primary !== 5);
+  // an enchant that grants a primary stat only helps the spec that uses it
+  // (3 = agility, 4 = strength, 5 = intellect)
+  const STAT_NEEDS = { attack: [3, 4], int: [5], str: [4], agi: [3] };
+  const statOk = (choice) => {
+    const need = STAT_NEEDS[choice.stat];
+    return !need || need.includes(primary);
+  };
 
   // --- single slots ---
   for (const [category, slot] of Object.entries(SINGLE_SLOTS)) {
@@ -304,7 +315,10 @@ export function buildFolioVariants(profileText, folioConfig, startGroup = 8000) 
   for (const row of folioConfig.rows) {
     const rowEntries = row.choices.map((c) => c.entry);
     const active = rowEntries.find((e) => current.has(e)) ?? null;
+    // a row whose every rune is defensive/utility can't change DPS — skip it
+    if (!row.choices.some(affectsDps)) continue;
     for (const choice of row.choices) {
+      if (!affectsDps(choice)) continue;
       const isCurrent = choice.entry === active;
       const picks = new Map(current);
       if (active !== null) picks.delete(active);

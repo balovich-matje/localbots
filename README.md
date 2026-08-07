@@ -179,6 +179,21 @@ Your current choice is tagged "(current)", and when viewing one comparison group
 table splits into per-slot sections (Weapons, Rings, Flask, …). All options live in
 [data/season.json](data/season.json).
 
+**Only options that can actually change DPS are offered.** Every enchant and Folio
+rune was measured in simc: ones that grant tertiary stats (leech, speed, avoidance)
+or heal/absorb are hidden, because simming them produces noise that reads like a
+real difference. This season that empties the head and feet enchant lists entirely,
+and drops the Folio's defensive row. Enchants that grant a primary stat are only
+shown to the specs that use it. The measurements are in
+[docs/research/no-dps-options.md](docs/research/no-dps-options.md).
+
+**Best setup:** results have two tabs — *Details* (the full ranked table) and
+*Best setup*, which collapses the run into a shopping list: the winner of each
+independent choice (each enchant slot, gems, flask, each Folio row, each gear slot),
+what it replaces, and the estimated total gain. Gains within the run's margin of
+error are labeled as such, and a category where you already use the best option is
+simply left out.
+
 **Simming upgrades:** every item row has an item-level dropdown — sim the item as-is, at
 any upgrade step of the current season's tracks (e.g. a fresh 272 Myth-track piece at its
 6/6 cap of 289), at Voidcore levels (weapons/trinkets only: 295 crafted / 298 Myth), or
