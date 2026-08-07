@@ -17,19 +17,20 @@ const LOOT_DB = join(CACHE_DIR, 'lootdb.json');
 
 const CURRENT_SEASON_TIER = 505; // JournalTier "Current Season" — stable across seasons
 const CRAFT_EXPANSION = 11; // ItemSparse.ExpansionID for Midnight — bump each expansion
-const LOOT_DB_VERSION = 3; // bump to force a rebuild when the db shape changes
+const CURRENT_MAP_EXPANSION = 11; // Map.ExpansionID for Midnight — bump with CRAFT_EXPANSION
+const LOOT_DB_VERSION = 4; // bump to force a rebuild when the db shape changes
 // ItemLimitCategory ids marking inherently-embellished crafted designs
 const EMBELLISHED_LIMIT_CATEGORIES = new Set([512, 697]);
 
 // table -> columns we keep (null = all)
 const TABLES = {
-  JournalTierXInstance: ['JournalTierID', 'JournalInstanceID', 'OrderIndex'],
+  JournalTierXInstance: ['JournalTierID', 'JournalInstanceID', 'OrderIndex', 'AvailabilityCondition'],
   JournalInstance: ['ID', 'Name_lang', 'MapID', 'Flags'],
   JournalEncounter: ['ID', 'Name_lang', 'JournalInstanceID', 'OrderIndex', 'DifficultyMask'],
   JournalEncounterItem: ['ID', 'JournalEncounterID', 'ItemID', 'DifficultyMask', 'Flags', 'WorldStateExpressionID'],
   MythicPlusSeasonTrackedMap: ['MapChallengeModeID', 'DisplaySeasonID'],
   MapChallengeMode: ['ID', 'Name_lang', 'MapID'],
-  Map: ['ID', 'InstanceType'],
+  Map: ['ID', 'InstanceType', 'ExpansionID'],
   ItemSet: null, // small table; need all ItemID_N columns
   Item: ['ID', 'ClassID', 'SubclassID', 'InventoryType', 'IconFileDataID'],
   ItemSparse: [
@@ -156,13 +157,36 @@ export function buildLootDb(mplusDungeonNames = [], paths = {}) {
   const cacheDir = paths.cacheDir ?? CACHE_DIR;
   const lootDbPath = paths.lootDbPath ?? LOOT_DB;
   const delvePath = paths.delvePath ?? join(DATA_DIR, 'delve-loot.json');
-  const txi = loadTable('JournalTierXInstance', cacheDir)
+  const allTierRows = loadTable('JournalTierXInstance', cacheDir)
     .filter((r) => Number(r.JournalTierID) === CURRENT_SEASON_TIER);
   const instances = loadTable('JournalInstance', cacheDir);
   const encounters = loadTable('JournalEncounter', cacheDir);
   const jei = loadTable('JournalEncounterItem', cacheDir);
+  const mapRows = loadTable('Map', cacheDir);
+  // Map.InstanceType is the game's own raid/dungeon marker (2 = raid, 1 = dungeon)
+  const instanceTypeByMap = new Map(mapRows.map((r) => [r.ID, Number(r.InstanceType)]));
+  const expansionByMap = new Map(mapRows.map((r) => [r.ID, Number(r.ExpansionID)]));
 
   const instById = new Map(instances.map((r) => [r.ID, r]));
+
+  // The "Current Season" tier still carries the PREVIOUS season's rows (e.g.
+  // last expansion's raid + M+ pool), distinguished only by their
+  // AvailabilityCondition — a gate the game client evaluates and we can't.
+  // Season-proof heuristic: a condition group is "current" when any of its
+  // instances sits on a current-expansion map (revamped old dungeons ride
+  // along in the same group; a purely last-expansion group never has one).
+  const condHasCurrent = new Map();
+  for (const t of allTierRows) {
+    const inst = instById.get(t.JournalInstanceID);
+    if (!inst) continue;
+    const cond = t.AvailabilityCondition ?? '0';
+    const isCurrent = expansionByMap.get(inst.MapID) === CURRENT_MAP_EXPANSION;
+    condHasCurrent.set(cond, (condHasCurrent.get(cond) ?? false) || isCurrent);
+  }
+  const txi = allTierRows.filter((t) => {
+    const cond = t.AvailabilityCondition ?? '0';
+    return cond === '0' || condHasCurrent.get(cond) === true;
+  });
   const encByInstance = new Map();
   for (const e of encounters) {
     if (!encByInstance.has(e.JournalInstanceID)) encByInstance.set(e.JournalInstanceID, []);
@@ -222,9 +246,6 @@ export function buildLootDb(mplusDungeonNames = [], paths = {}) {
     const keepRows = kind === 'dungeon' ? filterDungeonRows(inst.ID) : null;
     picked.push({ inst, bosses, kind, keepRows });
   };
-
-  // Map.InstanceType is the game's own raid/dungeon marker (2 = raid, 1 = dungeon)
-  const instanceTypeByMap = new Map(loadTable('Map', cacheDir).map((r) => [r.ID, Number(r.InstanceType)]));
 
   for (const t of txi) {
     const inst = instById.get(t.JournalInstanceID);
