@@ -35,6 +35,11 @@ const RAID_DIFF_TRACK = { LFR: 'Veteran', Normal: 'Champion', Heroic: 'Hero', My
 // simc crafted_stats codes for the four selectable secondaries
 // (verified empirically: 32/36 raise crit+haste, 40/49 raise vers+mastery)
 export const CRAFT_STAT_LABELS = { 32: 'Crit', 36: 'Haste', 40: 'Vers', 49: 'Mastery' };
+
+const SLOT_LABEL = (s) => String(s)
+  .replace(/(finger|trinket)(\d)/, '$1 $2')
+  .replace(/_/g, ' ')
+  .replace(/^\w/, (c) => c.toUpperCase());
 function mplusTrack(keyLevel, reward) {
   const k = Number(keyLevel);
   if (reward === 'vault') return k === 0 ? 'Champion' : k >= 10 ? 'Myth' : 'Hero';
@@ -178,7 +183,7 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
         slot: placement,
         placement,
         section: 'Crafted gear',
-        boss: pairLabel,
+        boss: SLOT_LABEL(placement),
         sourceKind: 'crafted',
       };
     }
@@ -290,83 +295,82 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
         for (const pair of pairs) addCrafted(item, ilvl, pair, craftedVoidcoreIlvl);
       }
 
-      // --- embellishment rows: which craft-time effect is worth the most? ---
+      // --- embellishment rows: the same crafted items, carrying an effect ---
       const embOptions = fullSeason.embellishmentOptions?.options ?? [];
       const embSel = Array.isArray(c.embellishmentSel) ? new Set(c.embellishmentSel.map(String)) : null;
       if (embOptions.length && embSel?.size && pairs.length) {
-        // hosts: plain crafted armor pieces to carry the effect; prefer slots
-        // that REPLACE an already-embellished piece (keeps the cap legal)
+        // Hosts carry the effect. ARMOR only — swapping a weapon distorts the
+        // row with the weapon change itself — except when the character's own
+        // embellished piece IS a weapon (then a weapon-for-weapon swap on that
+        // slot is the fair comparison). Prefer slots that replace an
+        // already-embellished piece so the 2-cap stays satisfiable.
         const HOST_PREF = [16, 9, 6, 8, 1, 3, 5, 7, 10]; // back, wrist, waist, feet, then other armor
+        const prefIdx = (invType) => {
+          const i = HOST_PREF.indexOf(invType);
+          return i === -1 ? 99 : i;
+        };
         const hosts = [...best.values()]
           .filter((it) => !it.embellished)
           .map((it) => {
             const us = usableSlots(it, classId, specKey, offspec) ?? [];
-            // land on an already-embellished slot when possible (replacing
-            // that piece keeps the 2-cap satisfied, e.g. an off-hand craft)
             return { it, slot: us.find((s) => equippedEmbSlots.has(s)) ?? us[0] };
           })
-          .filter((h) => h.slot && h.slot !== 'finger2' && h.slot !== 'trinket2')
+          .filter((h) => h.slot
+            && (h.it.classId === 4 ? HOST_PREF.includes(h.it.invType) : equippedEmbSlots.has(h.slot)))
           .sort((a, b) => {
             const ae = equippedEmbSlots.has(a.slot) ? 0 : 1;
             const be = equippedEmbSlots.has(b.slot) ? 0 : 1;
             if (ae !== be) return ae - be;
-            return HOST_PREF.indexOf(a.it.invType) - HOST_PREF.indexOf(b.it.invType);
+            return prefIdx(a.it.invType) - prefIdx(b.it.invType);
           })
           // two-piece rows need two DIFFERENT slots — one host per slot
           .filter(((seen) => (h) => (seen.has(h.slot) ? false : (seen.add(h.slot), true)))(new Set()));
         const pair = pairs[0];
-        const emitEmb = (label, placements, opts = {}) => {
-          // placements: [{host, bonus|null}] — one profileset row, cap-checked
-          if (!capOk(placements.map((pl) => pl.host.slot), placements.filter((pl) => pl.bonus).length)) return null;
+        const pairLabel = pair.split('/').map((s) => CRAFT_STAT_LABELS[Number(s)] ?? s).join(' / ');
+        const emitEmb = (rowLabel, boss, placements) => {
+          // placements: [{host, bonus}] — one profileset row, cap-checked
+          if (!capOk(placements.map((pl) => pl.host.slot), placements.length)) return;
           group++;
-          const name = `${opts.refRow ? 'Emb host' : 'Embellishment:'} ${label.replace(/["\r\n$\\]/g, "'").slice(0, 52)} [${++counter}]`;
-          const lines2 = placements.map((pl, i) =>
-            `profileset."${name}"${i ? '+' : ''}=${pl.host.slot}=,id=${pl.host.it.id},ilevel=${ilvl},crafted_stats=${pair},crafting_quality=5${pl.bonus ? `,bonus_id=${pl.bonus}` : ''}`);
-          lines.push(...lines2);
+          const name = `${rowLabel.replace(/["\r\n$\\]/g, "'").slice(0, 64)} [${++counter}]`;
+          placements.forEach((pl, i) => {
+            lines.push(`profileset."${name}"${i ? '+' : ''}=${pl.host.slot}=,id=${pl.host.it.id},ilevel=${ilvl},crafted_stats=${pair},crafting_quality=5,bonus_id=${pl.bonus}`);
+          });
           sets[name] = {
             group,
-            itemName: `Embellishment: ${label}`,
+            itemName: rowLabel,
             itemId: placements[0].host.it.id,
             ilvl,
             origIlvl: ilvl,
             slot: placements[0].host.slot,
             placement: placements[0].host.slot,
             section: 'Crafted gear',
-            boss: 'Embellishments',
+            boss,
             sourceKind: 'crafted',
-            // reference rows exist only as a comparison point and stay hidden;
-            // embellishment rows rank against their plain host, so the delta
-            // reads as "what the embellishment itself is worth"
-            ...(opts.refRow ? { hidden: true } : {}),
-            ...(opts.rebaseTo ? { rebaseTo: opts.rebaseTo } : {}),
           };
-          return name;
         };
-        // hidden plain-host references: same items, no embellishment
-        const ref1 = hosts.length >= 1
-          ? emitEmb('host ×1', [{ host: hosts[0], bonus: null }], { refRow: true }) : null;
-        const ref2 = hosts.length >= 2
-          ? emitEmb('host ×2', [{ host: hosts[0], bonus: null }, { host: hosts[1], bonus: null }], { refRow: true }) : null;
         for (const opt of embOptions) {
           if (!embSel.has(String(opt.key))) continue;
           if (!hosts.length) break;
+          const [a, b] = hosts;
           if (opt.secondBonus) {
             // a two-piece pairing (e.g. Iris + Bandolier) — needs two hosts
-            if (hosts.length >= 2) {
-              emitEmb(opt.label, [
-                { host: hosts[0], bonus: opt.bonus },
-                { host: hosts[1], bonus: opt.secondBonus },
-              ], { rebaseTo: ref2 });
+            if (b) {
+              emitEmb(`${a.it.name} + ${b.it.name} (${pairLabel}) — ${opt.label}`,
+                'Embellished pairs',
+                [{ host: a, bonus: opt.bonus }, { host: b, bonus: opt.secondBonus }]);
             }
             continue;
           }
-          emitEmb(opt.label, [{ host: hosts[0], bonus: opt.bonus }], { rebaseTo: ref1 });
+          // single: this crafted item, with this embellishment — grouped
+          // under its slot right next to the plain version of the same item
+          emitEmb(`${a.it.name} (${pairLabel}) — ${opt.label}`,
+            SLOT_LABEL(a.slot),
+            [{ host: a, bonus: opt.bonus }]);
           // the same embellishment on two items stacks its value in game
-          if (hosts.length >= 2) {
-            emitEmb(`${opt.label} ×2 (two items)`, [
-              { host: hosts[0], bonus: opt.bonus },
-              { host: hosts[1], bonus: opt.bonus },
-            ], { rebaseTo: ref2 });
+          if (b) {
+            emitEmb(`${a.it.name} + ${b.it.name} (${pairLabel}) — ${opt.label} ×2`,
+              'Embellished pairs',
+              [{ host: a, bonus: opt.bonus }, { host: b, bonus: opt.bonus }]);
           }
         }
       }

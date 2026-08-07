@@ -1226,6 +1226,7 @@ function renderResult(r) {
 
 let tgRows = [];
 let tgActiveChip = null;
+let tgActiveSlot = null;
 
 function renderTopGear(r) {
   $('progress-area').classList.add('hidden');
@@ -1241,6 +1242,7 @@ function renderTopGear(r) {
 
   tgRows = r.topgear;
   tgActiveChip = null;
+  tgActiveSlot = null;
   $('tg-search').value = '';
 
   // filter chips (droptimizer runs have many sections; top gear has few)
@@ -1257,8 +1259,32 @@ function renderTopGear(r) {
         renderTopGearRows();
       });
     });
+    // second chip row: filter by gear slot, independent of the source chips
+    const slots = [...new Set(tgRows.map((t) => slotFamily(t.placement)).filter(Boolean))];
+    $('tg-slot-chips').innerHTML = slots.length > 1
+      ? ['All slots', ...slots].map((s, i) =>
+        `<button class="chip ${i === 0 ? 'active' : ''}" data-slotchip="${i === 0 ? '' : esc(s)}">${esc(s)}</button>`).join('')
+      : '';
+    document.querySelectorAll('#tg-slot-chips .chip').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        tgActiveSlot = chip.dataset.slotchip || null;
+        document.querySelectorAll('#tg-slot-chips .chip').forEach((c) => c.classList.toggle('active', c === chip));
+        renderTopGearRows();
+      });
+    });
+  } else {
+    $('tg-slot-chips').innerHTML = '';
   }
   renderTopGearRows();
+}
+
+// group paired slots into one chip: rings, trinkets, weapons
+function slotFamily(placement) {
+  if (!placement) return null;
+  if (/^finger/.test(placement)) return 'Rings';
+  if (/^trinket/.test(placement)) return 'Trinkets';
+  if (placement === 'main_hand' || placement === 'off_hand') return 'Weapons';
+  return placement.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
 }
 
 $('tg-search').addEventListener('input', renderTopGearRows);
@@ -1267,6 +1293,7 @@ function renderTopGearRows() {
   const q = $('tg-search').value.toLowerCase();
   const visible = tgRows.filter((t) =>
     (!tgActiveChip || t.section === tgActiveChip) &&
+    (!tgActiveSlot || slotFamily(t.placement) === tgActiveSlot) &&
     (!q || `${t.itemName} ${t.section} ${t.boss ?? ''}`.toLowerCase().includes(q)));
 
   // When viewing a single section (via chip or a single-section run), group
