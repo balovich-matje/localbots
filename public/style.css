@@ -310,6 +310,7 @@ button.mini {
   white-space: nowrap;
 }
 .slot-tag { color: var(--muted); font-size: 12px; margin-left: 6px; }
+.src-boss { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
 
 /* --- droptimizer --- */
 .dropt-group {

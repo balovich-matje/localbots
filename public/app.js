@@ -1350,8 +1350,8 @@ function rowHtml(t, maxAbs) {
   return `
   <tr>
     <td><span class="${glow ? `item-glow ${glow}` : ''}">${esc(t.itemName ?? '?')}</span>${ilvls}
-        <span class="slot-tag">→ ${target}${t.boss ? ` · ${esc(t.boss)}` : ''}</span></td>
-    <td><span class="source-tag">${esc(t.section)}</span></td>
+        <span class="slot-tag">→ ${target}</span></td>
+    <td><span class="source-tag">${esc(t.section)}</span>${t.boss ? `<span class="src-boss">→ ${esc(t.boss)}</span>` : ''}</td>
     <td class="num">${Math.round(t.dps).toLocaleString()}</td>
     <td class="num ${cls}">${sign}${Math.round(t.delta).toLocaleString()}</td>
     <td><div class="share-bar">
