@@ -167,9 +167,13 @@ count) so you can exclude options you'd never use:
   expandable **"N changes"** pill listing exactly which item changes what:
   *"Omission of Light (finger 1): Flawless Deadly Amethyst → Flawless Deadly Lapis"*.
 - **Omnium Folio** — each rune alternative, one row at a time.
-- **Talent loadouts** — every loadout you saved in game (the addon exports them
-  automatically) simmed against your active build, ranked in the same table. Great for
-  "is my single-target build actually better here?"
+- **Talent builds** — every loadout you saved in game (the addon exports them
+  automatically) shown as a **card with its class and spec trees drawn**, its hero
+  tree named, and a checkbox to sim it against your active build. **Add a build**
+  takes any talent string you paste (in-game export, Wowhead, Archon, a friend's
+  build) and sims that too — pasted builds are remembered between sessions.
+  Builds for the wrong specialization, or strings that don't decode, are flagged
+  instead of silently failing mid-sim.
 
 Your current choice is tagged "(current)", and when viewing one comparison group the
 table splits into per-slot sections (Weapons, Rings, Flask, …). All options live in

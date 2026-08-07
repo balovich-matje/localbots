@@ -23,16 +23,20 @@ export function parseLoadouts(profileText) {
 const clean = (s) => String(s).replace(/["\r\n]/g, "'").replace(/[$\\]/g, ' ');
 
 // One profileset per saved loadout. selection (array of names) narrows which
-// loadouts get simmed; null means all. Group ids 10000+ sit above every other
-// variant family (items 0+, consumables 5000+, enchants/gems/folio/upgrades).
-export function buildLoadoutVariants(profileText, selection = null, startGroup = 10000) {
+// loadouts get simmed; null means all. `custom` adds hand-added builds (pasted
+// talent strings) alongside the export's own. Group ids 10000+ sit above every
+// other variant family (items 0+, consumables 5000+, enchants/gems/folio/upgrades).
+export function buildLoadoutVariants(profileText, selection = null, custom = [], startGroup = 10000) {
   const { loadouts } = parseLoadouts(profileText);
+  const extra = (Array.isArray(custom) ? custom : [])
+    .filter((c) => c && typeof c.name === 'string' && /^[A-Za-z0-9+/]+$/.test(String(c.talents ?? '')))
+    .map((c) => ({ name: c.name, talents: c.talents, isActive: false }));
   // names arrive from JSON — force strings so a loadout named "2" still matches
   const wanted = Array.isArray(selection) ? new Set(selection.map(String)) : null;
   const lines = [];
   const sets = {};
   let group = startGroup;
-  for (const lo of loadouts) {
+  for (const lo of [...loadouts, ...extra]) {
     if (lo.isActive) continue; // identical to the baseline — nothing to compare
     if (wanted && !wanted.has(lo.name)) continue;
     const label = lo.name.replace(/^Class Codex:\s*/, '');

@@ -312,6 +312,52 @@ button.mini {
 .slot-tag { color: var(--muted); font-size: 12px; margin-left: 6px; }
 .src-boss { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
 
+/* --- talent build cards --- */
+/* the shared picker box is a short 2-column scroller; builds need room */
+.compare-group[data-group="talents"] .cg-options {
+  display: block;
+  max-height: 420px;
+}
+.talent-cards {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.talent-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 0 1 auto;
+}
+.talent-card.invalid { border-color: var(--red); }
+.tl-name { font-size: 13px; font-weight: 600; }
+.tl-trees { display: flex; gap: 10px; align-items: flex-start; }
+.talent-mini { overflow: visible; }
+.tn-on { fill: var(--accent); }
+.tn-off { fill: #3a4050; }
+.tl-meta { font-size: 11px; color: var(--muted); }
+.tl-meta strong { color: #7fb1ff; font-weight: 600; }
+.tl-foot { display: flex; align-items: center; gap: 8px; margin-top: auto; }
+.tl-pick { display: flex; align-items: center; gap: 5px; font-size: 12px; cursor: pointer; }
+.tl-pick input { accent-color: var(--accent); }
+.tl-active { font-size: 11px; color: var(--accent); }
+.tl-del { padding: 1px 8px; font-size: 11px; }
+.add-card { justify-content: flex-start; max-width: 210px; }
+.add-card input, .add-card textarea {
+  width: 100%;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+.add-card textarea { resize: vertical; font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
+
 /* --- expandable change details on gem/enchant rows --- */
 .expander {
   background: var(--panel-2);

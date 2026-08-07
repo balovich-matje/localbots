@@ -105,9 +105,9 @@ function renderCompareGroups() {
   // folio (no picker — 13 runes always cheap)
   groups.push(['folio', 'Omnium Folio', '<p class="hint">All rune alternatives, one row at a time. Needs the omnium_talents line from a current /simc export.</p>']);
 
-  // talent loadouts (options come from the pasted export, filled by refreshGearList)
-  groups.push(['talents', 'Talent loadouts',
-    '<div id="talent-loadout-options"><p class="hint">Paste your /simc export — the loadouts you saved in game appear here.</p></div>']);
+  // talent builds (cards come from the pasted export, filled by refreshGearList)
+  groups.push(['talents', 'Talent builds',
+    '<div id="talent-loadout-options"><p class="hint">Paste your /simc export — your in-game builds appear here.</p></div>']);
 
   $('compare-groups').innerHTML = groups.map(([id, title, body]) => `
     <div class="compare-group" data-group="${id}">
@@ -157,22 +157,109 @@ function selectedOptions(group) {
   return out;
 }
 
-// Saved talent loadouts parsed out of the export — one checkbox each; the
-// active build is the baseline so it gets a note instead of a checkbox.
-function renderLoadoutOptions(loadouts) {
+// Talent builds as cards: each shows its class + spec tree at a glance
+// (the picked nodes lit up), its hero tree, and a checkbox to sim it.
+// The active build is the baseline, so it has no checkbox.
+let customLoadouts = JSON.parse(localStorage.getItem('localbots-talents') ?? '[]');
+
+function saveCustomLoadouts() {
+  localStorage.setItem('localbots-talents', JSON.stringify(customLoadouts));
+}
+
+// one dot per talent node, laid out on the tree's own grid
+function talentTreeSvg(nodes, lit) {
+  if (!nodes.length) return '';
+  const maxCol = Math.max(...nodes.map((n) => n.col));
+  const maxRow = Math.max(...nodes.map((n) => n.row));
+  const step = 7, pad = 4, r = 2.1;
+  const w = (maxCol - 1) * step + pad * 2;
+  const h = (maxRow - 1) * step + pad * 2;
+  const dots = nodes.map((n) => {
+    const on = lit.has(n.node);
+    return `<circle cx="${((n.col - 1) * step + pad).toFixed(1)}" cy="${((n.row - 1) * step + pad).toFixed(1)}" r="${on ? r + 0.5 : r}"
+      class="${on ? 'tn-on' : 'tn-off'}"><title>${esc(n.name ?? '')}</title></circle>`;
+  }).join('');
+  const scale = 1.12; // two trees + padding must fit the narrow input column
+  return `<svg class="talent-mini" viewBox="0 0 ${w} ${h}" width="${(w * scale).toFixed(0)}" height="${(h * scale).toFixed(0)}">${dots}</svg>`;
+}
+
+function renderLoadoutOptions(talents) {
   const el = $('talent-loadout-options');
   if (!el) return;
-  // keep the user's unticks across re-renders; new loadouts default to on
-  const prev = new Map([...el.querySelectorAll('input[data-cgroup]')]
-    .map((cb) => [cb.dataset.key, cb.checked]));
-  if (!loadouts?.length) {
-    el.innerHTML = '<p class="hint">No saved loadouts found in this export — save a loadout in game and re-copy /simc.</p>';
-    updateCompareCounts();
+  const prev = new Map([...el.querySelectorAll('input[data-cgroup]')].map((cb) => [cb.dataset.key, cb.checked]));
+
+  if (!talents?.available) {
+    // no trait tables (binary-only simc) — fall back to a plain list
+    const list = (talents?.loadouts ?? []).filter((l) => !l.isActive);
+    el.innerHTML = (talents?.reason ? `<p class="hint">${esc(talents.reason)} Builds still sim — they just can't be drawn.</p>` : '')
+      + (list.length
+        ? list.map((l) => `<label class="cg-opt"><input type="checkbox" data-cgroup="talents" data-cat="loadouts" data-key="${esc(l.name)}" ${(prev.get(l.name) ?? true) ? 'checked' : ''}> ${esc(prettyLoadout(l.name))}</label>`).join('')
+        : '<p class="hint">No saved loadouts in this export — save one in game and re-copy /simc.</p>');
+    bindLoadoutInputs(el);
     return;
   }
-  el.innerHTML = loadouts.map((l) => l.isActive
-    ? `<div class="cg-opt hint-inline">${esc(prettyLoadout(l.name))} — active build (the baseline)</div>`
-    : `<label class="cg-opt"><input type="checkbox" data-cgroup="talents" data-cat="loadouts" data-key="${esc(l.name)}" ${(prev.get(l.name) ?? true) ? 'checked' : ''}> ${esc(prettyLoadout(l.name))}</label>`).join('');
+
+  const layout = talents.layout ?? [];
+  const classNodes = layout.filter((n) => n.tree === 1);
+  const specNodes = layout.filter((n) => n.tree === 2);
+
+  const card = (l) => {
+    const lit = new Set(l.selectedNodes ?? []);
+    const head = l.isActive
+      ? '<span class="tl-active">Active — the baseline</span>'
+      : `<label class="tl-pick"><input type="checkbox" data-cgroup="talents" data-cat="loadouts" data-key="${esc(l.name)}" ${(prev.get(l.name) ?? true) ? 'checked' : ''}> sim this</label>`;
+    if (!l.valid) {
+      return `<div class="talent-card invalid">
+        <div class="tl-name">${esc(prettyLoadout(l.name))}</div>
+        <p class="hint">Could not read this build: ${esc(l.error ?? 'unknown')}</p>
+        ${l.custom ? `<button class="mini tl-del" data-del="${esc(l.name)}">Remove</button>` : ''}</div>`;
+    }
+    return `<div class="talent-card">
+      <div class="tl-name">${esc(prettyLoadout(l.name))}${l.custom ? ' <span class="hint-inline">(added)</span>' : ''}</div>
+      <div class="tl-trees">${talentTreeSvg(classNodes, lit)}${talentTreeSvg(specNodes, lit)}</div>
+      <div class="tl-meta">${l.heroName ? `<strong>${esc(l.heroName)}</strong> · ` : ''}${l.counts.class}/${l.counts.spec} + ${l.counts.hero} hero</div>
+      <div class="tl-foot">${head}${l.custom ? `<button class="mini tl-del" data-del="${esc(l.name)}">Remove</button>` : ''}</div>
+    </div>`;
+  };
+
+  el.innerHTML = `<div class="talent-cards">
+      ${talents.loadouts.map(card).join('')}
+      <div class="talent-card add-card">
+        <div class="tl-name">Add a build</div>
+        <p class="hint">Paste a talent string (in-game export, Wowhead, Archon…)</p>
+        <input type="text" id="tl-new-name" placeholder="Name (optional)">
+        <textarea id="tl-new-str" rows="2" placeholder="Paste the talent string here"></textarea>
+        <button class="mini" id="tl-add">Add build</button>
+        <p class="hint hidden" id="tl-add-error"></p>
+      </div>
+    </div>`;
+  bindLoadoutInputs(el);
+
+  $('tl-add')?.addEventListener('click', () => {
+    const str = $('tl-new-str').value.trim();
+    const err = $('tl-add-error');
+    if (!/^[A-Za-z0-9+/]+$/.test(str)) {
+      err.textContent = 'That does not look like a talent string — copy the whole thing.';
+      err.classList.remove('hidden');
+      return;
+    }
+    let name = $('tl-new-name').value.trim() || `Added build ${customLoadouts.length + 1}`;
+    const taken = new Set(talents.loadouts.map((l) => l.name));
+    while (taken.has(name)) name += ' (2)';
+    customLoadouts.push({ name, talents: str });
+    saveCustomLoadouts();
+    refreshGearList();
+  });
+  el.querySelectorAll('.tl-del').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      customLoadouts = customLoadouts.filter((c) => c.name !== btn.dataset.del);
+      saveCustomLoadouts();
+      refreshGearList();
+    });
+  });
+}
+
+function bindLoadoutInputs(el) {
   el.querySelectorAll('input[data-cgroup]').forEach((cb) => cb.addEventListener('change', updateCompareCounts));
   updateCompareCounts();
 }
@@ -546,13 +633,13 @@ async function refreshGearList() {
     const resp = await fetch('/api/gear', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profile, patch }),
+      body: JSON.stringify({ profile, patch, customLoadouts }),
     });
     const body = await resp.json();
     gearItems = body.items ?? [];
     itemSets = body.itemSets ?? [];
     renderItemSets();
-    renderLoadoutOptions(body.loadouts ?? []);
+    renderLoadoutOptions(body.talents ?? { available: false, loadouts: body.loadouts ?? [] });
   } catch {
     $('gear-list').innerHTML = '<p class="empty">Could not reach the server.</p>';
     return;
@@ -1063,6 +1150,7 @@ async function startSim() {
       talents: $('compare-talents')?.checked
         ? { selection: { loadouts: selectedOptions('talents').loadouts ?? [] } } : false,
     };
+    if (payload.compare.talents) payload.customLoadouts = customLoadouts;
     payload.setMinimums = Object.fromEntries(
       Object.entries(setMinimums).filter(([, v]) => v > 0));
     if ($('track-upgrades-toggle').checked) {

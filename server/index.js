@@ -14,6 +14,7 @@ import { CLASS_IDS } from './lootFilter.js';
 import { saveHistoryEntry, listHistory, getHistoryEntry, deleteHistoryEntry } from './history.js';
 import { updateStatus } from './status.js';
 import { parseLoadouts, buildLoadoutVariants } from './talents.js';
+import { loadTraitData, decodeTalents, talentLayout, clearTraitCache } from './talentData.js';
 import { detectSimcSource, startSimcUpdate } from './simcUpdater.js';
 import { invalidateStatus } from './status.js';
 
@@ -74,6 +75,7 @@ app.post('/api/simc/update', (req, res) => {
     ptrVersion = simcVersion(simcPath, true);
     if (ptrVersion && !/PTR/i.test(ptrVersion)) ptrVersion = null;
     clearResolveCache();
+    clearTraitCache(); // talent tables ship with the binary we just replaced
     for (const p of patches.values()) {
       p.available = !!p.config && (!p.def.ptr || !!ptrVersion);
       p.reason = !p.config ? `missing data/${p.def.seasonFile}`
@@ -335,6 +337,49 @@ function equippedIdsFrom(equipped) {
   return ids;
 }
 
+// Decode every talent build the character has (active, saved in game, and
+// any hand-added ones) plus the tree layout, so the UI can draw each build
+// and the user can see what they're picking between.
+function talentPayload(profile, p, customLoadouts = []) {
+  const data = loadTraitData(simcPath, p.def.ptr);
+  const { active, loadouts } = parseLoadouts(profile);
+  const custom = (Array.isArray(customLoadouts) ? customLoadouts : [])
+    .filter((c) => c && typeof c.name === 'string' && typeof c.talents === 'string')
+    .map((c) => ({ name: c.name, talents: c.talents, isActive: false, custom: true }));
+  const all = [
+    ...(active ? [{ name: 'Active build', talents: active, isActive: true }] : []),
+    ...loadouts.filter((l) => !l.isActive),
+    ...custom,
+  ];
+  if (!data) {
+    // simc installed as a plain binary — no trait tables to read
+    return { available: false, reason: 'This simc install has no talent data files (built-from-source installs do).',
+      layout: [], loadouts: all.map((l) => ({ name: l.name, isActive: !!l.isActive, custom: !!l.custom, valid: true })) };
+  }
+  let layout = [];
+  let charSpec = null; // the active build defines who this character is
+  const out = [];
+  for (const lo of all) {
+    try {
+      const d = decodeTalents(lo.talents, data);
+      if (lo.isActive) charSpec = d.specId;
+      // a build for another spec would abort the sim ("Wrong specialization")
+      if (charSpec !== null && d.specId !== charSpec) {
+        throw new Error('this build is for a different specialization, so it cannot be simmed on this character');
+      }
+      if (!layout.length) layout = talentLayout(data, d.specId, d.classId);
+      out.push({
+        name: lo.name, isActive: !!lo.isActive, custom: !!lo.custom, valid: true,
+        heroName: d.heroName, counts: d.counts, selectedNodes: d.selectedNodes,
+        talents: d.picked.filter((t) => t.name).map((t) => ({ name: t.name, rank: t.rank, tree: t.tree })),
+      });
+    } catch (e) {
+      out.push({ name: lo.name, isActive: !!lo.isActive, custom: !!lo.custom, valid: false, error: e.message });
+    }
+  }
+  return { available: true, layout, loadouts: out };
+}
+
 // slot -> { id, name, ilvl } for the equipped gear: names error messages
 // ("cannot initialize this item") and feeds the results view's
 // "equipped ilvl -> suggested ilvl" comparison.
@@ -386,7 +431,7 @@ function detectItemSets(equipped, bagItems, itemSetMap) {
 // resolveIlvls=true additionally runs a 1-iteration simc pass to decode each
 // equipped item's actual item level and upgrade track (cached per profile).
 app.post('/api/gear', async (req, res) => {
-  const { profile, resolveIlvls } = req.body ?? {};
+  const { profile, resolveIlvls, customLoadouts } = req.body ?? {};
   if (!profile || typeof profile !== 'string') {
     return res.status(400).json({ error: 'No profile text supplied.' });
   }
@@ -397,6 +442,7 @@ app.post('/api/gear', async (req, res) => {
     items,
     itemSets: detectItemSets(equipped, items, p.itemSetMap ?? patches.get(DEFAULT_PATCH_ID).itemSetMap),
     loadouts: parseLoadouts(profile).loadouts.map((l) => ({ name: l.name, isActive: l.isActive })),
+    talents: talentPayload(profile, p, customLoadouts),
   };
   if (resolveIlvls) {
     if (!p.available) {
@@ -491,7 +537,8 @@ app.post('/api/sim', async (req, res) => {
       append(buildFolioVariants(profile, season.omniumFolio));
     }
     if (compare.talents) {
-      append(buildLoadoutVariants(profile, sel('talents')?.loadouts ?? null));
+      append(buildLoadoutVariants(profile, sel('talents')?.loadouts ?? null,
+        req.body.customLoadouts ?? []));
     }
     if (trackUpgrades?.slots?.length) {
       try {
