@@ -32,8 +32,8 @@ function pickSelected(choices, selectedIds) {
   return choices.filter((c) => wanted.has(Number(c.id)));
 }
 
-export function buildEnchantVariants(profileText, enchantOptions, selection = null, startGroup = 6000) {
-  const { equipped } = parseGear(profileText);
+export function buildEnchantVariants(profileText, enchantOptions, selection = null, ctx = {}, startGroup = 6000) {
+  const { equipped, equippedNames } = parseGear(profileText);
   const spec = detectSpec(profileText);
   const dw = isDualWield(spec.key);
   const primary = primaryStat(spec.key);
@@ -41,13 +41,22 @@ export function buildEnchantVariants(profileText, enchantOptions, selection = nu
   const sets = {};
   let group = startGroup;
 
-  const emit = (label, slotLines, boss, isCurrent) => {
+  // enchant id -> label, for the "current -> suggested" detail lines
+  const enchLabel = (id) => (id ? ctx.enchantLabels?.[id] ?? `enchant #${id}` : 'no enchant');
+  const itemName = (slot) => equippedNames?.[slot] ?? null;
+  const change = (slot, toLabel) => ({
+    item: itemName(slot), slot,
+    from: enchLabel(currentEnchantId(equipped[slot])), to: toLabel,
+  });
+
+  const emit = (label, slotLines, boss, isCurrent, changes = null) => {
     const full = `${label}${isCurrent ? ' (current)' : ''}`;
     const name = clean(`Ench ${full} [e${++group}]`).slice(0, 78);
     lines.push(...slotLines.map((l, i) => `profileset."${name}"${i > 0 ? '+' : ''}=${l}`));
     sets[name] = {
       group, itemName: full, ilvl: null, slot: boss.toLowerCase(), placement: boss.toLowerCase(),
       section: 'Enchants', boss, sourceKind: 'enchants',
+      ...(changes?.length ? { changes } : {}),
     };
   };
 
@@ -61,7 +70,8 @@ export function buildEnchantVariants(profileText, enchantOptions, selection = nu
     for (const choice of choices) {
       const isCurrent = currentEnchantId(equipped[slot]) === choice.id;
       emit(choice.label, [swapEnchant(equipped[slot], choice.id)],
-        category[0].toUpperCase() + category.slice(1), isCurrent);
+        category[0].toUpperCase() + category.slice(1), isCurrent,
+        [change(slot, choice.label)]);
     }
   }
 
@@ -78,12 +88,14 @@ export function buildEnchantVariants(profileText, enchantOptions, selection = nu
             : `MH: ${mh.label} + OH: ${oh.label}`;
           emit(label,
             [swapEnchant(equipped.main_hand, mh.id), swapEnchant(equipped.off_hand, oh.id)],
-            'Weapons', curMh === mh.id && curOh === oh.id);
+            'Weapons', curMh === mh.id && curOh === oh.id,
+            [change('main_hand', mh.label), change('off_hand', oh.label)]);
         }
       }
     } else {
       for (const mh of weaponChoices) {
-        emit(mh.label, [swapEnchant(equipped.main_hand, mh.id)], 'Weapon', curMh === mh.id);
+        emit(mh.label, [swapEnchant(equipped.main_hand, mh.id)], 'Weapon', curMh === mh.id,
+          [change('main_hand', mh.label)]);
       }
     }
   }
@@ -100,13 +112,15 @@ export function buildEnchantVariants(profileText, enchantOptions, selection = nu
         const isCurrent = cur.has(a.id) && cur.has(b.id) && (a.id === b.id ? cur.size === 1 : cur.size === 2);
         emit(label,
           [swapEnchant(equipped.finger1, a.id), swapEnchant(equipped.finger2, b.id)],
-          'Rings', isCurrent);
+          'Rings', isCurrent,
+          [change('finger1', a.label), change('finger2', b.label)]);
       }
     }
   } else if (fingers.length === 1 && ringChoices.length) {
     for (const c of ringChoices) {
       emit(c.label, [swapEnchant(equipped[fingers[0]], c.id)], 'Rings',
-        currentEnchantId(equipped[fingers[0]]) === c.id);
+        currentEnchantId(equipped[fingers[0]]) === c.id,
+        [change(fingers[0], c.label)]);
     }
   }
 
@@ -114,42 +128,65 @@ export function buildEnchantVariants(profileText, enchantOptions, selection = nu
 }
 
 // Uniform-gem comparison: every socket that holds a known stat gem is
-// swapped to the candidate; diamonds and unknown ids are left untouched.
-export function buildGemVariants(profileText, gemOptions, selection = null, startGroup = 7000) {
-  const { equipped } = parseGear(profileText);
+// swapped to the candidate — diamonds and unknown ids are left untouched —
+// and EMPTY sockets (a socket bonus id with no gem_id) get the gem added.
+export function buildGemVariants(profileText, gemOptions, selection = null, ctx = {}, startGroup = 7000) {
+  const { equipped, equippedNames } = parseGear(profileText);
   const choices = pickSelected(gemOptions ?? [], selection);
   const knownGemIds = new Set((gemOptions ?? []).map((g) => String(g.id)));
+  const socketBonusIds = ctx.socketBonusIds ?? new Set();
+  const gemLabel = (id) => ctx.gemLabels?.[id] ?? `gem #${id}`;
   const lines = [];
   const sets = {};
   let group = startGroup;
 
   const gemmedSlots = Object.entries(equipped).filter(([, line]) => /,gem_id=[\d/]+/.test(line));
-  if (!gemmedSlots.length || !choices.length) return { lines, sets };
+  // an item with a socket bonus but no gem_id has an empty socket — free DPS
+  const emptySlots = Object.entries(equipped).filter(([, line]) => {
+    if (/,gem_id=/.test(line)) return false;
+    const bonuses = line.match(/bonus_id=([\d/]+)/)?.[1]?.split('/') ?? [];
+    return bonuses.some((b) => socketBonusIds.has(Number(b)));
+  });
+  if ((!gemmedSlots.length && !emptySlots.length) || !choices.length) return { lines, sets };
 
   const swapLine = (line, gemId) =>
     line.replace(/,gem_id=([\d/]+)/, (m, ids) =>
       `,gem_id=${ids.split('/').map((id) => (knownGemIds.has(id) ? gemId : id)).join('/')}`);
 
   for (const gem of choices) {
-    const swapped = gemmedSlots
-      .map(([slot, line]) => [slot, swapLine(line, gem.id)])
-      .filter(([slot, line]) => line !== equipped[slot]);
+    const changes = [];
+    const swapped = [];
+    for (const [slot, line] of gemmedSlots) {
+      const next = swapLine(line, gem.id);
+      if (next === line) continue; // only diamonds/unknown gems here — untouched
+      swapped.push([slot, next]);
+      for (const id of line.match(/,gem_id=([\d/]+)/)[1].split('/')) {
+        if (knownGemIds.has(id) && Number(id) !== gem.id) {
+          changes.push({ item: equippedNames?.[slot] ?? null, slot, from: gemLabel(id), to: gem.label });
+        }
+      }
+    }
+    for (const [slot, line] of emptySlots) {
+      swapped.push([slot, `${line},gem_id=${gem.id}`]);
+      changes.push({ item: equippedNames?.[slot] ?? null, slot, from: 'empty socket', to: gem.label });
+    }
     const isCurrent = swapped.length === 0;
-    const label = `All gems: ${gem.label}${isCurrent ? ' (current)' : ''}`;
+    const label = `Stat gems → ${gem.label}${isCurrent ? ' (current)' : ''}`;
     const name = clean(`${label} [g${++group}]`).slice(0, 78);
     const emitLines = isCurrent ? gemmedSlots : swapped;
     lines.push(...emitLines.map(([, line], i) => `profileset."${name}"${i > 0 ? '+' : ''}=${line}`));
     sets[name] = {
       group, itemName: label, ilvl: null, slot: 'gems', placement: 'all sockets',
       section: 'Gems', boss: 'Stat gems', sourceKind: 'gems',
+      ...(changes.length ? { changes } : {}),
     };
   }
   return { lines, sets };
 }
 
 // Eversong Diamond comparison: swap whichever socket currently holds one.
-export function buildDiamondVariants(profileText, diamondConfig, selection = null, startGroup = 7500) {
-  const { equipped } = parseGear(profileText);
+export function buildDiamondVariants(profileText, diamondConfig, selection = null, ctx = {}, startGroup = 7500) {
+  const { equipped, equippedNames } = parseGear(profileText);
   const lines = [];
   const sets = {};
   const options = pickSelected(diamondConfig?.options ?? [], selection);
@@ -177,6 +214,10 @@ export function buildDiamondVariants(profileText, diamondConfig, selection = nul
     sets[name] = {
       group, itemName: label, ilvl: null, slot: 'gems', placement: slot,
       section: 'Gems', boss: 'Diamonds', sourceKind: 'gems',
+      changes: [{
+        item: equippedNames?.[slot] ?? null, slot,
+        from: ctx.gemLabels?.[currentId] ?? `gem #${currentId}`, to: d.label,
+      }],
     };
   }
   return { lines, sets };

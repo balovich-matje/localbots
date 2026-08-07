@@ -161,8 +161,11 @@ count) so you can exclude options you'd never use:
 - **Enchants** — every season enchant per slot on your own items. Dual-wielders sim
   every main-hand × off-hand **combination**, and rings sim every pair — so "MH: X +
   OH: Y" mixes show up when they beat matching enchants.
-- **Gems** — your setup with all stat gems swapped to each type, plus the four
-  **Eversong Diamonds** compared in your diamond socket.
+- **Gems** — your setup with all stat gems swapped to each type (the Eversong
+  Diamond keeps its own separate comparison and is never replaced by a stat gem),
+  plus **empty sockets detected and filled**. Every gem and enchant row has an
+  expandable **"N changes"** pill listing exactly which item changes what:
+  *"Omission of Light (finger 1): Flawless Deadly Amethyst → Flawless Deadly Lapis"*.
 - **Omnium Folio** — each rune alternative, one row at a time.
 - **Talent loadouts** — every loadout you saved in game (the addon exports them
   automatically) simmed against your active build, ranked in the same table. Great for

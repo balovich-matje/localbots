@@ -90,6 +90,19 @@ export async function downloadTables(onProgress = () => {}, opts = {}) {
     JSON.stringify({ build: opts.build ?? null, downloadedAt: Date.now() }));
 }
 
+// bonus ids that grant a prismatic socket — an equipped line carrying one
+// without a gem_id means an EMPTY socket (free DPS via the gem comparison)
+export function loadSocketBonusIds(cacheDir = CACHE_DIR) {
+  const path = join(cacheDir, 'bonuses.json');
+  if (!existsSync(path)) return new Set();
+  try {
+    const raw = JSON.parse(readFileSync(path, 'utf8'));
+    return new Set(Object.values(raw).filter((e) => e?.socket).map((e) => Number(e.id)));
+  } catch {
+    return new Set();
+  }
+}
+
 // bonus id -> { track, level, max, ilvl } for upgrade-track bonuses
 export function loadBonusUpgradeMap(cacheDir = CACHE_DIR) {
   const path = join(cacheDir, 'bonuses.json');

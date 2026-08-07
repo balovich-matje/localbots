@@ -1347,10 +1347,23 @@ function rowHtml(t, maxAbs) {
   const target = eq?.name
     ? `${esc(eq.name)} (${esc(prettySlot(t.placement))})`
     : esc(prettySlot(t.placement));
+  // rows that change several things (gem sockets, enchant combos) expand
+  // into a per-slot "current -> suggested" list
+  const expandable = Array.isArray(t.changes) && t.changes.length > 0;
+  const detailId = expandable ? ++tgDetailSeq : 0;
+  const caret = expandable
+    ? ` <button class="expander" data-exp="${detailId}" title="Show exactly what changes">▸ ${t.changes.length} change${t.changes.length === 1 ? '' : 's'}</button>`
+    : '';
+  const detailRow = expandable
+    ? `<tr class="detail-row hidden" data-detail="${detailId}"><td colspan="5"><ul class="change-list">
+        ${t.changes.map((c) => `<li>${esc(c.item ?? prettySlot(c.slot))} <span class="hint-inline">(${esc(prettySlot(c.slot))})</span>:
+          ${esc(c.from)} → <strong>${esc(c.to)}</strong></li>`).join('')}
+      </ul></td></tr>`
+    : '';
   return `
   <tr>
     <td><span class="${glow ? `item-glow ${glow}` : ''}">${esc(t.itemName ?? '?')}</span>${ilvls}
-        <span class="slot-tag">→ ${target}</span></td>
+        <span class="slot-tag">→ ${target}</span>${caret}</td>
     <td><span class="source-tag">${esc(t.section)}</span>${t.boss ? `<span class="src-boss">→ ${esc(t.boss)}</span>` : ''}</td>
     <td class="num">${Math.round(t.dps).toLocaleString()}</td>
     <td class="num ${cls}">${sign}${Math.round(t.delta).toLocaleString()}</td>
@@ -1358,8 +1371,20 @@ function rowHtml(t, maxAbs) {
       <div class="track"><div class="fill" style="width:${fill.toFixed(1)}%; background:${t.delta >= 0 ? 'var(--green)' : 'var(--red)'}"></div></div>
       <span class="pct ${cls}">${sign}${t.deltaPct.toFixed(2)}%</span>
     </div></td>
-  </tr>`;
+  </tr>${detailRow}`;
 }
+
+let tgDetailSeq = 0;
+
+// one delegated listener: toggling a row's change details
+document.querySelector('#topgear-table tbody').addEventListener('click', (ev) => {
+  const btn = ev.target.closest('.expander');
+  if (!btn) return;
+  const detail = document.querySelector(`#topgear-table [data-detail="${btn.dataset.exp}"]`);
+  if (!detail) return;
+  const open = detail.classList.toggle('hidden');
+  btn.textContent = btn.textContent.replace(open ? '▾' : '▸', open ? '▸' : '▾');
+});
 
 // classic badge: used when the equipped item's ilvl isn't known
 // (non-gear rows, hand-written profiles, sims saved before this feature)

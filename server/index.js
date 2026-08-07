@@ -7,7 +7,7 @@ import { buildEnchantVariants, buildGemVariants, buildDiamondVariants, buildFoli
 import { resolveEquipped, clearResolveCache } from './equippedResolver.js';
 import { SimQueue, findSimc, simcVersion } from './simRunner.js';
 import { parseGear, GEAR_SLOTS } from './gearParser.js';
-import { loadLootDb, buildLootDb, downloadTables, cacheStatus, loadItemSetMap, loadBonusUpgradeMap, patchPaths } from './wagoData.js';
+import { loadLootDb, buildLootDb, downloadTables, cacheStatus, loadItemSetMap, loadBonusUpgradeMap, loadSocketBonusIds, patchPaths } from './wagoData.js';
 import { buildSourceTree, buildDroptimizerInput, seasonConfig as fullSeasonConfig } from './droptimizer.js';
 import { probeKnownItems, loadProbeCache } from './simcProbe.js';
 import { CLASS_IDS } from './lootFilter.js';
@@ -170,6 +170,7 @@ for (const def of PATCH_DEFS) {
     refreshState: { running: false, step: null, error: null },
     itemSetMap: loadItemSetMap(paths.cacheDir),
     bonusUpgradeMap: loadBonusUpgradeMap(paths.cacheDir),
+    socketBonusIds: loadSocketBonusIds(paths.cacheDir),
   };
   if (p.available) {
     const cs = cacheStatus(paths.cacheDir, expectedBuildFor(p));
@@ -268,6 +269,7 @@ app.post('/api/data/refresh', (req, res) => {
     p.lootDb = buildLootDb(p.config.droptimizer.mythicPlusDungeons, p.paths);
     p.itemSetMap = loadItemSetMap(p.paths.cacheDir);
     p.bonusUpgradeMap = loadBonusUpgradeMap(p.paths.cacheDir);
+    p.socketBonusIds = loadSocketBonusIds(p.paths.cacheDir);
     p.knownItems = null; // probe cache is keyed on builtAt; it re-runs on next use
   })()
     .catch((err) => { rs.error = err.message; })
@@ -470,12 +472,20 @@ app.post('/api/sim', async (req, res) => {
     if (compare.consumables) {
       append(buildConsumableVariants(profile, simOpts, season.consumableOptions, sel('consumables')));
     }
+    // labels + socket data so gem/enchant rows can explain themselves
+    // ("Item (slot): current -> suggested" in the expandable details)
+    const enhCtx = { socketBonusIds: p.socketBonusIds, gemLabels: {}, enchantLabels: {} };
+    for (const g of season.gemOptions ?? []) enhCtx.gemLabels[g.id] = g.label;
+    for (const d of season.diamondOptions?.options ?? []) enhCtx.gemLabels[d.id] = d.label;
+    for (const arr of Object.values(season.enchantOptions ?? {})) {
+      if (Array.isArray(arr)) for (const e of arr) enhCtx.enchantLabels[e.id] = e.label;
+    }
     if (compare.enchants) {
-      append(buildEnchantVariants(profile, season.enchantOptions, sel('enchants')));
+      append(buildEnchantVariants(profile, season.enchantOptions, sel('enchants'), enhCtx));
     }
     if (compare.gems) {
-      append(buildGemVariants(profile, season.gemOptions, sel('gems')?.gems ?? null));
-      append(buildDiamondVariants(profile, season.diamondOptions, sel('gems')?.diamonds ?? null));
+      append(buildGemVariants(profile, season.gemOptions, sel('gems')?.gems ?? null, enhCtx));
+      append(buildDiamondVariants(profile, season.diamondOptions, sel('gems')?.diamonds ?? null, enhCtx));
     }
     if (compare.folio) {
       append(buildFolioVariants(profile, season.omniumFolio));
