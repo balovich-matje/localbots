@@ -21,6 +21,7 @@ const NAME_LINE = /^(.*?)\s*\((\d+)\)\s*$/;
 export function parseGear(profileText) {
   const equipped = {};
   const equippedNames = {};
+  const equippedIlvls = {}; // from the "# Item Name (289)" comment above each line
   const items = [];
   let section = null;
   let pendingName = null;
@@ -65,13 +66,14 @@ export function parseGear(profileText) {
     const eq = line.match(SLOT_LINE);
     if (eq) {
       equipped[eq[1]] = line;
-      // the item's display name is the comment line just above it, if any
+      // the item's display name + ilvl come from the comment line just above
       if (pendingName?.name) equippedNames[eq[1]] = pendingName.name;
+      if (pendingName?.ilvl) equippedIlvls[eq[1]] = pendingName.ilvl;
       pendingName = null;
     }
   }
 
-  return { equipped, equippedNames, items };
+  return { equipped, equippedNames, equippedIlvls, items };
 }
 
 function prettyNameFromLine(rest) {

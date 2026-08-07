@@ -1227,6 +1227,15 @@ function renderResult(r) {
 let tgRows = [];
 let tgActiveChip = null;
 let tgActiveSlot = null;
+let tgEquipped = null; // slot -> { name, ilvl } of the character's own gear
+
+// real gear slots (comparison rows for consumables/talents/etc. use pseudo
+// placements like "Flask" or "loadout" and keep the classic row format)
+const REAL_SLOTS = new Set([
+  'head', 'neck', 'shoulder', 'back', 'chest', 'wrist', 'hands', 'waist',
+  'legs', 'feet', 'finger1', 'finger2', 'trinket1', 'trinket2',
+  'main_hand', 'off_hand',
+]);
 
 function renderTopGear(r) {
   $('progress-area').classList.add('hidden');
@@ -1241,6 +1250,7 @@ function renderTopGear(r) {
   ].filter(Boolean).join(' · ');
 
   tgRows = r.topgear;
+  tgEquipped = r.equipped ?? null; // older saved sims predate this field
   tgActiveChip = null;
   tgActiveSlot = null;
   $('tg-search').value = '';
@@ -1328,10 +1338,19 @@ function rowHtml(t, maxAbs) {
   const fill = (Math.abs(t.delta) / maxAbs) * 100;
   // rarity-style glow for big upgrades: 1% rare blue, 2% epic purple, 3%+ legendary orange
   const glow = t.deltaPct >= 3 ? 'glow-legendary' : t.deltaPct >= 2 ? 'glow-epic' : t.deltaPct >= 1 ? 'glow-rare' : '';
+  const eq = REAL_SLOTS.has(t.placement) ? tgEquipped?.[t.placement] : null;
+  // "(your ilvl -> suggested ilvl) -> the item it replaces (slot)"
+  const ilvls = eq?.ilvl && t.ilvl
+    ? ` <span class="ilvl${t.origIlvl && t.origIlvl !== t.ilvl ? ' upgraded' : ''}"
+        title="${t.origIlvl && t.origIlvl !== t.ilvl ? `drops at ${t.origIlvl}, simmed upgraded to ${t.ilvl}` : `simmed at ${t.ilvl}`}">(${eq.ilvl} → ${t.ilvl})</span>`
+    : ilvlBadge(t);
+  const target = eq?.name
+    ? `${esc(eq.name)} (${esc(prettySlot(t.placement))})`
+    : esc(prettySlot(t.placement));
   return `
   <tr>
-    <td><span class="${glow ? `item-glow ${glow}` : ''}">${esc(t.itemName ?? '?')}</span>${ilvlBadge(t)}
-        <span class="slot-tag">→ ${esc(prettySlot(t.placement))}${t.boss ? ` · ${esc(t.boss)}` : ''}</span></td>
+    <td><span class="${glow ? `item-glow ${glow}` : ''}">${esc(t.itemName ?? '?')}</span>${ilvls}
+        <span class="slot-tag">→ ${target}${t.boss ? ` · ${esc(t.boss)}` : ''}</span></td>
     <td><span class="source-tag">${esc(t.section)}</span></td>
     <td class="num">${Math.round(t.dps).toLocaleString()}</td>
     <td class="num ${cls}">${sign}${Math.round(t.delta).toLocaleString()}</td>
@@ -1342,6 +1361,8 @@ function rowHtml(t, maxAbs) {
   </tr>`;
 }
 
+// classic badge: used when the equipped item's ilvl isn't known
+// (non-gear rows, hand-written profiles, sims saved before this feature)
 function ilvlBadge(t) {
   if (!t.ilvl) return '';
   if (t.origIlvl && t.origIlvl !== t.ilvl) {

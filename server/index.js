@@ -333,15 +333,17 @@ function equippedIdsFrom(equipped) {
   return ids;
 }
 
-// slot -> { id, name } for the equipped gear, so a simc "cannot initialize this
-// item" failure can be turned into a message that names the actual item.
+// slot -> { id, name, ilvl } for the equipped gear: names error messages
+// ("cannot initialize this item") and feeds the results view's
+// "equipped ilvl -> suggested ilvl" comparison.
 function gearBySlotFrom(profile) {
-  const { equipped, equippedNames } = parseGear(profile);
+  const { equipped, equippedNames, equippedIlvls } = parseGear(profile);
   const out = {};
   for (const [slot, line] of Object.entries(equipped)) {
     out[slot] = {
       id: Number(line.match(/(?:^|,)id=(\d+)/)?.[1]) || null,
       name: equippedNames?.[slot] ?? null,
+      ilvl: equippedIlvls?.[slot] ?? null,
     };
   }
   return out;

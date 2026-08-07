@@ -175,7 +175,8 @@ table splits into per-slot sections (Weapons, Rings, Flask, …). All options li
 **Simming upgrades:** every item row has an item-level dropdown — sim the item as-is, at
 any upgrade step of the current season's tracks (e.g. a fresh 272 Myth-track piece at its
 6/6 cap of 289), at Voidcore levels (weapons/trinkets only: 295 crafted / 298 Myth), or
-at a custom item level you type in. Upgraded items show as "272 → 289" in the results.
+at a custom item level you type in. Result rows read as a swap: *"Suggested Item
+(your item's level → the suggestion's simmed level) → the item it replaces (slot)"*.
 Track/voidcore numbers live in [data/season.json](data/season.json) and are updated by
 hand once per season.
 
@@ -211,7 +212,9 @@ Paste your export, open the **Droptimizer** tab, pick your sources, hit
   always included — e.g. Outlaw off-hand daggers sim out of the box.
 - **Upgrade items to X/6** — sim every item upgraded within its own track, like
   Raidbots' "Upgrade up to": a Mythic raid drop at Myth 6/6, a delve Hero drop at
-  Hero 6/6, and so on. Upgraded items show as "272 → 289" in the results.
+  Hero 6/6, and so on. Result rows read as a swap: *"Suggested Item (your item's
+  level → the suggestion's simmed level) → the item it replaces (slot)"* — hover
+  the item levels to see the drop's base level when it was simmed upgraded.
 - **Include everything** does what it says. A full scan is a few hundred items; on an
   M-series Mac it takes well under a minute on Fast precision.
 

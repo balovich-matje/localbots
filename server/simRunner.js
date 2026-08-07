@@ -192,6 +192,9 @@ export class SimQueue extends EventEmitter {
           job.result = extractResult(json);
           if (job.meta?.sets) {
             job.result.topgear = extractTopGear(json, job.meta.sets, job.result.dps);
+            // what each slot currently wears — the results view shows
+            // "equipped ilvl -> suggested ilvl" and the replaced item's name
+            job.result.equipped = job.meta.gearBySlot ?? null;
           }
           this.#finish(job, 'done');
         } catch (e) {
