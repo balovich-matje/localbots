@@ -40,14 +40,18 @@ const app = express();
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(join(ROOT, 'public')));
 
+// On a shared server (the Docker image sets this to 0) the in-page shutdown
+// button is disabled — otherwise any visitor could stop everyone's sims.
+const ALLOW_SHUTDOWN = process.env.LOCALBOTS_ALLOW_SHUTDOWN !== '0';
+
 app.get('/api/health', (req, res) => {
-  res.json({ ok: true, simcPath, simcVersion: version });
+  res.json({ ok: true, simcPath, simcVersion: version, allowShutdown: ALLOW_SHUTDOWN });
 });
 
 // Header status bar: is the repo behind GitHub / is simc behind the live game?
 app.get('/api/status', async (req, res) => {
   const s = await updateStatus(version);
-  res.json({ ...s, simc: { ...s.simc, updatable: !!simcSource } });
+  res.json({ ...s, simc: { ...s.simc, updatable: !!simcSource }, allowShutdown: ALLOW_SHUTDOWN });
 });
 
 // One-click simc update (only for from-source installs). Runs in the
@@ -637,6 +641,12 @@ app.post('/api/sim/:id/cancel', (req, res) => {
 // Shut the server down from the UI (localhost app — the button is the
 // only way to stop it without a terminal). Kills any running sim first.
 app.post('/api/shutdown', (req, res) => {
+  if (!ALLOW_SHUTDOWN) {
+    return res.status(403).json({
+      error: 'This Localbots is running as a shared server, so it cannot be shut down from the page. ' +
+        'Stop it on the host instead (for Docker: docker compose stop).',
+    });
+  }
   const running = queue.running;
   if (running) queue.cancel(running.id);
   res.json({ ok: true });

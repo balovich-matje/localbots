@@ -1,0 +1,27 @@
+# Localbots as a shared server: docker compose up -d --build
+# Then open http://<server>:4747 from any machine on the network.
+services:
+  localbots:
+    build:
+      context: .
+      # SimulationCraft's branch changes each expansion; override here if needed
+      args:
+        SIMC_BRANCH: midnight
+    image: localbots
+    container_name: localbots
+    restart: unless-stopped
+    ports:
+      - "4747:4747"
+    volumes:
+      # ~60 MB of wago.tools game data — survives restarts so the one-time
+      # "Refresh data" download isn't repeated
+      - localbots-cache:/app/data/cache
+      # everyone's saved sims (the History page is shared on a shared server)
+      - localbots-history:/app/data/history
+    environment:
+      # set to 1 if you want the in-page "Shut down server" button back
+      LOCALBOTS_ALLOW_SHUTDOWN: "0"
+
+volumes:
+  localbots-cache:
+  localbots-history:

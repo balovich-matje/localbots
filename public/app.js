@@ -348,6 +348,8 @@ function setChip(id, state, text, tooltip) {
 }
 
 function renderStatus(s) {
+  // a shared server hides the shutdown button (see LOCALBOTS_ALLOW_SHUTDOWN)
+  if (s.allowShutdown === false) $('shutdown-button').classList.add('hidden');
   const app = s.app ?? {};
   if (app.state === 'ok') {
     setChip('status-app', 'ok', 'Localbots up to date',

@@ -118,6 +118,51 @@ EOF
 chmod +x "Start Localbots.command"
 ```
 
+## Running on a server (Docker)
+
+One machine runs Localbots, everyone else just opens the page — no one else needs
+Node, simc, or the repo. You don't install SimulationCraft yourself: the image
+compiles it during the build.
+
+```bash
+git clone https://github.com/balovich-matje/localbots.git
+cd localbots
+docker compose up -d --build
+```
+
+Then open **http://your-server-address:4747** from any machine on the network.
+The first build takes roughly 10–15 minutes (nearly all of it compiling simc) and
+needs a couple of GB of disk; later rebuilds reuse the cached layers. On first use
+hit **Refresh data** once to download the game data (~60 MB, kept in a volume).
+
+**Updating.** Pull and rebuild — this updates Localbots *and* recompiles simc
+against the current game data, which is how you keep up with patches here:
+
+```bash
+git pull && docker compose up -d --build
+```
+
+The in-page **Simc** light still tells you when a game patch has moved past your
+build, but its one-click update is disabled in Docker (there are no build tools in
+the runtime image) — rebuild instead.
+
+**Sharing it with friends — things worth knowing:**
+
+- Sims run **one at a time**; a second person's run queues and starts automatically,
+  and the page shows its position.
+- **History is shared** — everyone sees everyone's saved sims on that server.
+- Each person's character, settings and pasted talent builds live in *their own
+  browser*, so you don't overwrite each other.
+- The **Shut down server** button is hidden, so nobody can stop everyone's sims
+  from a browser tab. Set `LOCALBOTS_ALLOW_SHUTDOWN=1` in `docker-compose.yml` to
+  put it back; to stop the server properly use `docker compose stop`.
+- **There is no login.** Anyone who can reach the port can use it and read the
+  shared history, so keep it on your LAN or a VPN rather than exposing it to the
+  open internet.
+
+Useful commands: `docker compose logs -f` (what the server is doing),
+`docker compose restart`, `docker compose down` (stop; your data volumes survive).
+
 ## Options explained
 
 | UI option | What it does (simc setting) |

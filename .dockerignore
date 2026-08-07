@@ -1,0 +1,12 @@
+.git
+node_modules
+# downloaded game data and saved sims live in volumes, never in the image
+data/cache
+data/history
+jobs
+*.log
+*.command
+Top Gear - Raidbots.html
+*.raidbots.html
+.DS_Store
+.claude
