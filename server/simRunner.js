@@ -292,10 +292,10 @@ function humanizeInitError(error, gearBySlot) {
   // A talent string that doesn't decode usually means a live export simmed
   // on the PTR patch (or vice versa) — talent trees changed between patches.
   if (/Hash '[^']*':.*(choice node|talent)/i.test(error ?? '') || /Invalid talent/i.test(error ?? '')) {
-    return 'Your export\'s talent build could not be read by this patch\'s data — talent trees ' +
-      'changed between patches. If you are simming on the PTR patch, copy /simc from the PTR ' +
-      'client (or temporarily remove the talents= line to sim without talents). Live exports ' +
-      'usually stop working on the PTR patch and vice versa.';
+    return 'This character\'s talent build could not be read. Talent trees change with every ' +
+      'game patch, so an export copied before the patch stops working: open the game, type ' +
+      '/simc again, and paste the fresh export. (If you are simming a test-realm patch, the ' +
+      'export has to come from that client.)';
   }
   const m = error?.match(/Slot '([^']+)':\s*Cannot initialize data/i);
   if (!m) return error;

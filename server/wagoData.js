@@ -18,7 +18,7 @@ const LOOT_DB = join(CACHE_DIR, 'lootdb.json');
 const CURRENT_SEASON_TIER = 505; // JournalTier "Current Season" — stable across seasons
 const CRAFT_EXPANSION = 11; // ItemSparse.ExpansionID for Midnight — bump each expansion
 const CURRENT_MAP_EXPANSION = 11; // Map.ExpansionID for Midnight — bump with CRAFT_EXPANSION
-const LOOT_DB_VERSION = 4; // bump to force a rebuild when the db shape changes
+const LOOT_DB_VERSION = 5; // bump to force a rebuild when the db shape changes
 // ItemLimitCategory ids marking inherently-embellished crafted designs
 const EMBELLISHED_LIMIT_CATEGORIES = new Set([512, 697]);
 
@@ -182,24 +182,29 @@ export function buildLootDb(mplusDungeonNames = [], paths = {}) {
 
   const instById = new Map(instances.map((r) => [r.ID, r]));
 
-  // The "Current Season" tier still carries the PREVIOUS season's rows (e.g.
-  // last expansion's raid + M+ pool), distinguished only by their
-  // AvailabilityCondition — a gate the game client evaluates and we can't.
-  // Season-proof heuristic: a condition group is "current" when any of its
-  // instances sits on a current-expansion map (revamped old dungeons ride
-  // along in the same group; a purely last-expansion group never has one).
-  const condHasCurrent = new Map();
+  // The "Current Season" tier keeps PAST seasons' rows too — last expansion's
+  // content and, after a content patch, the previous season of this one. They
+  // are separated only by AvailabilityCondition, a gate the client evaluates
+  // and we can't read. The season's M+ pool is the anchor: whichever condition
+  // group holds this season's keystone dungeons is the live group. A patch
+  // that adds raids in a newer group than the dungeons is covered by also
+  // taking the highest-numbered group that has current-expansion content.
+  const mplusNames = new Set(mplusDungeonNames);
+  const condOfInstance = (t) => t.AvailabilityCondition ?? '0';
+  const currentGroups = new Set(['0']); // ungated rows are evergreen
+  let newestCurrent = null;
   for (const t of allTierRows) {
     const inst = instById.get(t.JournalInstanceID);
     if (!inst) continue;
-    const cond = t.AvailabilityCondition ?? '0';
-    const isCurrent = expansionByMap.get(inst.MapID) === CURRENT_MAP_EXPANSION;
-    condHasCurrent.set(cond, (condHasCurrent.get(cond) ?? false) || isCurrent);
+    const cond = condOfInstance(t);
+    if (mplusNames.has(inst.Name_lang)) currentGroups.add(cond);
+    if (expansionByMap.get(inst.MapID) === CURRENT_MAP_EXPANSION
+        && (newestCurrent === null || Number(cond) > Number(newestCurrent))) {
+      newestCurrent = cond;
+    }
   }
-  const txi = allTierRows.filter((t) => {
-    const cond = t.AvailabilityCondition ?? '0';
-    return cond === '0' || condHasCurrent.get(cond) === true;
-  });
+  if (newestCurrent !== null) currentGroups.add(newestCurrent);
+  const txi = allTierRows.filter((t) => currentGroups.has(condOfInstance(t)));
   const encByInstance = new Map();
   for (const e of encounters) {
     if (!encByInstance.has(e.JournalInstanceID)) encByInstance.set(e.JournalInstanceID, []);
@@ -223,11 +228,16 @@ export function buildLootDb(mplusDungeonNames = [], paths = {}) {
 
   // Legacy dungeons keep their historical loot rows in the journal. Two
   // filters recover the CURRENT drop table (matches the in-game journal):
-  //  1. difficulty mask must include Mythic/M+ (drops old leveling-only rows)
+  //  1. the difficulty mask must include a DUNGEON difficulty. Returning
+  //     dungeons keep their original loot rows (which drop again, scaled to
+  //     the current season — we override ilevel anyway), and those rows are
+  //     tagged Normal/Heroic rather than Mythic, so requiring the Mythic bits
+  //     would throw away most of a returning dungeon's table.
   //  2. when rows are gated by WorldStateExpression (Blizzard's "which era
   //     of this dungeon is active" switch), keep only the current group —
-  //     identified as the one containing current-expansion item ids.
-  const MYTHIC_BITS = (1 << 22) | (1 << 7); // difficulty 23 (Mythic) + 8 (M+)
+  //     identified as the one containing current-expansion item ids. This is
+  //     the filter that actually removes a revamped dungeon's dead loot.
+  const DUNGEON_BITS = (1 << 0) | (1 << 1) | (1 << 7) | (1 << 22); // Normal, Heroic, M+, Mythic
   const CURRENT_ITEM_ID = 240000;
   const filterDungeonRows = (instId) => {
     const encIds = (encByInstance.get(instId) ?? []).map((e) => e.ID);
@@ -244,7 +254,7 @@ export function buildLootDb(mplusDungeonNames = [], paths = {}) {
     const keep = new Set();
     for (const r of rows) {
       const mask = Number(r.DifficultyMask);
-      if (mask !== -1 && !(mask & MYTHIC_BITS)) continue;
+      if (mask !== -1 && mask !== 0 && !(mask & DUNGEON_BITS)) continue;
       if (currentWse !== null && r.WorldStateExpressionID !== '0' && r.WorldStateExpressionID !== currentWse) continue;
       keep.add(r.ID);
     }

@@ -327,10 +327,37 @@ Raidbots Patchwerk run — or vice versa — can differ by several percent on ex
 specs (Fury Warrior, Arms, Assassination…) purely from that one setting, even with
 identical gear.
 
-## For maintainers: new season checklist
+## For maintainers: patch-day checklist
 
-- Consumable defaults come from `data/consumables.json`, generated from simc's bundled
-  season profiles: `node scripts/generate-consumables.mjs ~/tools/simc-src/profiles/<SEASON>`
+What a content patch needs, in order. Most of it is two clicks; the rest is one
+config file.
+
+1. **Update simc** — the orange **Simc** light in the header, or `git pull` +
+   `ninja -C build simc`. Nothing else works until simc has the new game data.
+2. **Refresh data** in the Droptimizer tab — re-downloads the game tables pinned
+   to the build your simc speaks.
+3. **Re-copy your character** — type `/simc` in game again. Talent trees change
+   every patch, so an export from before it will be rejected (with an explanation).
+4. **Update `data/season.json`** — the only hand-edited part:
+   - *Upgrade tracks, crafted cap, Voidforged levels:* read them straight from
+     `raidbots.com/static/data/live/bonuses.json` (each `upgrade` entry gives
+     track name, step and item level). These are exact, not guesses.
+   - *Raid / M+ / delve / world-boss drop levels:* these are not in any clean data
+     source. Derive them from the track positions the previous season used, then
+     confirm against in-game tooltips.
+   - *M+ pool:* join `MythicPlusSeasonTrackedMap` (newest `DisplaySeasonID`) to
+     `MapChallengeMode` for the dungeon names.
+   - *Delve pool:* `data/delve-loot.json` needs re-verifying each season — delve
+     loot is server-side and appears in no client table.
+5. **Consumable defaults:** `node scripts/generate-consumables.mjs ~/tools/simc-src/profiles/<SEASON>`
+   (e.g. `MID2`) once simc ships the new season's profiles.
+6. **`data/patches.json`** — the first entry is the live patch. When a test realm
+   opens for the *next* patch, add a second entry with `ptr: true` and its own
+   season/consumables/delve files; simc reaches that data automatically.
+
+Localbots figures out the rest on its own: which journal group is the current
+season (anchored to the M+ pool, so last season's raids drop off), which items
+your simc build can actually sim, and which enchants have no DPS effect.
 
 ## License
 

@@ -1,50 +1,50 @@
 {
-  "season": "Midnight Season 1 (12.0.x)",
-  "_comment": "Hand-curated once per season. Track arrays list every upgrade step's item level. voidcore.extraIlvls are offered for weapon/trinket slots only (Ascendant Voidcores apply to fully-upgraded Hero/Myth or max-rank crafted weapons and trinkets).",
+  "season": "Midnight Season 2 (12.1)",
+  "_comment": "Hand-curated once per season. Upgrade tracks, crafted cap and the Voidforged offsets are CONFIRMED against live bonus data for 12.1.0.69299. Raid / M+ / delve / world-boss drop levels are derived from the same track positions season 1 used and are pending in-game confirmation.",
   "tracks": {
     "Adventurer": [
-      220,
-      224,
-      227,
-      230,
-      233,
-      237
-    ],
-    "Veteran": [
-      233,
-      237,
-      240,
-      243,
-      246,
-      250
-    ],
-    "Champion": [
-      246,
-      250,
-      253,
-      256,
-      259,
-      263
-    ],
-    "Hero": [
-      259,
-      263,
       266,
       269,
       272,
-      276
-    ],
-    "Myth": [
-      272,
       276,
+      279,
+      282
+    ],
+    "Veteran": [
       279,
       282,
       285,
-      289
+      289,
+      292,
+      295
+    ],
+    "Champion": [
+      292,
+      295,
+      298,
+      302,
+      305,
+      308
+    ],
+    "Hero": [
+      305,
+      308,
+      311,
+      315,
+      318,
+      321
+    ],
+    "Myth": [
+      318,
+      321,
+      324,
+      328,
+      331,
+      334
     ]
   },
   "consumableOptions": {
-    "_comment": "Alternatives for the Top Gear consumables comparison. Stats MEASURED in simc (stat sheet with vs without; base values — Pandaren food doubling not included). Rank 2 is the season flask/potion cap.",
+    "_comment": "Alternatives for the Top Gear consumables comparison. Season-1 consumables carry into 12.1; the two 12.1 feast foods are included (their stats are not measured yet — labels say \"new in 12.1\").",
     "flask": [
       {
         "value": "flask_of_the_shattered_sun_2",
@@ -87,6 +87,14 @@
       {
         "value": "voidkissed_fish_rolls",
         "label": "Void-Kissed Fish Rolls (+64 Vers)"
+      },
+      {
+        "value": "silvermoon_parade",
+        "label": "Silvermoon Parade (new in 12.1)"
+      },
+      {
+        "value": "harandar_celebration",
+        "label": "Harandar Celebration (new in 12.1)"
       }
     ],
     "potion": [
@@ -115,10 +123,10 @@
     ]
   },
   "crafted": {
-    "maxIlvl": 285
+    "maxIlvl": 331
   },
   "embellishmentOptions": {
-    "_comment": "Craft-time embellishments, simmed by appending the effect bonus id to a crafted host item. All verified against simc 12.0.7.68974 (bonus id applies, effect visible in the sim). markerBonusIds identify embellished items in an export (8960 = Embellished(2) cap marker, 13555 = Outdoor Embellished(1)). Excluded on purpose: B1P Scorcher (on-use, net DPS loss), B0P Curator (~0 on single target), M0LL1 (not implemented in simc), Blessed Pango Charm (healer), outdoor utility embellishments.",
+    "_comment": "Craft-time embellishments, simmed by appending the effect bonus id to a crafted host item. The four added in 12.1 are now live alongside the season-1 set. markerBonusIds identify embellished items in an export (8960 = Embellished(2) cap, 13555 = Outdoor Embellished(1)).",
     "markerBonusIds": [
       8960,
       13555
@@ -174,93 +182,113 @@
         "key": "darkmoon_rot",
         "label": "Darkmoon Sigil: Rot",
         "bonus": 12692
+      },
+      {
+        "key": "ammolite",
+        "label": "Polished Ammolite",
+        "bonus": 13768
+      },
+      {
+        "key": "snakeskin",
+        "label": "Snakeskin Lining",
+        "bonus": 13764
+      },
+      {
+        "key": "adorned_fang",
+        "label": "Adorned Fang",
+        "bonus": 13767
+      },
+      {
+        "key": "ritual_stone",
+        "label": "Hunter's Ritual Stone",
+        "bonus": 13771
       }
     ]
   },
   "voidcore": {
-    "_comment": "Ascendant Voidforged ilvls, confirmed from live item tooltips: Hero 6/6 -> 285, Myth 6/6 -> 298.",
+    "_comment": "Ascendant Voidforged for season 2. Myth 6/6 -> 344 is exact (bonus 13848 in live data); Hero 331 and crafted 341 follow the game's generic +10 Voidforged offset (bonus 13655) applied to the 321 Hero cap and the 331 crafted cap. Confirm against a tooltip when you see one.",
     "slots": [
       "main_hand",
       "off_hand",
       "trinket1",
       "trinket2"
     ],
-    "mythIlvl": 298,
-    "heroIlvl": 285,
-    "craftedIlvl": 295
+    "mythIlvl": 344,
+    "heroIlvl": 331,
+    "craftedIlvl": 341
   },
-  "maxIlvl": 298,
+  "maxIlvl": 344,
   "droptimizer": {
-    "_comment": "Drop item levels per source. raidDifficulties arrays are per boss-position bucket (early -> end bosses). mythicPlus maps key level to end-of-dungeon and Great Vault ilvls. worldBoss/outdoor are editable in the UI before each run.",
+    "_comment": "Drop item levels per source. Derived from season-2 track positions; verify against in-game tooltips.",
     "raidDifficulties": {
       "LFR": [
-        233,
-        237,
-        240,
-        243
+        279,
+        282,
+        285,
+        289
       ],
       "Normal": [
-        246,
-        250,
-        253,
-        256
+        292,
+        295,
+        298,
+        302
       ],
       "Heroic": [
-        259,
-        263,
-        266,
-        269
+        305,
+        308,
+        311,
+        315
       ],
       "Mythic": [
-        272,
-        276,
-        279,
-        282
+        318,
+        321,
+        324,
+        328
       ]
     },
     "mythicPlusDungeons": [
-      "Magisters' Terrace",
-      "Maisara Caverns",
-      "Nexus-Point Xenas",
-      "Windrunner Spire",
-      "Algeth'ar Academy",
-      "Seat of the Triumvirate",
-      "Skyreach",
-      "Pit of Saron"
+      "Altar of Fangs",
+      "Ruby Life Pools",
+      "Temple of Sethraliss",
+      "Kings' Rest",
+      "The Blinding Vale",
+      "Voidscar Arena",
+      "Den of Nalorakk",
+      "Murder Row"
     ],
     "mythicPlus": {
       "endOfDungeon": {
-        "0": 246,
-        "2": 250,
-        "3": 250,
-        "4": 253,
-        "5": 256,
-        "6": 259,
-        "7": 259,
-        "8": 263,
-        "9": 263,
-        "10": 266
+        "0": 292,
+        "2": 295,
+        "3": 295,
+        "4": 298,
+        "5": 302,
+        "6": 305,
+        "7": 305,
+        "8": 308,
+        "9": 308,
+        "10": 311
       },
       "vault": {
-        "0": 256,
-        "2": 259,
-        "3": 259,
-        "4": 263,
-        "5": 263,
-        "6": 266,
-        "7": 269,
-        "8": 269,
-        "9": 269,
-        "10": 272
+        "0": 302,
+        "2": 305,
+        "3": 305,
+        "4": 308,
+        "5": 308,
+        "6": 311,
+        "7": 315,
+        "8": 315,
+        "9": 315,
+        "10": 318
       }
     },
     "delveTracks": {
-      "_comment": "Simplified: high-tier Bountiful Coffers drop Champion track (T8 = 250), Trovehunter's Bounty / delve Great Vault at T8+ drop Hero track (259).",
-      "Champion": 250,
-      "Hero": 259
+      "_comment": "Same simplified model as season 1.",
+      "Champion": 295,
+      "Hero": 305
     },
-    "worldBossIlvl": 256,
-    "outdoorIlvl": 250
+    "worldBossIlvl": 302,
+    "outdoorIlvl": 295
   },
   "enchantOptions": {
     "_comment": "Per-slot enchant alternatives (rank-2 ids from SpellItemEnchantment, as used by simc tuning profiles). legs entries carry a stat filter (attack = str/agi specs, int = casters). Options marked \"dps\": false were measured in simc as having no DPS effect (tertiary stats, healer/tank procs) and are hidden. \"stat\" restricts an option to specs with that primary stat.",
