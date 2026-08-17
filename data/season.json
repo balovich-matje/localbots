@@ -285,7 +285,7 @@
       }
     },
     "delveTracks": {
-      "_comment": "Same simplified model as season 1.",
+      "_comment": "Delve rewards top out at Champion 2/6 (bountiful coffer, tier 8+) and Hero 1/6 (Trovehunter's Bounty and the weekly vault, tier 8+). Nothing from a delve drops on the Myth track, and tier 8 is the ceiling for all three reward channels. Cross-checked against published season-2 reward tables; not yet confirmed against an in-game tooltip.",
       "Champion": 295,
       "Hero": 305
     },

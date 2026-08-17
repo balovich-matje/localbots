@@ -1,5 +1,5 @@
 {
-  "_comment": "Midnight S1 delve gear pool: datamined item family cross-checked and EXTENDED via Zah'ran, the post-delve gear vendor (wowhead.com/npc=256670) — his sell list is the same pool and includes the trinkets. Entries are {id} or {name}; names resolve to the best-quality item version on Refresh data.",
+  "_comment": "Midnight delve gear pool: datamined item family cross-checked and EXTENDED via Zah'ran, the post-delve gear vendor (wowhead.com/npc=256670) — his sell list is the same pool and includes the trinkets. Entries are {id} or {name}; names resolve to the best-quality item version on Refresh data. RE-VERIFIED for 12.1 / Midnight season 2 on 2026-08-17: season 2 reuses this exact pool (same 79 items, same vendor) at higher item levels via bonus ids, so nothing was added or removed. Only the item levels change, and those come from season.json droptimizer.delveTracks. Season 2 opens 2026-08-18 — worth one re-check of the vendor's stock after it does.",
   "items": [
     {
       "id": 249610,
