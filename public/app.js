@@ -769,9 +769,14 @@ function renderEquippedList() {
     const target = tuTarget(it);
     const upgradable = target !== null;
     const checked = upgradable && (first || prevChecked.has(it.slot));
+    // trackSource 'none' = the item carries no upgrade track from this season,
+    // so it is a leftover from an earlier season and cannot be upgraded at all
+    const why = upgradable ? ` → ${target}`
+      : it.trackSource === 'none' ? ' (older season — not upgradable)'
+        : it.track ? ' (maxed)' : ' (no track)';
     return `<label class="cg-opt ${upgradable ? '' : 'disabled-label'}">
       <input type="checkbox" data-tuslot="${esc(it.slot)}" ${checked ? 'checked' : ''} ${upgradable ? '' : 'disabled'}>
-      ${esc(it.name)} <span class="hint-inline">${it.ilvl}${upgradable ? ` → ${target}` : ' (maxed / no track)'}${it.track ? ` · ${it.track}${it.stepIdx != null ? ` ${it.stepIdx + 1}/6` : ''}${it.trackSource === 'guessed' ? ' (guessed)' : ''}` : ''}</span>
+      ${esc(it.name)} <span class="hint-inline">${it.ilvl}${why}${it.track ? ` · ${it.track}${it.stepIdx != null ? ` ${it.stepIdx + 1}/6` : ''}${it.trackSource === 'guessed' ? ' (guessed)' : ''}` : ''}</span>
     </label>`;
   }).join('');
   $('tu-list').dataset.rendered = '1';

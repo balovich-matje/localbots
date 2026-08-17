@@ -314,20 +314,34 @@ app.post('/api/droptimizer/sources', (req, res) => {
 
 // Enrich simc-resolved equipped items with their exact upgrade track/step:
 // upgrade-track bonus ids on the item line decode to "Hero 6/6" etc. via the
-// bonus map; items without one fall back to ilvl-based track inference.
+// bonus map.
+//
+// Only THIS season's tracks count (upgradeSeasonId). Gear kept from a previous
+// season keeps its item level but no longer sits on a track, and last season's
+// levels overlap this season's lower tracks -- a 289 Myth 6/6 piece from season 1
+// looks exactly like a season-2 Veteran 4/6. Inferring the track from item level
+// would offer upgrades the game will not sell, so once the bonus map is loaded an
+// item without a current-season track bonus is reported as untracked. The ilvl
+// guess survives only as a fallback for installs with no bonus data cached yet.
 function enrichEquipped(profile, resolved, p) {
   const { equipped } = parseGear(profile);
   const bonusMap = p.bonusUpgradeMap ?? patches.get(DEFAULT_PATCH_ID).bonusUpgradeMap;
+  const seasonId = p.config?.upgradeSeasonId ?? null;
   return resolved.map((it) => {
     const ids = (equipped[it.slot]?.match(/bonus_id=([\d/]+)/)?.[1] ?? '')
       .split('/').map(Number);
-    const up = bonusMap ? ids.map((id) => bonusMap.get(id)).find(Boolean) : null;
+    const up = bonusMap
+      ? ids.map((id) => bonusMap.get(id))
+        .find((u) => u && (seasonId === null || u.seasonId === seasonId))
+      : null;
+    if (up) return { ...it, track: up.track, stepIdx: up.level - 1, trackSource: 'exact' };
+    if (bonusMap) return { ...it, track: null, stepIdx: null, trackSource: 'none' };
     const guess = trackFor(it.ilvl, p.config?.tracks ?? {});
     return {
       ...it,
-      track: up?.track ?? guess?.track ?? null,
-      stepIdx: up ? up.level - 1 : (guess?.stepIdx ?? null),
-      trackSource: up ? 'exact' : 'guessed',
+      track: guess?.track ?? null,
+      stepIdx: guess?.stepIdx ?? null,
+      trackSource: 'guessed',
     };
   });
 }

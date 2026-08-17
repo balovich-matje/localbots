@@ -342,6 +342,10 @@ config file.
    - *Upgrade tracks, crafted cap, Voidforged levels:* read them straight from
      `raidbots.com/static/data/live/bonuses.json` (each `upgrade` entry gives
      track name, step and item level). These are exact, not guesses.
+   - *`upgradeSeasonId`:* the `upgrade.seasonId` those entries carry. It is what
+     tells last season's gear apart from this season's — old gear keeps its item
+     level but loses its track, and the levels overlap, so without this the app
+     would offer upgrades the game will not sell.
    - *Raid / M+ / delve / world-boss drop levels:* these are not in any clean data
      source. Derive them from the track positions the previous season used, then
      confirm against in-game tooltips.

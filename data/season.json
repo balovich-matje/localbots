@@ -1,5 +1,7 @@
 {
   "season": "Midnight Season 2 (12.1)",
+  "upgradeSeasonId": 37,
+  "_upgradeSeasonId_comment": "The season that owns this patch's upgrade tracks (bonus ids 12817-12854 for season 37). Only items carrying one of THIS season's track bonus ids can still be upgraded — last season's gear keeps its item level but loses its track, and its levels overlap this season's Adventurer/Veteran steps, so it must not be guessed from item level alone.",
   "_comment": "Hand-curated once per season. Upgrade tracks, crafted cap and the Voidforged offsets are CONFIRMED against live bonus data for 12.1.0.69299. Raid / M+ / delve / world-boss drop levels are derived from the same track positions season 1 used and are pending in-game confirmation.",
   "tracks": {
     "Adventurer": [

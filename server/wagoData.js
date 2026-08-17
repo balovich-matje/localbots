@@ -113,7 +113,10 @@ export function loadBonusUpgradeMap(cacheDir = CACHE_DIR) {
     for (const entry of Object.values(raw)) {
       const u = entry?.upgrade;
       if (u?.name && u.level && u.max) {
-        map.set(Number(entry.id), { track: u.name, level: u.level, max: u.max, ilvl: u.itemLevel ?? null });
+        map.set(Number(entry.id), {
+          track: u.name, level: u.level, max: u.max, ilvl: u.itemLevel ?? null,
+          seasonId: u.seasonId ?? null, // used to reject last season's tracks
+        });
       }
     }
     return map;

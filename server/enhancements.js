@@ -263,7 +263,10 @@ export function buildTrackUpgradeVariants(profileText, resolved, seasonFull, opt
   const upgrades = []; // [slot, upgradedLine, label]
   for (const item of resolved) {
     if (!wanted.has(item.slot) || !equipped[item.slot]) continue;
-    // prefer the exact track/step decoded from the item's bonus ids
+    // the track/step decoded from the item's bonus ids is authoritative;
+    // trackSource 'none' means the item carries no current-season track, so it
+    // cannot be upgraded at all (last season's gear) and gets no row
+    if (item.trackSource === 'none') continue;
     const info = item.track != null && item.stepIdx != null
       ? { track: item.track, stepIdx: item.stepIdx }
       : trackFor(item.ilvl, tracks);
