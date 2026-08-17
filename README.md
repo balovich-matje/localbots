@@ -131,9 +131,14 @@ docker compose up -d --build
 ```
 
 Then open **http://your-server-address:4747** from any machine on the network.
-The first build takes roughly 10–15 minutes (nearly all of it compiling simc) and
-needs a couple of GB of disk; later rebuilds reuse the cached layers. On first use
-hit **Refresh data** once to download the game data (~60 MB, kept in a volume).
+The first build takes 15–45 minutes (nearly all of it compiling simc) and wants
+4 GB of RAM to get through that compile; later rebuilds reuse the cached layers.
+On first use hit **Refresh data** once to download the game data (~60 MB, kept in
+a volume).
+
+> **Setting this up for a group? See [DOCKER.md](DOCKER.md)** — the full server
+> guide: requirements, patch-day rebuilds, backups, exposing it safely, and what
+> to do when something fails.
 
 **Updating.** Pull and rebuild — this updates Localbots *and* recompiles simc
 against the current game data, which is how you keep up with patches here:
