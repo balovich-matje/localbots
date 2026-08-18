@@ -193,10 +193,16 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
     if (source.kind === 'raid') {
       const diffs = selection.raids?.[source.instanceId] ?? [];
       for (const diff of diffs) {
-        const ilvls = season.raidDifficulties[diff];
-        if (!ilvls) continue;
+        // one level for the whole difficulty: 12.1 raid drops do not scale with
+        // boss position (confirmed in game -- the second and last bosses of The
+        // Venomous Abyss both drop Hero 2/6 on heroic). Older configs used a
+        // four-bucket array, so those are still accepted.
+        const entry = season.raidDifficulties[diff];
+        if (entry == null) continue;
         for (const boss of source.bosses) {
-          const ilvl = ilvls[bossBucket(boss.order, source.bosses.length)];
+          const ilvl = Array.isArray(entry)
+            ? entry[bossBucket(boss.order, source.bosses.length)]
+            : entry;
           for (const item of dedupe(boss.items)) {
             addItem(item, ilvl, RAID_DIFF_TRACK[diff],
               { section: `${source.name} ${diff}`, boss: boss.name, sourceKind: 'raid' });

@@ -24,7 +24,12 @@ import { parseCsv } from './csv.js';
 const STAT_NAMES = {
   3: 'Agility', 4: 'Strength', 5: 'Intellect', 6: 'Spirit', 7: 'Stamina',
   32: 'Critical Strike', 36: 'Haste', 40: 'Versatility', 49: 'Mastery',
-  71: 'Strength', 72: 'Agility', 73: 'Intellect', 74: 'Primary Stat',
+  // 71-74 are COMBINED primaries: the game shows whichever one your class uses
+  // and greys out the rest. Naming any single one of them would be wrong for
+  // most readers -- a Strength-or-Agility weapon read as "Agility" on a death
+  // knight -- so they all share the neutral label. (Loot filtering knows the
+  // real sets; see SPEC_PRIMARY in lootFilter.js.)
+  71: 'Primary Stat', 72: 'Primary Stat', 73: 'Primary Stat', 74: 'Primary Stat',
 };
 const RATINGS = new Set([32, 36, 40, 49]);
 const PRIMARY_COMBINED = new Set([71, 72, 73, 74]); // "best of" primary placeholders

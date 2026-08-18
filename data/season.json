@@ -222,31 +222,12 @@
   "maxIlvl": 344,
   "droptimizer": {
     "_comment": "Drop item levels per source. Derived from season-2 track positions; verify against in-game tooltips.",
+    "_raidDifficulties_comment": "One item level per difficulty — raid drops do NOT scale with boss position in 12.1. Confirmed in game: Heroic drops Hero 2/6 = 308 from both the second boss and the last boss of The Venomous Abyss. A higher level on a heroic item means it was upgraded with crests, not that the boss dropped it that way. Normal = Champion 1/6 = 292 from one observed drop. LFR and Mythic are still derived and unconfirmed.",
     "raidDifficulties": {
-      "LFR": [
-        279,
-        282,
-        285,
-        289
-      ],
-      "Normal": [
-        292,
-        295,
-        298,
-        302
-      ],
-      "Heroic": [
-        305,
-        308,
-        311,
-        315
-      ],
-      "Mythic": [
-        318,
-        321,
-        324,
-        328
-      ]
+      "LFR": 279,
+      "Normal": 292,
+      "Heroic": 308,
+      "Mythic": 321
     },
     "mythicPlusDungeons": [
       "Altar of Fangs",
