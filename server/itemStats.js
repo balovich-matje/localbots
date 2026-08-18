@@ -122,10 +122,14 @@ export function loadItemTables(cacheDir) {
     return existsSync(p) ? parseCsv(readFileSync(p, 'utf8'), cols) : null;
   };
 
-  const rpp = read('RandPropPoints', ['ID', 'EpicF_0', 'EpicF_1', 'EpicF_2', 'EpicF_3', 'EpicF_4']);
+  const rpp = read('RandPropPoints', ['ID', 'EpicF_0', 'EpicF_1', 'EpicF_2', 'EpicF_3', 'EpicF_4',
+    'DamageReplaceStatF', 'DamageSecondaryF']);
   if (!rpp) return null;
   const budget = new Map(rpp.map((r) => [Number(r.ID),
     [+r.EpicF_0, +r.EpicF_1, +r.EpicF_2, +r.EpicF_3, +r.EpicF_4]]));
+  // the separate budgets item effects scale against
+  const damageBudget = new Map(rpp.map((r) => [Number(r.ID),
+    { replaceStat: +r.DamageReplaceStatF, secondary: +r.DamageSecondaryF }]));
 
   const sparse = read('ItemSparse', [
     'ID', 'Display_lang', 'OverallQualityID', 'InventoryType', 'ItemDelay', 'DmgVariance',
@@ -165,6 +169,7 @@ export function loadItemTables(cacheDir) {
 
   return {
     budget,
+    damageBudget,
     items,
     classes,
     dmg1h: dmgRow('ItemDamageOneHand'),
@@ -176,6 +181,22 @@ export function loadItemTables(cacheDir) {
 }
 
 // ---------- the calculation ----------
+
+// The budgets an item's effects scale against. Kept here because the rating
+// type depends on the same inventory-type mapping the stats use.
+export function effectContext(itemId, ilvl, tables, scaling) {
+  if (!tables || !scaling || !ilvl) return null;
+  const it = tables.items.get(Number(itemId));
+  const budget = tables.budget.get(Number(ilvl));
+  if (!it || !budget) return null;
+  const crType = ratingType(it.invType);
+  const rpp = tables.damageBudget?.get(Number(ilvl)) ?? null;
+  return {
+    primaryBudget: budget[0],
+    secondaryBudget: rpp?.secondary ?? 0,
+    crMult: scaling.cr[crType]?.[ilvl - 1] ?? 1,
+  };
+}
 
 export function itemStats(itemId, ilvl, tables, scaling) {
   if (!tables || !scaling || !ilvl) return null;

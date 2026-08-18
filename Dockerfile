@@ -39,6 +39,13 @@ COPY --from=simc /opt/simc/engine/dbc/generated/trait_data_ptr.inc /opt/simc/eng
 # item stat scaling curves, read the same way (see server/itemStats.js)
 COPY --from=simc /opt/simc/engine/dbc/generated/sc_scale_data.inc     /opt/simc/engine/dbc/generated/sc_scale_data.inc
 COPY --from=simc /opt/simc/engine/dbc/generated/sc_scale_data_ptr.inc /opt/simc/engine/dbc/generated/sc_scale_data_ptr.inc
+# item effects: which spells an item grants, their coefficients, and the text
+COPY --from=simc /opt/simc/engine/dbc/generated/item_effect.inc         /opt/simc/engine/dbc/generated/item_effect.inc
+COPY --from=simc /opt/simc/engine/dbc/generated/item_effect_ptr.inc     /opt/simc/engine/dbc/generated/item_effect_ptr.inc
+COPY --from=simc /opt/simc/engine/dbc/generated/sc_spell_data.inc       /opt/simc/engine/dbc/generated/sc_spell_data.inc
+COPY --from=simc /opt/simc/engine/dbc/generated/sc_spell_data_ptr.inc   /opt/simc/engine/dbc/generated/sc_spell_data_ptr.inc
+COPY --from=simc /opt/simc/engine/dbc/generated/spelltext_data.inc      /opt/simc/engine/dbc/generated/spelltext_data.inc
+COPY --from=simc /opt/simc/engine/dbc/generated/spelltext_data_ptr.inc  /opt/simc/engine/dbc/generated/spelltext_data_ptr.inc
 ENV SIMC_PATH=/opt/simc/build/simc
 
 WORKDIR /app

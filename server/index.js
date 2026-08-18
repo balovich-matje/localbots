@@ -19,7 +19,8 @@ import { detectSimcSource, startSimcUpdate } from './simcUpdater.js';
 import { invalidateStatus } from './status.js';
 import { fetchCharacter, buildProfile as buildArmoryProfile } from './armory.js';
 import { buildIconMap, loadIconMap } from './itemIcons.js';
-import { loadScaling, loadItemTables, itemStats, clearScalingCache } from './itemStats.js';
+import { loadScaling, loadItemTables, itemStats, effectContext, clearScalingCache } from './itemStats.js';
+import { loadEffectData, itemEffects, clearEffectCache } from './itemEffects.js';
 
 // Optional local secrets (Blizzard API credentials for the Armory tab). The
 // file is gitignored; nothing here is required for Localbots to run.
@@ -88,6 +89,7 @@ app.post('/api/simc/update', (req, res) => {
     clearResolveCache();
     clearTraitCache(); // talent tables ship with the binary we just replaced
     clearScalingCache(); // ...and so do the item scaling curves
+    clearEffectCache(); // ...and the item effect tables
     for (const p of patches.values()) {
       p.available = !!p.config && (!p.def.ptr || !!ptrVersion);
       p.reason = !p.config ? `missing data/${p.def.seasonFile}`
@@ -505,6 +507,9 @@ app.get('/api/items', (req, res) => {
     const entry = { icon: icons?.get(id) ?? null };
     const st = itemStats(id, ilvl, p.itemTables, scaling);
     if (st) Object.assign(entry, st);
+    const fx = loadEffectData(simcPath, p.def.ptr);
+    const ctx = effectContext(id, ilvl, p.itemTables, scaling);
+    if (fx && ctx) entry.effects = itemEffects(id, ilvl, fx, ctx);
     out[pair] = entry;
   }
   res.json({ items: out });

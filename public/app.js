@@ -1883,6 +1883,13 @@ function statLines(s) {
   for (const p of s.primary ?? []) out.push(`<div class="tip-stat">+${p.value.toLocaleString()} ${esc(p.name)}</div>`);
   if (s.stamina) out.push(`<div class="tip-stat">+${s.stamina.value.toLocaleString()} Stamina</div>`);
   for (const r of s.secondary ?? []) out.push(`<div class="tip-sec">+${r.value.toLocaleString()} ${esc(r.name)}</div>`);
+  for (const e of s.effects ?? []) {
+    const label = e.trigger ? `${esc(e.trigger)}: ` : '';
+    const body = e.text.split('\n').filter((l) => l.trim())
+      .map((l, i) => `<div class="tip-fx-line">${i === 0 ? `<b>${label}</b>` : ''}${esc(l)}</div>`).join('');
+    const cd = e.cooldown ? `<div class="tip-dim">(${esc(e.cooldown)} cooldown)</div>` : '';
+    out.push(`<div class="tip-fx">${body}${cd}</div>`);
+  }
   return out.join('');
 }
 
