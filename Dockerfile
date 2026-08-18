@@ -16,6 +16,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt
+# Docker would happily reuse a cached clone forever, because the command below
+# never changes -- which silently pins the image to whatever simc was current
+# the first time it was built. Fetching the branch head first ties the cache to
+# upstream instead: the file changes when simc does, and only then do the clone
+# and compile re-run. Without this, "docker compose up -d --build" updates
+# Localbots but not SimulationCraft.
+ADD https://api.github.com/repos/simulationcraft/simc/commits/${SIMC_BRANCH} /tmp/simc-head.json
 RUN git clone --depth 1 --branch "${SIMC_BRANCH}" https://github.com/simulationcraft/simc.git simc
 WORKDIR /opt/simc
 RUN cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_GUI=OFF \

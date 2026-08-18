@@ -115,12 +115,19 @@ The one-click **Simc** update button in the header is hidden in the container
 on purpose — there is no source tree inside the image to update. Instead:
 
 ```bash
-cd localbots && git pull && docker compose build --no-cache && docker compose up -d
+cd localbots && git pull && docker compose up -d --build
 ```
 
-`--no-cache` forces a fresh clone and rebuild of SimulationCraft, which is what
-picks up the new patch. Then click **Refresh data** in the Droptimizer tab once
-to re-download the game tables for the new build.
+The image tracks SimulationCraft's branch head, so when simc has moved on this
+recompiles it; when it has not, the cached build is reused and the rebuild is
+quick. Then click **Refresh data** in the Droptimizer tab once to re-download
+the game tables for the new build.
+
+If you suspect the image is stale anyway, force everything:
+
+```bash
+docker compose build --no-cache && docker compose up -d
+```
 
 That click is still needed here. On a desktop install the Simc update button
 refreshes the game data by itself, but in the container simc is replaced by a

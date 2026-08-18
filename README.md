@@ -162,12 +162,17 @@ a volume).
 > guide: requirements, patch-day rebuilds, backups, exposing it safely, and what
 > to do when something fails.
 
-**Updating.** Pull and rebuild — this updates Localbots *and* recompiles simc
-against the current game data, which is how you keep up with patches here:
+**Updating.** Pull and rebuild. This updates Localbots, and rebuilds simc too
+when SimulationCraft itself has moved on — the image checks the branch head, so
+a patch-day simc gets picked up rather than the build silently reusing the simc
+it was first built with:
 
 ```bash
 git pull && docker compose up -d --build
 ```
+
+If you ever need to force the whole thing from scratch, add `--no-cache` to a
+`docker compose build`.
 
 The in-page **Simc** light still tells you when a game patch has moved past your
 build, but its one-click update is disabled in Docker (there are no build tools in
