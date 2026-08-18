@@ -3,9 +3,9 @@
 **Your hardware, your sims.** A locally-hosted alternative to Raidbots that wraps your own
 [SimulationCraft](https://github.com/simulationcraft/simc) install in a friendly web page.
 
-Paste your character straight from the game, hit **Sim it**, get DPS with a full damage
-breakdown — no queue, no premium tier, no API keys. Runs entirely on your machine from
-public data.
+Paste your character straight from the game — or just look it up by name and realm — hit
+**Sim it**, and get DPS with a full damage breakdown. No queue, no premium tier, no API
+keys. Runs entirely on your machine from public data.
 
 ## Status / Roadmap
 
@@ -29,7 +29,9 @@ public data.
 1. **Node.js 18+** — [nodejs.org](https://nodejs.org) (any current version works)
 2. **SimulationCraft CLI (`simc`)** — see per-OS install below
 3. The **Simulationcraft addon** in game — install "Simulationcraft" from CurseForge/Wago,
-   then type `/simc` in chat and copy the text with Ctrl+C (Cmd+C on Mac)
+   then type `/simc` in chat and copy the text with Ctrl+C (Cmd+C on Mac).
+   Optional: the **Armory** tab can look a character up by name instead, though the
+   addon export is the exact one (see below).
 
 ### Installing simc
 
@@ -80,6 +82,14 @@ npm start
 ```
 
 Open **http://localhost:4747**, paste your `/simc` export, hit **Sim it**.
+
+Under **Character** you can switch to the **Armory** tab and look a character up by
+region, realm and name instead of pasting anything. That reads the character's last
+public scan (via raider.io — no Blizzard API key, which Localbots never requires), so
+gear swapped in the last few minutes may be missing, and it does not carry your Omnium
+Folio, professions or saved talent loadouts. For an exact picture, paste the `/simc`
+export.
+
 To stop the server, use the **Shut down server** button at the bottom of the page.
 
 **Sim history:** every sim that finishes is saved on your machine (in `data/history/`,
@@ -104,6 +114,11 @@ When simc was built from source on this machine (the macOS/Linux recipe above), 
 orange Simc light is **clickable** — one click pulls the latest simc and rebuilds it
 right there, with progress in the chip; sims wait until it's done. Windows nightly
 installs can't be rebuilt automatically — grab the newest nightly instead.
+
+After that rebuild Localbots re-downloads the game tables by itself: a new simc means a
+new game build, and the cached tables would otherwise be the wrong build and get
+rejected, leaving the Droptimizer empty. You no longer need to press **Refresh data**
+yourself after a simc update.
 
 **macOS tip:** drop a double-clickable launcher in the repo folder (it's gitignored):
 

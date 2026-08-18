@@ -1622,3 +1622,125 @@ function showError(msg) {
 function hideError() {
   $('error-box').classList.add('hidden');
 }
+
+// ---------- character source: SimC Addon / Armory ----------
+// The Armory tab fills the same #profile textarea the addon export goes into,
+// so everything downstream is unchanged — it is only a different way to get the
+// text. See server/armory.js for where the data comes from.
+
+// Set while we write the textarea ourselves, so the 'input' handler below can
+// tell a programmatic fill from the user typing over an imported character.
+let fillingFromArmory = false;
+
+const ARMORY_PREFS = 'localbots-armory';
+
+function showSource(which) {
+  const armory = which === 'armory';
+  $('src-tab-addon').classList.toggle('active', !armory);
+  $('src-tab-armory').classList.toggle('active', armory);
+  $('src-tab-addon').setAttribute('aria-selected', String(!armory));
+  $('src-tab-armory').setAttribute('aria-selected', String(armory));
+  $('src-panel-addon').classList.toggle('hidden', armory);
+  $('src-panel-armory').classList.toggle('hidden', !armory);
+}
+
+$('src-tab-addon').addEventListener('click', () => showSource('addon'));
+$('src-tab-armory').addEventListener('click', () => showSource('armory'));
+
+// remember the last character looked up, so a repeat sim is two clicks
+try {
+  const saved = JSON.parse(localStorage.getItem(ARMORY_PREFS) ?? '{}');
+  if (saved.region) $('armory-region').value = saved.region;
+  if (saved.realm) $('armory-realm').value = saved.realm;
+  if (saved.name) $('armory-name').value = saved.name;
+} catch { /* first run, or someone edited localStorage */ }
+
+const ARMOR_SLOTS = ['head', 'shoulder', 'chest', 'waist', 'legs', 'feet', 'wrist', 'hands', 'back'];
+const ACC_SLOTS = ['neck', 'finger1', 'finger2', 'trinket1', 'trinket2'];
+const WEAPON_SLOTS = ['main_hand', 'off_hand'];
+
+function itemIcon(c, it) {
+  if (!it?.icon) return '';
+  const src = `https://render.worldofwarcraft.com/${encodeURIComponent(c.region)}/icons/56/${encodeURIComponent(it.icon)}.jpg`;
+  const label = `${it.name ?? it.slot}${it.ilvl ? ` (${it.ilvl})` : ''}`;
+  return `<img class="char-item q${it.quality ?? 1}" src="${esc(src)}" alt="${esc(label)}" title="${esc(label)}">`;
+}
+
+function renderCharCard(c) {
+  const card = $('char-card');
+  if (!c) { card.classList.add('hidden'); card.innerHTML = ''; return; }
+  const bySlot = new Map(c.items.map((i) => [i.slot, i]));
+  const group = (slots) => slots.map((s) => itemIcon(c, bySlot.get(s))).join('');
+  const when = c.crawledAt ? new Date(c.crawledAt) : null;
+  const age = when && !Number.isNaN(when.getTime())
+    ? `Gear as last seen ${when.toLocaleString()} — swap something since then and it will not show here.`
+    : '';
+  card.innerHTML = `
+    ${c.thumbnail ? `<img class="char-portrait" src="${esc(c.thumbnail)}" alt="">` : ''}
+    <div class="char-main">
+      <div class="char-name">${esc(c.name)}</div>
+      <div class="char-sub">${esc(c.race)} <span class="char-class">${esc(c.spec)} ${esc(c.className)}</span></div>
+      <div class="char-sub">${esc(c.realm)} (${esc(String(c.region).toUpperCase())})</div>
+    </div>
+    ${c.itemLevel ? `<div class="char-ilvl">${esc(c.itemLevel)}</div>` : ''}
+    <div class="char-items">
+      ${group(ARMOR_SLOTS)}<span class="char-gap"></span>${group(ACC_SLOTS)}<span class="char-gap"></span>${group(WEAPON_SLOTS)}
+    </div>
+    ${age ? `<div class="char-note">${esc(age)}</div>` : ''}`;
+  // Brand-new items sometimes have no icon on Blizzard's CDN yet (it answers
+  // 403 in every region). Fall back to an empty tile that keeps the slot, the
+  // quality border and the tooltip, rather than showing a broken image.
+  for (const img of card.querySelectorAll('img.char-item')) {
+    img.addEventListener('error', () => {
+      img.classList.add('missing');
+      img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    }, { once: true });
+  }
+  card.classList.remove('hidden');
+}
+
+async function importFromArmory() {
+  const region = $('armory-region').value;
+  const realm = $('armory-realm').value.trim();
+  const name = $('armory-name').value.trim();
+  if (!realm || !name) {
+    $('armory-status').textContent = 'Enter both a realm and a character name.';
+    return;
+  }
+  $('armory-import').disabled = true;
+  $('armory-status').textContent = `Looking up ${name} on ${realm}…`;
+  renderCharCard(null);
+  try {
+    const r = await fetch('/api/armory', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ region, realm, name }),
+    });
+    const j = await r.json();
+    if (!r.ok) {
+      $('armory-status').textContent = j.error ?? 'Import failed.';
+      return;
+    }
+    localStorage.setItem(ARMORY_PREFS, JSON.stringify({ region, realm, name }));
+    fillingFromArmory = true;
+    $('profile').value = j.profile;
+    $('profile').dispatchEvent(new Event('input', { bubbles: true }));
+    fillingFromArmory = false;
+    renderCharCard(j.character);
+    $('armory-status').textContent = 'Imported — set up the fight below and hit Sim it.';
+  } catch {
+    $('armory-status').textContent = 'Could not reach the Localbots server.';
+  } finally {
+    $('armory-import').disabled = false;
+  }
+}
+
+$('armory-import').addEventListener('click', importFromArmory);
+for (const id of ['armory-realm', 'armory-name']) {
+  $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') importFromArmory(); });
+}
+
+// typing over an imported character makes the card wrong — drop it
+$('profile').addEventListener('input', () => {
+  if (!fillingFromArmory) renderCharCard(null);
+});

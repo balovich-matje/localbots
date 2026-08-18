@@ -122,6 +122,10 @@ cd localbots && git pull && docker compose build --no-cache && docker compose up
 picks up the new patch. Then click **Refresh data** in the Droptimizer tab once
 to re-download the game tables for the new build.
 
+That click is still needed here. On a desktop install the Simc update button
+refreshes the game data by itself, but in the container simc is replaced by a
+rebuild rather than by that button, so nothing triggers the download for you.
+
 The header has a **Simc** light that turns orange when the simc in the image is
 older than the live game build — that is your cue to run the above.
 

@@ -31,9 +31,44 @@
       </div>
 
       <h2>Character</h2>
-      <p class="hint">In game: type <code>/simc</code>, copy the text (Ctrl+C / Cmd+C), paste it below.</p>
-      <textarea id="profile" spellcheck="false"
-        placeholder="# Paste your /simc addon export here&#10;warrior=&quot;Yourname&quot;&#10;level=90&#10;spec=fury&#10;..."></textarea>
+
+      <div class="src-switch" role="tablist" aria-label="Character source">
+        <button type="button" id="src-tab-addon" class="src-tab active" role="tab" aria-selected="true">SimC Addon</button>
+        <button type="button" id="src-tab-armory" class="src-tab" role="tab" aria-selected="false">Armory</button>
+      </div>
+
+      <div id="src-panel-addon">
+        <p class="hint">In game: type <code>/simc</code>, copy the text (Ctrl+C / Cmd+C), paste it below.</p>
+        <textarea id="profile" spellcheck="false"
+          placeholder="# Paste your /simc addon export here&#10;warrior=&quot;Yourname&quot;&#10;level=90&#10;spec=fury&#10;..."></textarea>
+      </div>
+
+      <div id="src-panel-armory" class="hidden">
+        <p class="hint">Look the character up by name — no addon needed. Gear comes from the last
+          public scan of the character, so anything swapped in the last few minutes may be missing;
+          the addon export is always exact.</p>
+        <div class="armory-form">
+          <label>Region
+            <select id="armory-region">
+              <option value="eu">EU</option>
+              <option value="us">US</option>
+              <option value="kr">KR</option>
+              <option value="tw">TW</option>
+              <option value="cn">CN</option>
+            </select>
+          </label>
+          <label>Realm
+            <input type="text" id="armory-realm" placeholder="Kilrogg" autocomplete="off" spellcheck="false">
+          </label>
+          <label>Character
+            <input type="text" id="armory-name" placeholder="Shanksgiving" autocomplete="off" spellcheck="false">
+          </label>
+          <button type="button" id="armory-import" class="primary-ish">Import</button>
+        </div>
+        <p class="hint" id="armory-status"></p>
+      </div>
+
+      <div id="char-card" class="char-card hidden"></div>
 
       <h2>Fight</h2>
       <div class="options-grid">

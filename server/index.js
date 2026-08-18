@@ -17,6 +17,7 @@ import { parseLoadouts, buildLoadoutVariants } from './talents.js';
 import { loadTraitData, decodeTalents, talentLayout, clearTraitCache } from './talentData.js';
 import { detectSimcSource, startSimcUpdate } from './simcUpdater.js';
 import { invalidateStatus } from './status.js';
+import { fetchCharacter, buildProfile as buildArmoryProfile } from './armory.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT) || 4747;
@@ -98,6 +99,17 @@ app.post('/api/simc/update', (req, res) => {
     }
     invalidateStatus();
     console.log(`simc updated: ${version}`);
+    // A new simc almost always means a new game build, which makes the cached
+    // tables the wrong build. Those get rejected, so the Droptimizer would sit
+    // empty behind a "hit Refresh data" banner until somebody read it. Start
+    // that download here instead — the tab shows the same progress either way.
+    for (const p of patches.values()) {
+      if (!p.available) continue;
+      if (!cacheStatus(p.paths.cacheDir, expectedBuildFor(p)).buildMismatch) continue;
+      const r = startDataRefresh(p);
+      if (r.started) console.log(`refreshing game data for ${p.def.label} after the simc update`);
+      else if (r.error) console.error(`auto-refresh skipped for ${p.def.label}: ${r.error}`);
+    }
   });
   res.json({ started: true });
 });
@@ -251,20 +263,22 @@ function dataStatus(p) {
 
 app.get('/api/data/status', (req, res) => res.json(dataStatus(getPatch(req))));
 
-app.post('/api/data/refresh', (req, res) => {
-  const p = getPatch(req);
-  if (!p.available) return res.status(400).json({ error: `That patch is not available: ${p.reason}` });
+// Download a patch's game tables and rebuild its loot database. Shared by the
+// Refresh data button and by the automatic refresh that follows a simc update.
+// Returns rather than sending a response so both callers can report their own way.
+function startDataRefresh(p) {
+  if (!p.available) return { error: `That patch is not available: ${p.reason}` };
   // Pin wago to the exact build simc's dataset was made for — never trust
   // wago's default (it sometimes points at a test build). No pin, no download.
   const build = expectedBuildFor(p);
   if (!build) {
-    return res.status(400).json({
+    return {
       error: 'Could not read the game build from your simc install, and the data refresh needs it ' +
         'to download matching tables. Update or reinstall simc (check the Simc light), then try again.',
-    });
+    };
   }
   const rs = p.refreshState;
-  if (rs.running) return res.json({ started: false, reason: 'already running' });
+  if (rs.running) return { started: false, reason: 'already running' };
   rs.running = true;
   rs.error = null;
   rs.step = 'downloading';
@@ -279,8 +293,14 @@ app.post('/api/data/refresh', (req, res) => {
     p.knownItems = null; // probe cache is keyed on builtAt; it re-runs on next use
   })()
     .catch((err) => { rs.error = err.message; })
-    .finally(() => { rs.running = false; rs.step = null; });
-  res.json({ started: true });
+    .finally(() => { rs.running = false; rs.step = null; invalidateStatus(); });
+  return { started: true };
+}
+
+app.post('/api/data/refresh', (req, res) => {
+  const r = startDataRefresh(getPatch(req));
+  if (r.error) return res.status(400).json({ error: r.error });
+  res.json({ started: !!r.started, ...(r.reason ? { reason: r.reason } : {}) });
 });
 
 // Source tree for the droptimizer tab. Kicks off the one-time simc item
@@ -448,6 +468,20 @@ function detectItemSets(equipped, bagItems, itemSetMap) {
 // Parse bagged/vault gear out of an export so the UI can offer checkboxes.
 // resolveIlvls=true additionally runs a 1-iteration simc pass to decode each
 // equipped item's actual item level and upgrade track (cached per profile).
+// Import a character by name + realm instead of pasting a /simc export.
+// Returns a profile in the same shape the addon writes, plus the bits the page
+// needs to draw the character card. See server/armory.js for why this does not
+// use Blizzard's armory API.
+app.post('/api/armory', async (req, res) => {
+  const { region, realm, name } = req.body ?? {};
+  try {
+    const character = await fetchCharacter({ region, realm, name });
+    res.json({ profile: buildArmoryProfile(character), character });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 app.post('/api/gear', async (req, res) => {
   const { profile, resolveIlvls, customLoadouts } = req.body ?? {};
   if (!profile || typeof profile !== 'string') {

@@ -712,3 +712,111 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   color: var(--muted);
   font-size: 13px;
 }
+
+/* --- character source switch (SimC Addon / Armory) --- */
+.src-switch {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.src-tab {
+  background: var(--panel-2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 7px 14px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.src-tab:hover { color: var(--text); }
+.src-tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1a1206;
+  font-weight: 600;
+}
+
+.armory-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+.armory-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.armory-form input[type="text"] { min-width: 160px; }
+.armory-form button { align-self: flex-end; }
+
+/* --- imported character card --- */
+.char-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.char-portrait {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  object-fit: cover;
+  flex: none;
+  background: var(--panel);
+}
+.char-main { flex: 1 1 220px; min-width: 0; }
+.char-name {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+.char-sub { font-size: 13px; color: var(--muted); }
+.char-sub .char-class { color: var(--text); font-weight: 600; }
+.char-ilvl {
+  flex: none;
+  align-self: flex-start;
+  background: var(--bar);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  border-radius: 999px;
+  padding: 4px 13px;
+}
+.char-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  width: 100%;
+}
+.char-item {
+  width: 34px;
+  height: 34px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  display: block;
+}
+/* item quality borders, same colours the game uses */
+.char-item.q2 { border-color: #1eff00; }
+.char-item.q3 { border-color: #0070dd; }
+.char-item.q4 { border-color: #a335ee; }
+.char-item.q5 { border-color: #ff8000; }
+.char-gap { width: 8px; flex: none; }
+.char-note { width: 100%; font-size: 12px; color: var(--muted); }
+/* item art that Blizzard has not published yet — keep the slot, drop the broken icon */
+.char-item.missing {
+  background:
+    linear-gradient(135deg, transparent 46%, var(--border) 46%, var(--border) 54%, transparent 54%),
+    var(--panel);
+}
