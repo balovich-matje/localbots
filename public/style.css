@@ -151,7 +151,8 @@ textarea:focus, input:focus, select:focus {
   color: var(--muted);
   min-width: 0;
 }
-.options-grid select, .options-grid input {
+.options-grid select, .options-grid input,
+.armory-form select, .armory-form input[type="text"] {
   width: 100%;
   min-width: 0;
   background: var(--panel-2);
@@ -748,9 +749,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   gap: 4px;
   font-size: 13px;
   color: var(--muted);
+  min-width: 0;
 }
-.armory-form input[type="text"] { min-width: 160px; }
-.armory-form button { align-self: flex-end; }
+.armory-form .f-region { flex: 0 0 92px; }
+.armory-form .f-realm, .armory-form .f-name { flex: 1 1 170px; }
+.armory-form button { flex: none; }
 
 /* --- imported character card --- */
 .char-card {
