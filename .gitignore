@@ -7,3 +7,8 @@ jobs/
 *.command
 Top Gear - Raidbots.html
 *.raidbots.html
+
+# secrets — never commit these (the repo is public)
+.env
+.env.*
+!.env.example

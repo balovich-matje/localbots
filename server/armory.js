@@ -1,9 +1,15 @@
 // Character import by name + realm, without a Blizzard API key.
 //
-// simc's own `armory=` option talks to Blizzard's OAuth API, which needs
-// credentials Localbots deliberately does not depend on — running it here fails
-// with a 401. raider.io publishes the same character data through a free,
-// keyless endpoint, so that is what the Armory tab reads.
+// Two sources, picked automatically:
+//
+//   * Blizzard's own API, when BLIZZARD_CLIENT_ID/SECRET are set. Live read,
+//     every saved talent loadout, working icons. See server/blizzard.js.
+//   * raider.io otherwise — free and keyless, so Localbots still needs no API
+//     key of any kind out of the box. This is the default.
+//
+// simc's built-in `armory=` option is not used either way: it needs the same
+// Blizzard credentials and fails with a 401 without them, and doing the fetch
+// here also gives us the data for the character card.
 //
 // The trade-off is freshness: raider.io serves its most recent crawl of the
 // character rather than a live read, so gear swapped in the last few minutes may
@@ -12,6 +18,8 @@
 //
 // What the crawl does NOT carry, and the addon export does: the Omnium Folio
 // (omnium_talents), professions, and any saved-but-inactive talent loadouts.
+
+import { hasCredentials, fetchCharacter as fetchFromBlizzard } from './blizzard.js';
 
 const API = 'https://raider.io/api/v1/characters/profile';
 
@@ -35,7 +43,25 @@ export function realmSlug(realm) {
 
 const token = (s) => String(s).trim().toLowerCase().replace(/[\s'’-]+/g, '_');
 
-export async function fetchCharacter({ region, realm, name }, { timeoutMs = 20000 } = {}) {
+// Pick the best source available. A Blizzard failure that is not "no such
+// character" falls back to raider.io rather than failing the import: a missing
+// key, an expired secret or a Blizzard outage should degrade, not break.
+export async function fetchCharacter(query, opts = {}) {
+  if (!hasCredentials()) return fetchFromRaiderIo(query, opts);
+  try {
+    return await fetchFromBlizzard(query);
+  } catch (e) {
+    if (e.notFound) {
+      throw new Error(`No character called "${String(query.name).trim()}" on ${query.realm} `
+        + `(${String(query.region).toUpperCase()}). Check the spelling and the realm — `
+        + 'and note that a character has to have been logged in since the last realm restart to appear.');
+    }
+    console.error('Blizzard armory lookup failed, falling back to raider.io:', e.message);
+    return fetchFromRaiderIo(query, opts);
+  }
+}
+
+async function fetchFromRaiderIo({ region, realm, name }, { timeoutMs = 20000 } = {}) {
   if (!REGIONS.includes(String(region).toLowerCase())) {
     throw new Error(`Unknown region "${region}". Pick one of: ${REGIONS.join(', ')}.`);
   }
@@ -91,6 +117,7 @@ function normalize(j) {
     });
   }
   return {
+    source: 'raiderio',
     name: j.name,
     realm: j.realm,
     region: j.region,
@@ -115,12 +142,14 @@ function normalize(j) {
 // import exactly like a pasted export.
 export function buildProfile(c) {
   const L = [];
-  L.push(`# ${c.name} - ${c.spec} - imported from raider.io - ${c.region.toUpperCase()}/${c.realm}`);
+  const where = c.source === 'blizzard' ? 'Armory' : 'raider.io';
+  L.push(`# ${c.name} - ${c.spec} - imported from ${where} - ${c.region.toUpperCase()}/${c.realm}`);
   if (c.crawledAt) L.push(`# character data last updated ${c.crawledAt}`);
   L.push('');
   L.push(`${token(c.className)}="${c.name.replace(/"/g, '')}"`);
-  // level is deliberately omitted: simc defaults to the max level of the build
-  // it was compiled for, which stays correct across expansions
+  // level only when the source actually knows it; simc otherwise defaults to
+  // the max level of the build it was compiled for, which stays correct
+  if (c.level) L.push(`level=${c.level}`);
   L.push(`race=${token(c.race)}`);
   L.push(`region=${c.region}`);
   L.push(`server=${realmSlug(c.realm)}`);
@@ -128,6 +157,13 @@ export function buildProfile(c) {
   if (c.talentLoadout) {
     L.push('');
     L.push(`talents=${c.talentLoadout}`);
+  }
+  // the character's other saved builds, in the shape the addon writes them, so
+  // Top Gear's talent comparison can pick them up
+  for (const lo of c.savedLoadouts ?? []) {
+    L.push('');
+    L.push(`# Saved Loadout: ${String(lo.name).replace(/[\r\n]/g, ' ')}`);
+    L.push(`# talents=${lo.code}`);
   }
   L.push('');
   for (const it of c.items) {

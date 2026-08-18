@@ -136,6 +136,31 @@ SimulationCraft renames its branch each expansion. Change `SIMC_BRANCH` in
 
 ---
 
+## Optional: live Armory lookups
+
+Localbots can look characters up by name. With no setup it uses a free public
+scan, which works but runs slightly behind. Free Blizzard API credentials make
+it a live read instead.
+
+Get a client id and secret at
+[develop.battle.net](https://develop.battle.net/access/clients), then create a
+`.env` file next to `docker-compose.yml`:
+
+```bash
+printf 'BLIZZARD_CLIENT_ID=your_id\nBLIZZARD_CLIENT_SECRET=your_secret\n' > .env && chmod 600 .env
+```
+
+```bash
+docker compose up -d
+```
+
+Compose reads that file automatically. It is gitignored and excluded from the
+image, so the secret is not baked into anything you might share. Treat the
+secret like a password: anyone holding it can make API calls billed to that
+developer account.
+
+---
+
 ## What "shared" actually means
 
 - **Sims run one at a time.** If three people press Sim at once, they queue and

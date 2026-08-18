@@ -21,6 +21,12 @@ services:
     environment:
       # set to 1 if you want the in-page "Shut down server" button back
       LOCALBOTS_ALLOW_SHUTDOWN: "0"
+      # Optional Blizzard API credentials — see .env.example. With them the
+      # Armory tab reads characters live; without them it uses a free public
+      # scan and everything else still works. Compose picks these up from a
+      # .env file next to this one, so the secret never lands in git.
+      BLIZZARD_CLIENT_ID: ${BLIZZARD_CLIENT_ID:-}
+      BLIZZARD_CLIENT_SECRET: ${BLIZZARD_CLIENT_SECRET:-}
 
 volumes:
   localbots-cache:

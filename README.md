@@ -84,11 +84,18 @@ npm start
 Open **http://localhost:4747**, paste your `/simc` export, hit **Sim it**.
 
 Under **Character** you can switch to the **Armory** tab and look a character up by
-region, realm and name instead of pasting anything. That reads the character's last
-public scan (via raider.io — no Blizzard API key, which Localbots never requires), so
-gear swapped in the last few minutes may be missing, and it does not carry your Omnium
-Folio, professions or saved talent loadouts. For an exact picture, paste the `/simc`
-export.
+region, realm and name instead of pasting anything.
+
+Out of the box that reads a free public scan of the character (via raider.io), so no
+API key is needed — the scan runs a little behind, and only carries the active talent
+build. If you drop free Blizzard API credentials into a `.env` file (copy
+[.env.example](.env.example)), the same tab reads the character **live from the real
+Armory** instead: current gear, every saved talent build, and item icons that work even
+for brand-new items. Localbots falls back to the keyless source by itself if the
+credentials are missing or Blizzard is down.
+
+Either way the Armory route cannot see your Omnium Folio or professions, since those
+are not on the Armory at all — paste the `/simc` export when you want an exact picture.
 
 To stop the server, use the **Shut down server** button at the bottom of the page.
 

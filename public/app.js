@@ -1660,9 +1660,15 @@ const ACC_SLOTS = ['neck', 'finger1', 'finger2', 'trinket1', 'trinket2'];
 const WEAPON_SLOTS = ['main_hand', 'off_hand'];
 
 function itemIcon(c, it) {
-  if (!it?.icon) return '';
-  const src = `https://render.worldofwarcraft.com/${encodeURIComponent(c.region)}/icons/56/${encodeURIComponent(it.icon)}.jpg`;
+  if (!it) return '';
+  // Blizzard hands us the finished asset url; the keyless source only gives an
+  // icon name, which the CDN does not serve for very new items
+  const src = it.iconUrl
+    ?? (it.icon
+      ? `https://render.worldofwarcraft.com/${encodeURIComponent(c.region)}/icons/56/${encodeURIComponent(it.icon)}.jpg`
+      : null);
   const label = `${it.name ?? it.slot}${it.ilvl ? ` (${it.ilvl})` : ''}`;
+  if (!src) return `<span class="char-item missing" title="${esc(label)}"></span>`;
   return `<img class="char-item q${it.quality ?? 1}" src="${esc(src)}" alt="${esc(label)}" title="${esc(label)}">`;
 }
 
@@ -1671,10 +1677,13 @@ function renderCharCard(c) {
   if (!c) { card.classList.add('hidden'); card.innerHTML = ''; return; }
   const bySlot = new Map(c.items.map((i) => [i.slot, i]));
   const group = (slots) => slots.map((s) => itemIcon(c, bySlot.get(s))).join('');
+  // a live Blizzard read has no crawl age to apologise for
   const when = c.crawledAt ? new Date(c.crawledAt) : null;
   const age = when && !Number.isNaN(when.getTime())
     ? `Gear as last seen ${when.toLocaleString()} — swap something since then and it will not show here.`
-    : '';
+    : c.source === 'blizzard'
+      ? 'Read live from the Armory, so this is the gear the character logged out in.'
+      : '';
   card.innerHTML = `
     ${c.thumbnail ? `<img class="char-portrait" src="${esc(c.thumbnail)}" alt="">` : ''}
     <div class="char-main">

@@ -19,6 +19,10 @@ import { detectSimcSource, startSimcUpdate } from './simcUpdater.js';
 import { invalidateStatus } from './status.js';
 import { fetchCharacter, buildProfile as buildArmoryProfile } from './armory.js';
 
+// Optional local secrets (Blizzard API credentials for the Armory tab). The
+// file is gitignored; nothing here is required for Localbots to run.
+try { process.loadEnvFile(join(dirname(fileURLToPath(import.meta.url)), '..', '.env')); } catch { /* no .env, or a Node without loadEnvFile */ }
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT) || 4747;
 

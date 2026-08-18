@@ -10,3 +10,6 @@ Top Gear - Raidbots.html
 *.raidbots.html
 .DS_Store
 .claude
+# never bake secrets into the image
+.env
+.env.*
