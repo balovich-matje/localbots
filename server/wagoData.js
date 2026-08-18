@@ -51,11 +51,19 @@ const TABLES = {
   ItemModifiedAppearance: ['ItemID', 'ItemAppearanceID', 'OrderIndex'],
   // Stat budget per item level — the basis of tooltip stat values.
   RandPropPoints: null,
+  // Weapon damage and armour, for the rest of the tooltip.
+  ItemDamageOneHand: ['ItemLevel', 'Quality_4'],
+  ItemDamageTwoHand: ['ItemLevel', 'Quality_4'],
+  ItemArmorTotal: ['ItemLevel', 'Cloth', 'Leather', 'Mail', 'Plate'],
+  ArmorLocation: ['ID', 'Clothmodifier', 'Leathermodifier', 'Chainmodifier', 'Platemodifier', 'Modifier'],
 };
 
 // Tables added after the first release: an older cache without them still
 // counts as present (the features they power just stay off until a refresh).
-const OPTIONAL_TABLES = new Set(['CraftingData', 'ItemAppearance', 'ItemModifiedAppearance', 'RandPropPoints']);
+const OPTIONAL_TABLES = new Set([
+  'CraftingData', 'ItemAppearance', 'ItemModifiedAppearance',
+  'RandPropPoints', 'ItemDamageOneHand', 'ItemDamageTwoHand', 'ItemArmorTotal', 'ArmorLocation',
+]);
 
 // Per-patch file locations. The live patch keeps the original flat layout
 // (no migration for existing installs); other patches get a subdirectory.

@@ -872,3 +872,10 @@ span.char-item.missing,
 
 /* item lists put the icon before the label */
 .gear-icon-row { display: inline-flex; align-items: center; gap: 8px; }
+/* stat block inside the item tooltip */
+.item-tip .tip-stats { margin-top: 5px; }
+.item-tip .tip-stat { color: var(--text); }
+.item-tip .tip-sec { color: #4ade80; }
+.item-tip .tip-dim { color: var(--muted); font-size: 12px; }
+.item-tip .tip-speed { float: right; margin-left: 20px; color: var(--text); }
+.item-tip .tip-source { margin-top: 6px; border-top: 1px solid var(--border); padding-top: 5px; }

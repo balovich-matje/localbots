@@ -1834,10 +1834,26 @@ function itemTip() {
   return tipEl;
 }
 
-function showItemTip(el) {
-  const d = el.dataset;
-  if (!d.name && !d.item) return;
-  const tip = itemTip();
+// stats per "id:ilvl", fetched the first time an item is hovered
+const statCache = new Map();
+let tipToken = 0;
+
+function statLines(s) {
+  if (!s) return '';
+  const out = [];
+  if (s.weapon) {
+    out.push(`<div class="tip-stat">${s.weapon.min} - ${s.weapon.max} Damage`
+      + `<span class="tip-speed">Speed ${s.weapon.speed.toFixed(2)}</span></div>`);
+    out.push(`<div class="tip-dim">(${s.weapon.dps.toFixed(1)} damage per second)</div>`);
+  }
+  if (s.armor) out.push(`<div class="tip-stat">${s.armor.toLocaleString()} Armor</div>`);
+  for (const p of s.primary ?? []) out.push(`<div class="tip-stat">+${p.value.toLocaleString()} ${esc(p.name)}</div>`);
+  if (s.stamina) out.push(`<div class="tip-stat">+${s.stamina.value.toLocaleString()} Stamina</div>`);
+  for (const r of s.secondary ?? []) out.push(`<div class="tip-sec">+${r.value.toLocaleString()} ${esc(r.name)}</div>`);
+  return out.join('');
+}
+
+function tipShell(d, statsHtml) {
   const rows = [];
   if (d.ilvl) rows.push(`<div class="tip-ilvl">Item Level ${esc(d.ilvl)}</div>`);
   // slot names arrive in simc's lowercase form; title-case them for the card
@@ -1845,10 +1861,36 @@ function showItemTip(el) {
     const slot = String(d.slot).replace(/\b\w/g, (c) => c.toUpperCase());
     rows.push(`<div class="tip-slot">${esc(slot)}</div>`);
   }
-  if (d.source) rows.push(`<div class="tip-source">${esc(d.source)}</div>`);
-  tip.innerHTML = `<div class="tip-name q${esc(d.quality ?? 4)}">${esc(d.name ?? 'Item')}</div>${rows.join('')}`;
+  return `<div class="tip-name q${esc(d.quality ?? 4)}">${esc(d.name ?? 'Item')}</div>`
+    + rows.join('')
+    + (statsHtml ? `<div class="tip-stats">${statsHtml}</div>` : '')
+    + (d.source ? `<div class="tip-source">${esc(d.source)}</div>` : '');
+}
+
+function showItemTip(el) {
+  const d = el.dataset;
+  if (!d.name && !d.item) return;
+  const tip = itemTip();
+  const id = Number(d.item);
+  const ilvl = Number(d.ilvl);
+  const key = id && ilvl ? `${id}:${ilvl}` : null;
+
+  tip.innerHTML = tipShell(d, key ? statLines(statCache.get(key)) : '');
   tip.classList.remove('hidden');
   positionTip(el);
+
+  if (!key || statCache.has(key)) return;
+  // fetch once, then redraw if the pointer is still on this item
+  const token = ++tipToken;
+  fetch(`/api/items?q=${key}&patch=${encodeURIComponent(patch)}`)
+    .then((r) => r.json())
+    .then((j) => {
+      statCache.set(key, j.items?.[key] ?? null);
+      if (token !== tipToken || tip.classList.contains('hidden')) return;
+      tip.innerHTML = tipShell(d, statLines(statCache.get(key)));
+      positionTip(el);
+    })
+    .catch(() => statCache.set(key, null));
 }
 
 function positionTip(el) {

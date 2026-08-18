@@ -36,6 +36,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=simc /opt/simc/build/simc                              /opt/simc/build/simc
 COPY --from=simc /opt/simc/engine/dbc/generated/trait_data.inc     /opt/simc/engine/dbc/generated/trait_data.inc
 COPY --from=simc /opt/simc/engine/dbc/generated/trait_data_ptr.inc /opt/simc/engine/dbc/generated/trait_data_ptr.inc
+# item stat scaling curves, read the same way (see server/itemStats.js)
+COPY --from=simc /opt/simc/engine/dbc/generated/sc_scale_data.inc     /opt/simc/engine/dbc/generated/sc_scale_data.inc
+COPY --from=simc /opt/simc/engine/dbc/generated/sc_scale_data_ptr.inc /opt/simc/engine/dbc/generated/sc_scale_data_ptr.inc
 ENV SIMC_PATH=/opt/simc/build/simc
 
 WORKDIR /app

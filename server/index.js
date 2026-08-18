@@ -19,6 +19,7 @@ import { detectSimcSource, startSimcUpdate } from './simcUpdater.js';
 import { invalidateStatus } from './status.js';
 import { fetchCharacter, buildProfile as buildArmoryProfile } from './armory.js';
 import { buildIconMap, loadIconMap } from './itemIcons.js';
+import { loadScaling, loadItemTables, itemStats, clearScalingCache } from './itemStats.js';
 
 // Optional local secrets (Blizzard API credentials for the Armory tab). The
 // file is gitignored; nothing here is required for Localbots to run.
@@ -86,6 +87,7 @@ app.post('/api/simc/update', (req, res) => {
     if (ptrVersion && !/PTR/i.test(ptrVersion)) ptrVersion = null;
     clearResolveCache();
     clearTraitCache(); // talent tables ship with the binary we just replaced
+    clearScalingCache(); // ...and so do the item scaling curves
     for (const p of patches.values()) {
       p.available = !!p.config && (!p.def.ptr || !!ptrVersion);
       p.reason = !p.config ? `missing data/${p.def.seasonFile}`
@@ -296,6 +298,7 @@ function startDataRefresh(p) {
     p.lootDb = buildLootDb(p.config.droptimizer.mythicPlusDungeons, p.paths);
     rs.step = 'indexing item icons';
     p.iconMap = buildIconMap(p.paths.cacheDir);
+    p.itemTables = null; // rebuilt lazily from the new csvs
     p.itemSetMap = loadItemSetMap(p.paths.cacheDir);
     p.bonusUpgradeMap = loadBonusUpgradeMap(p.paths.cacheDir);
     p.iconMap = loadIconMap(p.paths.cacheDir);
@@ -486,6 +489,27 @@ function detectItemSets(equipped, bagItems, itemSetMap) {
 // use Blizzard's armory API.
 // Icon file ids for a batch of item ids. The page asks for whatever it is about
 // to draw and caches the answer, so this stays one small request per screen.
+// Tooltip data for a batch of "itemId:itemLevel" pairs. Stats are computed the
+// way the game computes them (see server/itemStats.js) and cached per patch.
+app.get('/api/items', (req, res) => {
+  const p = getPatch(req);
+  const icons = p.iconMap ?? patches.get(DEFAULT_PATCH_ID).iconMap;
+  p.itemTables ??= loadItemTables(p.paths.cacheDir);
+  const scaling = loadScaling(simcPath, p.def.ptr);
+  const out = {};
+  for (const pair of String(req.query.q ?? '').split(',').slice(0, 60)) {
+    const [rawId, rawIlvl] = pair.split(':');
+    const id = Number(rawId);
+    const ilvl = Number(rawIlvl);
+    if (!id) continue;
+    const entry = { icon: icons?.get(id) ?? null };
+    const st = itemStats(id, ilvl, p.itemTables, scaling);
+    if (st) Object.assign(entry, st);
+    out[pair] = entry;
+  }
+  res.json({ items: out });
+});
+
 app.get('/api/icons', (req, res) => {
   const p = getPatch(req);
   const map = p.iconMap ?? patches.get(DEFAULT_PATCH_ID).iconMap;
