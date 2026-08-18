@@ -18,6 +18,7 @@ import { loadTraitData, decodeTalents, talentLayout, clearTraitCache } from './t
 import { detectSimcSource, startSimcUpdate } from './simcUpdater.js';
 import { invalidateStatus } from './status.js';
 import { fetchCharacter, buildProfile as buildArmoryProfile } from './armory.js';
+import { buildIconMap, loadIconMap } from './itemIcons.js';
 
 // Optional local secrets (Blizzard API credentials for the Armory tab). The
 // file is gitignored; nothing here is required for Localbots to run.
@@ -97,6 +98,7 @@ app.post('/api/simc/update', (req, res) => {
         }
         p.itemSetMap ??= loadItemSetMap(p.paths.cacheDir);
         p.bonusUpgradeMap ??= loadBonusUpgradeMap(p.paths.cacheDir);
+        p.iconMap ??= loadIconMap(p.paths.cacheDir);
       }
       p.knownItems = p.lootDb
         ? loadProbeCache(patchVersion(p), p.lootDb.builtAt, p.paths.probeCachePath) : null;
@@ -192,6 +194,7 @@ for (const def of PATCH_DEFS) {
     refreshState: { running: false, step: null, error: null },
     itemSetMap: loadItemSetMap(paths.cacheDir),
     bonusUpgradeMap: loadBonusUpgradeMap(paths.cacheDir),
+    iconMap: loadIconMap(paths.cacheDir),
     socketBonusIds: loadSocketBonusIds(paths.cacheDir),
   };
   if (p.available) {
@@ -291,8 +294,11 @@ function startDataRefresh(p) {
       { cacheDir: p.paths.cacheDir, build, bonusesChannel: p.def.ptr ? 'ptr' : 'live' });
     rs.step = 'building loot database';
     p.lootDb = buildLootDb(p.config.droptimizer.mythicPlusDungeons, p.paths);
+    rs.step = 'indexing item icons';
+    p.iconMap = buildIconMap(p.paths.cacheDir);
     p.itemSetMap = loadItemSetMap(p.paths.cacheDir);
     p.bonusUpgradeMap = loadBonusUpgradeMap(p.paths.cacheDir);
+    p.iconMap = loadIconMap(p.paths.cacheDir);
     p.socketBonusIds = loadSocketBonusIds(p.paths.cacheDir);
     p.knownItems = null; // probe cache is keyed on builtAt; it re-runs on next use
   })()
@@ -351,7 +357,9 @@ function enrichEquipped(profile, resolved, p) {
   const { equipped } = parseGear(profile);
   const bonusMap = p.bonusUpgradeMap ?? patches.get(DEFAULT_PATCH_ID).bonusUpgradeMap;
   const seasonId = p.config?.upgradeSeasonId ?? null;
-  return resolved.map((it) => {
+  const itemIds = equippedIdsFrom(equipped); // so the page can draw item icons
+  return resolved.map((it0) => {
+    const it = { ...it0, id: itemIds[it0.slot] ?? null };
     const ids = (equipped[it.slot]?.match(/bonus_id=([\d/]+)/)?.[1] ?? '')
       .split('/').map(Number);
     const up = bonusMap
@@ -476,6 +484,22 @@ function detectItemSets(equipped, bagItems, itemSetMap) {
 // Returns a profile in the same shape the addon writes, plus the bits the page
 // needs to draw the character card. See server/armory.js for why this does not
 // use Blizzard's armory API.
+// Icon file ids for a batch of item ids. The page asks for whatever it is about
+// to draw and caches the answer, so this stays one small request per screen.
+app.get('/api/icons', (req, res) => {
+  const p = getPatch(req);
+  const map = p.iconMap ?? patches.get(DEFAULT_PATCH_ID).iconMap;
+  if (!map) return res.json({ icons: {}, ready: false });
+  const out = {};
+  for (const raw of String(req.query.ids ?? '').split(',')) {
+    const id = Number(raw);
+    if (!id) continue;
+    const f = map.get(id);
+    if (f) out[id] = f;
+  }
+  res.json({ icons: out, ready: true });
+});
+
 app.post('/api/armory', async (req, res) => {
   const { region, realm, name } = req.body ?? {};
   try {

@@ -38,13 +38,24 @@ const TABLES = {
     'LimitCategory',
     'StatModifier_bonusStat_0', 'StatModifier_bonusStat_1', 'StatModifier_bonusStat_2',
     'StatModifier_bonusStat_3', 'StatModifier_bonusStat_4', 'StatModifier_bonusStat_5',
+    // stat allocation budget + weapon fields, for item tooltips
+    'StatPercentEditor_0', 'StatPercentEditor_1', 'StatPercentEditor_2',
+    'StatPercentEditor_3', 'StatPercentEditor_4', 'StatPercentEditor_5',
+    'ItemDelay', 'DmgVariance', 'QualityModifier',
+    'SocketType_0', 'SocketType_1', 'SocketType_2',
   ],
   CraftingData: ['ID', 'CraftedItemID'],
+  // Item icons: modern items leave Item.IconFileDataID at 0 and carry their icon
+  // on the appearance instead, so both are needed to cover everything.
+  ItemAppearance: ['ID', 'DefaultIconFileDataID'],
+  ItemModifiedAppearance: ['ItemID', 'ItemAppearanceID', 'OrderIndex'],
+  // Stat budget per item level — the basis of tooltip stat values.
+  RandPropPoints: null,
 };
 
 // Tables added after the first release: an older cache without them still
 // counts as present (the features they power just stay off until a refresh).
-const OPTIONAL_TABLES = new Set(['CraftingData']);
+const OPTIONAL_TABLES = new Set(['CraftingData', 'ItemAppearance', 'ItemModifiedAppearance', 'RandPropPoints']);
 
 // Per-patch file locations. The live patch keeps the original flat layout
 // (no migration for existing installs); other patches get a subdirectory.

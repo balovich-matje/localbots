@@ -671,10 +671,14 @@ async function refreshGearList() {
     ${entries.map(({ item, i }) => `
       <label>
         <input type="checkbox" data-gear-index="${i}" checked>
-        <span>${esc(item.name)}<span class="slot-tag">${esc(prettySlot(item.slot))}</span></span>
+        <span class="gear-icon-row">${itemTile(item.id, {
+          name: item.name, ilvl: item.targetIlvl ?? item.ilvl, slot: prettySlot(item.slot),
+          source: section, quality: item.quality,
+        })}<span>${esc(item.name)}<span class="slot-tag">${esc(prettySlot(item.slot))}</span></span></span>
         ${ilvlControl(item, i)}
       </label>`).join('')}
   `).join('');
+  paintItemIcons($('gear-list'));
   document.querySelectorAll('#gear-list input[type="checkbox"]').forEach((cb) => {
     cb.addEventListener('change', updateGearCount);
   });
@@ -776,10 +780,14 @@ function renderEquippedList() {
         : it.track ? ' (maxed)' : ' (no track)';
     return `<label class="cg-opt ${upgradable ? '' : 'disabled-label'}">
       <input type="checkbox" data-tuslot="${esc(it.slot)}" ${checked ? 'checked' : ''} ${upgradable ? '' : 'disabled'}>
-      ${esc(it.name)} <span class="hint-inline">${it.ilvl}${why}${it.track ? ` · ${it.track}${it.stepIdx != null ? ` ${it.stepIdx + 1}/6` : ''}${it.trackSource === 'guessed' ? ' (guessed)' : ''}` : ''}</span>
-    </label>`;
+      <span class="gear-icon-row">${itemTile(it.id, {
+        name: it.name, ilvl: it.ilvl, slot: prettySlot(it.slot),
+        source: it.track ? `${it.track}${it.stepIdx != null ? ` ${it.stepIdx + 1}/6` : ''}` : null,
+      })}<span>${esc(it.name)} <span class="hint-inline">${it.ilvl}${why}${it.track ? ` · ${it.track}${it.stepIdx != null ? ` ${it.stepIdx + 1}/6` : ''}${it.trackSource === 'guessed' ? ' (guessed)' : ''}` : ''}</span></span>
+    </span></label>`;
   }).join('');
   $('tu-list').dataset.rendered = '1';
+  paintItemIcons($('tu-list'));
 }
 
 // ---------- droptimizer ----------
@@ -1432,12 +1440,14 @@ function renderTopGearRows() {
     document.querySelector('#topgear-table tbody').innerHTML = groups.map(([boss, rows]) =>
       `<tr class="slot-group-row"><td colspan="5">${esc(boss ?? '')}</td></tr>` +
       rows.map((t) => rowHtml(t, maxAbs)).join('')).join('') || '<tr><td colspan="5">No results match the filter.</td></tr>';
+    paintItemIcons(document.querySelector('#topgear-table'));
     return;
   }
 
   const maxAbs = Math.max(...visible.map((t) => Math.abs(t.delta)), 1);
   document.querySelector('#topgear-table tbody').innerHTML =
     visible.map((t) => rowHtml(t, maxAbs)).join('') || '<tr><td colspan="5">No results match the filter.</td></tr>';
+  paintItemIcons(document.querySelector('#topgear-table'));
 }
 
 function rowHtml(t, maxAbs) {
@@ -1470,8 +1480,11 @@ function rowHtml(t, maxAbs) {
     : '';
   return `
   <tr>
-    <td><span class="${glow ? `item-glow ${glow}` : ''}">${esc(t.itemName ?? '?')}</span>${ilvls}
-        <span class="slot-tag">→ ${target}</span>${caret}</td>
+    <td><span class="gear-icon-row">${t.itemId ? itemTile(t.itemId, {
+          name: t.itemName, ilvl: t.ilvl, slot: prettySlot(t.placement),
+          source: [t.section, t.boss].filter(Boolean).join(' → '),
+        }) : ''}<span><span class="${glow ? `item-glow ${glow}` : ''}">${esc(t.itemName ?? '?')}</span>${ilvls}
+        <span class="slot-tag">→ ${target}</span>${caret}</span></span></td>
     <td><span class="source-tag">${esc(t.section)}</span>${t.boss ? `<span class="src-boss">→ ${esc(t.boss)}</span>` : ''}</td>
     <td class="num">${Math.round(t.dps).toLocaleString()}</td>
     <td class="num ${cls}">${sign}${Math.round(t.delta).toLocaleString()}</td>
@@ -1753,3 +1766,111 @@ for (const id of ['armory-realm', 'armory-name']) {
 $('profile').addEventListener('input', () => {
   if (!fillingFromArmory) renderCharCard(null);
 });
+
+// ---------- item icons + hover tooltip ----------
+// Icon ids come from the game tables Localbots already downloads (see
+// server/itemIcons.js), so this needs no API key and no third-party image host.
+// Elements are rendered with the item id in a data attribute and no src; once
+// the ids have been looked up the images are filled in, which avoids re-running
+// whichever renderer drew them.
+
+const ICON_CDN = 'https://render.worldofwarcraft.com/us/icons/56';
+const iconIds = new Map(); // item id -> file id (null = looked up, has none)
+let iconFetch = null; // in-flight batch, so a burst of renders makes one request
+
+function itemTile(id, info = {}) {
+  const q = info.quality ?? 4;
+  const data = [
+    `data-item="${Number(id) || 0}"`,
+    info.name ? `data-name="${esc(info.name)}"` : '',
+    info.ilvl ? `data-ilvl="${esc(info.ilvl)}"` : '',
+    info.slot ? `data-slot="${esc(info.slot)}"` : '',
+    info.source ? `data-source="${esc(info.source)}"` : '',
+    `data-quality="${q}"`,
+  ].filter(Boolean).join(' ');
+  if (!id) return `<span class="item-tile missing q${q}" ${data}></span>`;
+  return `<img class="item-tile q${q}" alt="" ${data}>`;
+}
+
+// Fill in every tile on the page that does not have its image yet.
+async function paintItemIcons(root = document) {
+  const pending = [...root.querySelectorAll('img.item-tile[data-item]:not([src])')];
+  if (!pending.length) return;
+  const need = [...new Set(pending.map((el) => Number(el.dataset.item))
+    .filter((id) => id && !iconIds.has(id)))];
+  if (need.length) {
+    const run = (async () => {
+      // chunked so a full droptimizer never builds an absurd query string
+      for (let i = 0; i < need.length; i += 200) {
+        const batch = need.slice(i, i + 200);
+        try {
+          const r = await fetch(`/api/icons?ids=${batch.join(',')}&patch=${encodeURIComponent(patch)}`);
+          const j = await r.json();
+          for (const id of batch) iconIds.set(id, j.icons?.[id] ?? null);
+        } catch {
+          for (const id of batch) iconIds.set(id, null); // offline: show blanks, never hang
+        }
+      }
+    })();
+    iconFetch = run;
+    await run;
+    if (iconFetch === run) iconFetch = null;
+  }
+  for (const el of pending) {
+    const f = iconIds.get(Number(el.dataset.item));
+    if (f) el.src = `${ICON_CDN}/${f}.jpg`;
+    else el.classList.add('missing');
+  }
+}
+
+// one card, reused — cheaper than building a node per hover
+let tipEl = null;
+function itemTip() {
+  if (!tipEl) {
+    tipEl = document.createElement('div');
+    tipEl.className = 'item-tip hidden';
+    document.body.appendChild(tipEl);
+  }
+  return tipEl;
+}
+
+function showItemTip(el) {
+  const d = el.dataset;
+  if (!d.name && !d.item) return;
+  const tip = itemTip();
+  const rows = [];
+  if (d.ilvl) rows.push(`<div class="tip-ilvl">Item Level ${esc(d.ilvl)}</div>`);
+  // slot names arrive in simc's lowercase form; title-case them for the card
+  if (d.slot) {
+    const slot = String(d.slot).replace(/\b\w/g, (c) => c.toUpperCase());
+    rows.push(`<div class="tip-slot">${esc(slot)}</div>`);
+  }
+  if (d.source) rows.push(`<div class="tip-source">${esc(d.source)}</div>`);
+  tip.innerHTML = `<div class="tip-name q${esc(d.quality ?? 4)}">${esc(d.name ?? 'Item')}</div>${rows.join('')}`;
+  tip.classList.remove('hidden');
+  positionTip(el);
+}
+
+function positionTip(el) {
+  const tip = itemTip();
+  const r = el.getBoundingClientRect();
+  const tr = tip.getBoundingClientRect();
+  // prefer the right of the icon, flip left when it would run off screen
+  let left = r.right + 10;
+  if (left + tr.width > window.innerWidth - 8) left = Math.max(8, r.left - tr.width - 10);
+  let top = r.top;
+  if (top + tr.height > window.innerHeight - 8) top = Math.max(8, window.innerHeight - tr.height - 8);
+  tip.style.left = `${left + window.scrollX}px`;
+  tip.style.top = `${top + window.scrollY}px`;
+}
+
+function hideItemTip() { if (tipEl) tipEl.classList.add('hidden'); }
+
+document.addEventListener('mouseover', (e) => {
+  const el = e.target.closest?.('[data-item], [data-name][data-ilvl]');
+  if (el) showItemTip(el);
+});
+document.addEventListener('mouseout', (e) => {
+  if (e.target.closest?.('[data-item], [data-name][data-ilvl]')) hideItemTip();
+});
+document.addEventListener('scroll', hideItemTip, true);

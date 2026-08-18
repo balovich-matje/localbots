@@ -824,3 +824,51 @@ span.char-item.missing,
     linear-gradient(135deg, transparent 46%, var(--border) 46%, var(--border) 54%, transparent 54%),
     var(--panel);
 }
+
+/* --- item icons + hover tooltip (shared by every item list) --- */
+.item-tile {
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  flex: none;
+  vertical-align: middle;
+  display: inline-block;
+}
+.item-tile.q2 { border-color: #1eff00; }
+.item-tile.q3 { border-color: #0070dd; }
+.item-tile.q4 { border-color: #a335ee; }
+.item-tile.q5 { border-color: #ff8000; }
+.item-tile.missing {
+  background:
+    linear-gradient(135deg, transparent 46%, var(--border) 46%, var(--border) 54%, transparent 54%),
+    var(--panel);
+}
+
+.item-tip {
+  position: absolute;
+  z-index: 90;
+  max-width: 320px;
+  pointer-events: none;
+  background: #0b0d11;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.6);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.item-tip .tip-name { font-weight: 700; font-size: 14px; }
+/* item quality colours, as the game uses them */
+.item-tip .tip-name.q1 { color: #ffffff; }
+.item-tip .tip-name.q2 { color: #1eff00; }
+.item-tip .tip-name.q3 { color: #0070dd; }
+.item-tip .tip-name.q4 { color: #a335ee; }
+.item-tip .tip-name.q5 { color: #ff8000; }
+.item-tip .tip-ilvl { color: var(--accent); }
+.item-tip .tip-slot { color: var(--text); }
+.item-tip .tip-source { color: var(--muted); margin-top: 3px; }
+
+/* item lists put the icon before the label */
+.gear-icon-row { display: inline-flex; align-items: center; gap: 8px; }
