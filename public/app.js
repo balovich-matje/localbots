@@ -1675,14 +1675,23 @@ const WEAPON_SLOTS = ['main_hand', 'off_hand'];
 function itemIcon(c, it) {
   if (!it) return '';
   // Blizzard hands us the finished asset url; the keyless source only gives an
-  // icon name, which the CDN does not serve for very new items
+  // icon name, which the CDN does not serve for very new items. Either way the
+  // data attributes are what the shared hover card reads, so the imported
+  // character gets the same tooltip as every other item list.
   const src = it.iconUrl
     ?? (it.icon
       ? `https://render.worldofwarcraft.com/${encodeURIComponent(c.region)}/icons/56/${encodeURIComponent(it.icon)}.jpg`
       : null);
-  const label = `${it.name ?? it.slot}${it.ilvl ? ` (${it.ilvl})` : ''}`;
-  if (!src) return `<span class="char-item missing" title="${esc(label)}"></span>`;
-  return `<img class="char-item q${it.quality ?? 1}" src="${esc(src)}" alt="${esc(label)}" title="${esc(label)}">`;
+  const data = [
+    `data-item="${Number(it.id) || 0}"`,
+    it.name ? `data-name="${esc(it.name)}"` : '',
+    it.ilvl ? `data-ilvl="${esc(it.ilvl)}"` : '',
+    it.slot ? `data-slot="${esc(prettySlot(it.slot))}"` : '',
+    `data-quality="${it.quality ?? 4}"`,
+  ].filter(Boolean).join(' ');
+  // no src: the shared icon map fills it in, so a missing CDN name is not fatal
+  if (!src) return `<img class="char-item q${it.quality ?? 4}" alt="" ${data}>`;
+  return `<img class="char-item q${it.quality ?? 4}" src="${esc(src)}" alt="" ${data}>`;
 }
 
 function renderCharCard(c) {
@@ -1719,6 +1728,30 @@ function renderCharCard(c) {
     }, { once: true });
   }
   card.classList.remove('hidden');
+  // any tile the armory could not give a url for falls back to the icon map
+  paintCardIcons(card);
+}
+
+// the card's tiles use their own class, so give them the same icon-map fill
+async function paintCardIcons(card) {
+  const pending = [...card.querySelectorAll('img.char-item:not([src])')];
+  if (!pending.length) return;
+  const need = [...new Set(pending.map((el) => Number(el.dataset.item))
+    .filter((id) => id && !iconIds.has(id)))];
+  if (need.length) {
+    try {
+      const r = await fetch(`/api/icons?ids=${need.join(',')}&patch=${encodeURIComponent(patch)}`);
+      const j = await r.json();
+      for (const id of need) iconIds.set(id, j.icons?.[id] ?? null);
+    } catch {
+      for (const id of need) iconIds.set(id, null);
+    }
+  }
+  for (const el of pending) {
+    const f = iconIds.get(Number(el.dataset.item));
+    if (f) el.src = `${ICON_CDN}/${f}.jpg`;
+    else el.classList.add('missing');
+  }
 }
 
 async function importFromArmory() {
