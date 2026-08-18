@@ -153,7 +153,10 @@ function effectValue(eff, ctx) {
     case SCALE_PRIMARY: return Math.floor(eff.coefficient * ctx.primaryBudget);
     case SCALE_SECONDARY_RATING: return Math.floor(eff.coefficient * ctx.primaryBudget * ctx.crMult);
     case SCALE_REPLACE_SECONDARY: return Math.floor(eff.coefficient * ctx.secondaryBudget);
-    case 0: return eff.base ? Math.floor(eff.base) : null; // flat, not item-scaled
+    // A flat effect carries its value in base. Zero means we have nothing to
+    // print -- the real number lives in a scaling system we do not model --
+    // so treat it as unknown and let the paragraph drop rather than say 0.
+    case 0: return eff.base ? eff.base : null;
     default: return null; // an unknown class must not be guessed at
   }
 }
@@ -188,8 +191,28 @@ function stripConditionals(text) {
   return out;
 }
 
+// $@spelldesc1305830 pulls in another spell's description; $@spellname1234 its
+// name. Unqualified tokens inside borrowed text belong to the spell it was
+// borrowed from, so they get qualified with that id before being spliced in.
+function qualifyTokens(text, spellId) {
+  return text
+    .replace(/\$([swo])(\d+)/g, (m, kind, idx) => `$${spellId}${kind}${idx}`)
+    .replace(/\$d\b/g, () => `$${spellId}d`);
+}
+
+function expandRefs(text, resolve, depth = 0) {
+  if (depth > 4) return text; // descriptions can reference each other
+  let out = text.replace(/\$@spelldesc(\d+)/g, (m, id) => {
+    const desc = resolve.desc(Number(id));
+    if (desc == null) return m;
+    return expandRefs(qualifyTokens(desc, Number(id)), resolve, depth + 1);
+  });
+  out = out.replace(/\$@spellname(\d+)/g, (m, id) => resolve.name(Number(id)) ?? m);
+  return out;
+}
+
 function renderText(raw, selfSpellId, resolve) {
-  let text = stripConditionals(raw);
+  let text = stripConditionals(expandRefs(raw, resolve));
   // $<spellid>s1 / $s1 / $w1 / $o1  -> an effect's value
   text = text.replace(/\$(\d*)([swo])(\d+)/g, (m, sid, _kind, idx) => {
     const v = resolve.value(sid ? Number(sid) : selfSpellId, Number(idx));
@@ -206,7 +229,9 @@ function renderText(raw, selfSpellId, resolve) {
     try {
       // eslint-disable-next-line no-new-func
       const v = Function(`"use strict";return (${expr})`)();
-      return Number.isFinite(v) ? String(Math.floor(v)) : m;
+      if (!Number.isFinite(v)) return m;
+      // set bonuses talk in fractions of a percent, so do not floor these
+      return Number.isInteger(v) ? v.toLocaleString('en-US') : String(Math.round(v * 100) / 100);
     } catch { return m; }
   });
   text = text.replace(/\\r\\n|\r\n/g, '\n').replace(/\|[Tt][^|]*\|[Tt]?/g, '').trim();
@@ -218,12 +243,17 @@ function renderText(raw, selfSpellId, resolve) {
   return kept.length ? kept.join('\n\n') : null;
 }
 
-export function itemEffects(itemId, ilvl, data, ctx) {
-  if (!data || !ilvl || !ctx) return [];
-  const list = data.itemEffects.get(Number(itemId));
-  if (!list?.length) return [];
+// Render one spell's description on its own — used for set bonuses, which are
+// spells attached to the set rather than to any single item.
+export function renderSpell(spellId, data, ctx) {
+  if (!data || !ctx) return null;
+  const raw = data.spellText.get(spellId)?.desc;
+  if (!raw) return null;
+  return renderText(raw, spellId, makeResolver(data, ctx));
+}
 
-  const resolve = {
+function makeResolver(data, ctx) {
+  return {
     value(spellId, idx) {
       const eff = data.spellEffects.get(spellId)?.find((e) => e.index === idx - 1);
       return eff ? effectValue(eff, ctx) : null;
@@ -231,7 +261,21 @@ export function itemEffects(itemId, ilvl, data, ctx) {
     duration(spellId) {
       return fmtDuration(data.spells.get(spellId)?.duration ?? 0);
     },
+    desc(spellId) {
+      return data.spellText.get(spellId)?.desc ?? null;
+    },
+    name(spellId) {
+      return data.spells.get(spellId)?.name ?? null;
+    },
   };
+}
+
+export function itemEffects(itemId, ilvl, data, ctx) {
+  if (!data || !ilvl || !ctx) return [];
+  const list = data.itemEffects.get(Number(itemId));
+  if (!list?.length) return [];
+
+  const resolve = makeResolver(data, ctx);
 
   const out = [];
   const seen = new Set();

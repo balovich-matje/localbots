@@ -887,3 +887,7 @@ span.char-item.missing,
 }
 .item-tip .tip-fx-line + .tip-fx-line { margin-top: 5px; }
 .item-tip .tip-fx b { color: #4ade80; }
+/* tier set block in the item tooltip */
+.item-tip .tip-set { margin-top: 7px; border-top: 1px solid var(--border); padding-top: 6px; }
+.item-tip .tip-setname { color: var(--accent); font-weight: 600; }
+.item-tip .tip-setb { color: #4ade80; margin-top: 4px; }

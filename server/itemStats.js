@@ -176,7 +176,12 @@ export function loadItemTables(cacheDir) {
     dmg2h: dmgRow('ItemDamageTwoHand'),
     armorTotal: armorTotal ? new Map(armorTotal.map((r) => [Number(r.ItemLevel),
       { 1: +r.Cloth, 2: +r.Leather, 3: +r.Mail, 4: +r.Plate }])) : null,
-    armorLoc: armorLoc ? new Map(armorLoc.map((r) => [Number(r.ID), +r.Modifier])) : null,
+    // per armour class, keyed by Item.SubclassID (1 cloth .. 4 plate). The
+    // generic Modifier column disagrees with the class-specific ones on several
+    // slots -- shoulders read 0.13 there but 0.11 for plate -- so it is unused.
+    armorLoc: armorLoc ? new Map(armorLoc.map((r) => [Number(r.ID), {
+      1: +r.Clothmodifier, 2: +r.Leathermodifier, 3: +r.Chainmodifier, 4: +r.Platemodifier,
+    }])) : null,
   };
 }
 
@@ -248,9 +253,9 @@ export function itemStats(itemId, ilvl, tables, scaling) {
   let armor = null;
   if (c.cls === 4 && tables.armorTotal && tables.armorLoc) {
     const totals = tables.armorTotal.get(Number(ilvl));
-    const mod = tables.armorLoc.get(it.invType);
-    if (totals && mod && c.sub >= 1 && c.sub <= 4) {
-      armor = Math.round(totals[c.sub] * mod);
+    const mods = tables.armorLoc.get(it.invType);
+    if (totals && mods && c.sub >= 1 && c.sub <= 4 && mods[c.sub]) {
+      armor = Math.round(totals[c.sub] * mods[c.sub]);
     }
   }
 

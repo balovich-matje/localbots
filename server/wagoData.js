@@ -56,6 +56,8 @@ const TABLES = {
   ItemDamageTwoHand: ['ItemLevel', 'Quality_4'],
   ItemArmorTotal: ['ItemLevel', 'Cloth', 'Leather', 'Mail', 'Plate'],
   ArmorLocation: ['ID', 'Clothmodifier', 'Leathermodifier', 'Chainmodifier', 'Platemodifier', 'Modifier'],
+  // set bonuses: which spell each piece-count threshold grants
+  ItemSetSpell: ['ID', 'ChrSpecID', 'SpellID', 'Threshold', 'ItemSetID'],
 };
 
 // Tables added after the first release: an older cache without them still
@@ -63,6 +65,7 @@ const TABLES = {
 const OPTIONAL_TABLES = new Set([
   'CraftingData', 'ItemAppearance', 'ItemModifiedAppearance',
   'RandPropPoints', 'ItemDamageOneHand', 'ItemDamageTwoHand', 'ItemArmorTotal', 'ArmorLocation',
+  'ItemSetSpell',
 ]);
 
 // Per-patch file locations. The live patch keeps the original flat layout
@@ -472,8 +475,18 @@ export function loadItemSetMap(cacheDir = CACHE_DIR) {
     }
     if (items.length < 2) continue;
     const setId = Number(r.ID);
-    sets.set(setId, { name: r.Name_lang, items });
+    sets.set(setId, { name: r.Name_lang, items, bonuses: [] });
     for (const id of items) byItem.set(id, setId);
+  }
+  // attach each set's piece-count bonuses, lowest threshold first
+  const spellPath = join(cacheDir, 'ItemSetSpell.csv');
+  if (existsSync(spellPath)) {
+    for (const r of parseCsv(readFileSync(spellPath, 'utf8'), ['SpellID', 'Threshold', 'ItemSetID'])) {
+      const set = sets.get(Number(r.ItemSetID));
+      if (!set) continue;
+      set.bonuses.push({ threshold: Number(r.Threshold), spellId: Number(r.SpellID) });
+    }
+    for (const set of sets.values()) set.bonuses.sort((a, b) => a.threshold - b.threshold);
   }
   return { byItem, sets };
 }

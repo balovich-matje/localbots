@@ -20,7 +20,7 @@ import { invalidateStatus } from './status.js';
 import { fetchCharacter, buildProfile as buildArmoryProfile } from './armory.js';
 import { buildIconMap, loadIconMap } from './itemIcons.js';
 import { loadScaling, loadItemTables, itemStats, effectContext, clearScalingCache } from './itemStats.js';
-import { loadEffectData, itemEffects, clearEffectCache } from './itemEffects.js';
+import { loadEffectData, itemEffects, renderSpell, clearEffectCache } from './itemEffects.js';
 
 // Optional local secrets (Blizzard API credentials for the Armory tab). The
 // file is gitignored; nothing here is required for Localbots to run.
@@ -510,6 +510,21 @@ app.get('/api/items', (req, res) => {
     const fx = loadEffectData(simcPath, p.def.ptr);
     const ctx = effectContext(id, ilvl, p.itemTables, scaling);
     if (fx && ctx) entry.effects = itemEffects(id, ilvl, fx, ctx);
+    // tier pieces carry their set's bonuses; the raid drops tokens rather than
+    // the pieces themselves, so this is often the only place to read them
+    const setMap = p.itemSetMap ?? patches.get(DEFAULT_PATCH_ID).itemSetMap;
+    const setId = setMap?.byItem?.get(id);
+    const set = setId != null ? setMap.sets.get(setId) : null;
+    if (set && fx && ctx) {
+      const bonuses = [];
+      for (const b of set.bonuses) {
+        const text = renderSpell(b.spellId, fx, ctx);
+        if (text) bonuses.push({ threshold: b.threshold, text });
+      }
+      if (bonuses.length) {
+        entry.set = { name: set.name, pieces: set.items.length, bonuses };
+      }
+    }
     out[pair] = entry;
   }
   res.json({ items: out });
