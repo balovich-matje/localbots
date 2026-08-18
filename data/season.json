@@ -222,12 +222,12 @@
   "maxIlvl": 344,
   "droptimizer": {
     "_comment": "Drop item levels per source. Derived from season-2 track positions; verify against in-game tooltips.",
-    "_raidDifficulties_comment": "One item level per difficulty — raid drops do NOT scale with boss position in 12.1. Confirmed in game: Heroic drops Hero 2/6 = 308 from both the second boss and the last boss of The Venomous Abyss. A higher level on a heroic item means it was upgraded with crests, not that the boss dropped it that way. Normal = Champion 1/6 = 292 from one observed drop. LFR and Mythic are still derived and unconfirmed.",
+    "_raidDifficulties_comment": "One item level per difficulty, taken from the adventure guide for Caustic Keeper-Crusher, which reads 285 / 298 / 311 / 324 — the SAME step (3/6) on each difficulty's track. NOTE this is an approximation: the step is a property of the individual item, not the difficulty, so bosses genuinely differ (LFR items exist at both 282 and 289). Getting it exact needs the item's bonus tree, which resolves per item and is not wired up yet. Do NOT infer these from a piece someone is wearing — crest upgrades raise the level above what dropped.",
     "raidDifficulties": {
-      "LFR": 279,
-      "Normal": 292,
-      "Heroic": 308,
-      "Mythic": 321
+      "LFR": 285,
+      "Normal": 298,
+      "Heroic": 311,
+      "Mythic": 324
     },
     "mythicPlusDungeons": [
       "Altar of Fangs",
