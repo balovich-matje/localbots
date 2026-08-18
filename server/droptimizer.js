@@ -110,6 +110,17 @@ function countUsable(items, classId, specKey, knownItems) {
 //   outdoor: { instanceIds: [...], ilvl: 250 },
 // }
 export function buildDroptimizerInput(profileText, options, selection, lootDb, spec, knownItems = null, seasonOverride = null) {
+  // Carry each slot's enchant onto whatever we suggest for it. Without this
+  // every candidate is simmed bare while the character keeps theirs, which
+  // makes upgrades look like losses -- worst on weapons, where a death
+  // knight's runeforge is worth well over 10%.
+  const enchantBySlot = {};
+  for (const [slot, line] of Object.entries(parseGear(profileText).equipped)) {
+    const m = line.match(/enchant_id=(\d+)/);
+    if (m) enchantBySlot[slot] = m[1];
+  }
+  const ench = (slot) => (enchantBySlot[slot] ? `,enchant_id=${enchantBySlot[slot]}` : '');
+
   const classId = CLASS_IDS[spec.class];
   const specKey = spec.key;
   const fullSeason = seasonOverride ?? seasonConfig();
@@ -143,7 +154,7 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
     group++;
     for (const placement of slots) {
       const name = `${String(item.name).replace(/["\r\n$\\]/g, "'").slice(0, 60)} [${++counter}]`;
-      lines.push(`profileset."${name}"=${placement}=,id=${item.id},ilevel=${ilvl}`);
+      lines.push(`profileset."${name}"=${placement}=,id=${item.id},ilevel=${ilvl}${ench(placement)}`);
       sets[name] = {
         group,
         itemName: item.name,
@@ -173,7 +184,7 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
     group++;
     for (const placement of slots) {
       const name = `${String(item.name).replace(/["\r\n$\\]/g, "'").slice(0, 46)} ${pairLabel} [${++counter}]`;
-      lines.push(`profileset."${name}"=${placement}=,id=${item.id},ilevel=${ilvl},crafted_stats=${pair},crafting_quality=5`);
+      lines.push(`profileset."${name}"=${placement}=,id=${item.id},ilevel=${ilvl},crafted_stats=${pair},crafting_quality=5${ench(placement)}`);
       sets[name] = {
         group,
         itemName: `${item.name}${embTag} (${pairLabel})`,
@@ -339,7 +350,7 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
           group++;
           const name = `${rowLabel.replace(/["\r\n$\\]/g, "'").slice(0, 64)} [${++counter}]`;
           placements.forEach((pl, i) => {
-            lines.push(`profileset."${name}"${i ? '+' : ''}=${pl.host.slot}=,id=${pl.host.it.id},ilevel=${ilvl},crafted_stats=${pair},crafting_quality=5,bonus_id=${pl.bonus}`);
+            lines.push(`profileset."${name}"${i ? '+' : ''}=${pl.host.slot}=,id=${pl.host.it.id},ilevel=${ilvl},crafted_stats=${pair},crafting_quality=5,bonus_id=${pl.bonus}${ench(pl.host.slot)}`);
           });
           sets[name] = {
             group,
