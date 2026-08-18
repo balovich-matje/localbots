@@ -20,6 +20,16 @@ keys. Runs entirely on your machine from public data.
   gates behind premium.
 - ✅ **Phase 3.5 — Beyond gear**: item sets with Minimum Set Bonus protection, plus
   consumables / enchants / gems / Omnium Folio comparisons in Top Gear.
+- ✅ **Armory lookup**: find a character by name and realm instead of pasting an
+  export. Keyless by default; optional Blizzard credentials make it a live read.
+- ✅ **Item tooltips**: every item list shows the icon, and hovering gives the
+  in-game tooltip — armour or weapon damage, primary, stamina and secondaries,
+  plus Equip/Use effects and tier set bonuses. Values are computed the way the
+  game computes them and checked against in-game tooltips.
+- 🔨 **Droptimizer accuracy**: enchants are now carried onto suggested items (a
+  missing death-knight runeforge was turning real upgrades into 14% losses).
+  Still open: per-item drop levels, carrying gems, and a bonus-roll section —
+  see **[docs/TODO.md](docs/TODO.md)**.
 - ⬜ **Phase 4 — Full source parity with Raidbots**: catalyst/tier-set pieces, normal
   dungeons, Prey rewards, PvP gear, crafted gear, previous-season tiers, vault-socket
   option and off-spec loot. Detailed plan in [docs/ROADMAP.md](docs/ROADMAP.md).
