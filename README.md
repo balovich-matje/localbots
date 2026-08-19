@@ -26,10 +26,12 @@ keys. Runs entirely on your machine from public data.
   in-game tooltip — armour or weapon damage, primary, stamina and secondaries,
   plus Equip/Use effects and tier set bonuses. Values are computed the way the
   game computes them and checked against in-game tooltips.
-- 🔨 **Droptimizer accuracy**: enchants are now carried onto suggested items (a
-  missing death-knight runeforge was turning real upgrades into 14% losses).
-  Still open: per-item drop levels, carrying gems, and a bonus-roll section —
-  see **[docs/TODO.md](docs/TODO.md)**.
+- 🔨 **Droptimizer accuracy**: a suggested item is now simmed the way you would
+  actually wear it. It inherits the slot's enchant (a missing death-knight
+  runeforge was turning real upgrades into 14% losses) and the slot's gems, and
+  raid drops carry their own item level read from the game's own tables, so the
+  first and last bosses of a raid no longer look identical. Still open: a
+  bonus-roll section — see **[docs/TODO.md](docs/TODO.md)**.
 - ⬜ **Phase 4 — Full source parity with Raidbots**: catalyst/tier-set pieces, normal
   dungeons, Prey rewards, PvP gear, crafted gear, previous-season tiers, vault-socket
   option and off-spec loot. Detailed plan in [docs/ROADMAP.md](docs/ROADMAP.md).
