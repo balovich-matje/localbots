@@ -24,7 +24,8 @@ export function delvePool() {
 }
 
 // Per-boss item-level bucket: raids drop higher ilvl on later bosses.
-// Maps boss order to one of 4 buckets across the instance.
+// Maps boss order to one of 4 buckets across the instance. Only used by old
+// configs that still carry an array per difficulty.
 function bossBucket(order, bossCount) {
   return Math.min(3, Math.floor((order * 4) / Math.max(1, bossCount)));
 }
@@ -68,6 +69,9 @@ export function buildSourceTree(lootDb, classId, specKey, knownItems = null) {
       name: b.name,
       order: b.order,
       usable: countUsable(b.items, classId, specKey, knownItems),
+      // what this boss drops per difficulty, so the UI can show it and the
+      // numbers can be checked against the in-game adventure guide
+      ...(bossDrops(b) ? { drops: bossDrops(b) } : {}),
     }));
     const usable = bosses.reduce((n, b) => n + b.usable, 0);
     const total = source.bosses.reduce(
@@ -89,6 +93,18 @@ export function buildSourceTree(lootDb, classId, specKey, knownItems = null) {
     else tree.outdoor.push(entry);
   }
   return tree;
+}
+
+// All of a boss's items share its drop levels, so the first annotated item
+// speaks for the boss.
+function bossDrops(boss) {
+  const item = boss.items.find((it) => it.drops);
+  if (!item) return null;
+  const out = {};
+  for (const [diff, drop] of Object.entries(item.drops)) {
+    out[diff] = { ilvl: drop.ilvl, track: drop.track, step: drop.step, max: drop.max };
+  }
+  return out;
 }
 
 function countUsable(items, classId, specKey, knownItems) {
@@ -204,18 +220,20 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
     if (source.kind === 'raid') {
       const diffs = selection.raids?.[source.instanceId] ?? [];
       for (const diff of diffs) {
-        // one level for the whole difficulty: 12.1 raid drops do not scale with
-        // boss position (confirmed in game -- the second and last bosses of The
-        // Venomous Abyss both drop Hero 2/6 on heroic). Older configs used a
-        // four-bucket array, so those are still accepted.
+        // Each item carries its own drop level, read from its bonus tree at
+        // build time -- the level is a property of the item, so bosses later
+        // in the instance drop higher. season.raidDifficulties is the fallback
+        // for caches built before that lookup existed (a flat number, or the
+        // even older four-bucket array).
         const entry = season.raidDifficulties[diff];
-        if (entry == null) continue;
         for (const boss of source.bosses) {
-          const ilvl = Array.isArray(entry)
-            ? entry[bossBucket(boss.order, source.bosses.length)]
+          const fallback = entry == null ? null
+            : Array.isArray(entry) ? entry[bossBucket(boss.order, source.bosses.length)]
             : entry;
           for (const item of dedupe(boss.items)) {
-            addItem(item, ilvl, RAID_DIFF_TRACK[diff],
+            const drop = item.drops?.[diff];
+            if (!drop && fallback == null) continue;
+            addItem(item, drop?.ilvl ?? fallback, drop?.track ?? RAID_DIFF_TRACK[diff],
               { section: `${source.name} ${diff}`, boss: boss.name, sourceKind: 'raid' });
           }
         }

@@ -875,6 +875,23 @@ const CRAFT_PAIRS = [
   ['36/49', 'Haste + Mastery'], ['36/40', 'Haste + Vers'], ['49/40', 'Mastery + Vers'],
 ];
 
+// Raid drop levels climb through the instance, so each boss gets its own row.
+// Shown collapsed: it exists to be checked against the adventure guide.
+function bossLevelTable(raid, diffs) {
+  const bosses = (raid.bosses ?? []).filter((b) => b.drops);
+  if (!bosses.length) return '';
+  const rows = bosses.map((b) => `<tr><td>${esc(b.name)}</td>${diffs.map((d) => {
+    const drop = b.drops[d];
+    if (!drop) return '<td>—</td>';
+    return `<td title="${esc(drop.track)} ${drop.step}/${drop.max}">${drop.ilvl}
+      <span class="hint-inline">${drop.step}/${drop.max}</span></td>`;
+  }).join('')}</tr>`).join('');
+  return `<details class="dropt-row boss-levels"><summary>Drop levels per boss</summary>
+    <div class="boss-levels-scroll"><table>
+    <thead><tr><th></th>${diffs.map((d) => `<th>${d}</th>`).join('')}</tr></thead>
+    <tbody>${rows}</tbody></table></div></details>`;
+}
+
 function renderDroptSources(tree, season, craftedCfg) {
   const html = [];
   const hidden = []; // unreleased sources (in game data, not in simc yet)
@@ -897,6 +914,7 @@ function renderDroptSources(tree, season, craftedCfg) {
           <label><input type="checkbox" data-raid="${raid.instanceId}" data-diff="${d}"
             ${d === 'Heroic' ? 'checked' : ''}> ${d}</label>`).join('')}
         </span></div>`);
+      html.push(bossLevelTable(raid, diffs));
     }
     html.push('</div>');
   }

@@ -466,6 +466,28 @@ button.mini {
 .diff-boxes label { gap: 4px; }
 .hint-inline { color: var(--muted); font-size: 12px; }
 
+/* per-boss raid drop levels — collapsed, for checking against the game */
+.boss-levels { display: block; padding: 0 0 4px 0; }
+.boss-levels > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 2px 0;
+  list-style: none;
+}
+.boss-levels > summary::before { content: '\25B8'; padding-right: 5px; }
+.boss-levels[open] > summary::before { content: '\25BE'; padding-right: 5px; }
+.boss-levels > summary:hover { color: var(--text); }
+.boss-levels-scroll { overflow-x: auto; margin: 2px 0 4px 14px; }
+.boss-levels table { border-collapse: collapse; font-size: 12px; }
+.boss-levels th, .boss-levels td {
+  text-align: left;
+  padding: 2px 8px 2px 0;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.boss-levels th { color: var(--muted); font-weight: 500; }
+
 /* --- result filters --- */
 #tg-filters { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 10px; }
 #tg-search {

@@ -10,6 +10,7 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync, statSync } from 'no
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseCsv } from './csv.js';
+import { loadDropLevels } from './dropLevels.js';
 
 const CACHE_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'cache');
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
@@ -18,7 +19,7 @@ const LOOT_DB = join(CACHE_DIR, 'lootdb.json');
 const CURRENT_SEASON_TIER = 505; // JournalTier "Current Season" — stable across seasons
 const CRAFT_EXPANSION = 11; // ItemSparse.ExpansionID for Midnight — bump each expansion
 const CURRENT_MAP_EXPANSION = 11; // Map.ExpansionID for Midnight — bump with CRAFT_EXPANSION
-const LOOT_DB_VERSION = 5; // bump to force a rebuild when the db shape changes
+const LOOT_DB_VERSION = 6; // bump to force a rebuild when the db shape changes
 // ItemLimitCategory ids marking inherently-embellished crafted designs
 const EMBELLISHED_LIMIT_CATEGORIES = new Set([512, 697]);
 
@@ -26,7 +27,7 @@ const EMBELLISHED_LIMIT_CATEGORIES = new Set([512, 697]);
 const TABLES = {
   JournalTierXInstance: ['JournalTierID', 'JournalInstanceID', 'OrderIndex', 'AvailabilityCondition'],
   JournalInstance: ['ID', 'Name_lang', 'MapID', 'Flags'],
-  JournalEncounter: ['ID', 'Name_lang', 'JournalInstanceID', 'OrderIndex', 'DifficultyMask'],
+  JournalEncounter: ['ID', 'Name_lang', 'JournalInstanceID', 'OrderIndex', 'DifficultyMask', 'DungeonEncounterID'],
   JournalEncounterItem: ['ID', 'JournalEncounterID', 'ItemID', 'DifficultyMask', 'Flags', 'WorldStateExpressionID'],
   MythicPlusSeasonTrackedMap: ['MapChallengeModeID', 'DisplaySeasonID'],
   MapChallengeMode: ['ID', 'Name_lang', 'MapID'],
@@ -58,6 +59,13 @@ const TABLES = {
   ArmorLocation: ['ID', 'Clothmodifier', 'Leathermodifier', 'Chainmodifier', 'Platemodifier', 'Modifier'],
   // set bonuses: which spell each piece-count threshold grants
   ItemSetSpell: ['ID', 'ChrSpecID', 'SpellID', 'Threshold', 'ItemSetID'],
+  // Per-item drop item levels (see dropLevels.js): how far into an instance a
+  // boss sits, and which upgrade-track step its loot therefore lands on.
+  DungeonEncounter: ['ID', 'ItemSequenceLevel'],
+  ItemXBonusTree: ['ItemBonusTreeID', 'ItemID'],
+  ItemBonusTreeNode: ['ItemContext', 'ChildItemBonusTreeID', 'ChildItemBonusListGroupID',
+    'MinMythicPlusLevel', 'MaxMythicPlusLevel', 'ParentItemBonusTreeID'],
+  ItemBonusListGroupEntry: ['ItemBonusListGroupID', 'ItemBonusListID', 'SequenceValue'],
 };
 
 // Tables added after the first release: an older cache without them still
@@ -66,6 +74,7 @@ const OPTIONAL_TABLES = new Set([
   'CraftingData', 'ItemAppearance', 'ItemModifiedAppearance',
   'RandPropPoints', 'ItemDamageOneHand', 'ItemDamageTwoHand', 'ItemArmorTotal', 'ArmorLocation',
   'ItemSetSpell',
+  'DungeonEncounter', 'ItemXBonusTree', 'ItemBonusTreeNode', 'ItemBonusListGroupEntry',
 ]);
 
 // Per-patch file locations. The live patch keeps the original flat layout
@@ -372,18 +381,36 @@ export function buildLootDb(mplusDungeonNames = [], paths = {}) {
   const itemMeta = new Map();
   for (const r of loadTable('Item', cacheDir)) if (wantedItemIds.has(r.ID)) itemMeta.set(r.ID, r);
 
+  // Raid drops climb through the instance, so each boss's items carry their
+  // own per-difficulty item level (see dropLevels.js). Absent tables just mean
+  // the droptimizer keeps using season.json's one-level-per-difficulty table.
+  const dropLevels = loadDropLevels(cacheDir);
+  const sequenceByEncounter = new Map();
+  if (dropLevels && existsSync(join(cacheDir, 'DungeonEncounter.csv'))) {
+    for (const r of loadTable('DungeonEncounter', cacheDir)) {
+      sequenceByEncounter.set(r.ID, Number(r.ItemSequenceLevel));
+    }
+  }
+
   const sources = [];
   for (const { inst, bosses, kind, keepRows } of picked) {
     const bossEntries = bosses.map((b, order) => {
       const seen = new Set();
+      const sequence = kind === 'raid' ? sequenceByEncounter.get(b.DungeonEncounterID) : undefined;
+      const withDrops = (item) => {
+        if (!item || sequence === undefined) return item;
+        const drops = dropLevels.dropsFor(item.id, sequence);
+        return drops ? { ...item, drops } : item;
+      };
       return {
         id: b.ID,
         name: b.Name_lang,
         order,
+        ...(sequence === undefined ? {} : { sequence }),
         items: (itemsByEncounter.get(b.ID) ?? [])
           .filter((r) => !keepRows || keepRows.has(r.ID))
           .filter((r) => (seen.has(r.ItemID) ? false : (seen.add(r.ItemID), true)))
-          .map((r) => shapeItem(r.ItemID, sparse, itemMeta))
+          .map((r) => withDrops(shapeItem(r.ItemID, sparse, itemMeta)))
           .filter(Boolean),
       };
     }).filter((b) => b.items.length > 0);
