@@ -1,149 +1,128 @@
 # Next up
 
-Written 2026-08-19, mid-flight. Three jobs, in the order they should be done —
-the first unlocks the second, and the third is independent.
-
-Everything here is about the **Droptimizer's accuracy**, not new surface area.
+Updated 2026-08-19. Jobs 1 and 2 are done; job 3 is the one that is left, and
+it needs one answer before it can be built.
 
 ---
 
-## 1. Per-item drop item levels
+## 1. Per-item drop item levels — **done**
 
-**The problem.** `data/season.json` carries one item level per raid difficulty.
-The game does not work that way: the level is a property of the *individual
-item*, so two bosses in the same raid on the same difficulty drop different
-levels — LFR items exist at both 282 and 289.
-
-**Where it stands.** `raidDifficulties` is currently `285 / 298 / 311 / 324`,
-read off the adventure guide for Caustic Keeper-Crusher, which sits at the 3/6
-step of each difficulty's track. That is a reasonable centre but wrong for any
-item that is not 3/6. Do **not** try to improve it by reading a piece someone is
-wearing — crest upgrades raise an item above what dropped, which is exactly how
-an earlier pass concluded "heroic is flat 308" from a Hero 2/6 tooltip.
-
-**The real fix** is to read each item's own bonus tree, which is what the
-adventure guide itself does.
-
-### What is already known
-
-The chain, all from tables we can get:
+Raid drops now carry their own item level instead of one curated number per
+difficulty. `server/dropLevels.js` reads it from three game tables:
 
 ```
-ItemXBonusTree      ItemID -> ItemBonusTreeID
-ItemBonusTreeNode   ParentItemBonusTreeID -> ChildItemBonusTreeID
-                                          -> ChildItemBonusListID
-                                          -> ChildItemLevelSelectorID
-                                          -> ChildItemBonusListGroupID
-                    each row keyed by ItemContext
-ItemLevelSelector   ID -> MinItemLevel
+DungeonEncounter.ItemSequenceLevel   how far into the instance the boss sits
+ItemBonusTreeNode                    ItemContext (= difficulty) -> track group
+ItemBonusListGroupEntry              (group, step) -> the track bonus id
 ```
 
-Bonus list contents come from simc's `engine/dbc/generated/item_bonus.inc`,
-which parses as `{ id, bonus_id, type, value_1..value_4, index }` — 10,086
-lists. The type codes are in simc's `data_enums.hh`:
+Sequence levels count from 0 and a group's steps start at 1, so a drop sits at
+**ItemSequenceLevel + 1**. The item level itself comes from that bonus id via
+Raidbots' bonus map, which the cache already holds.
 
-| type | meaning |
-|---|---|
-| 1 | ILEVEL (a delta) |
-| 6 | **SOCKET** |
-| 14, 42 | SET_ILEVEL (absolute) |
-| 4 | description tag ("Heroic", "Mythic") |
+The Venomous Abyss now reads, on heroic: 308 / 311 / 311 / 315 / 315 / 315 /
+318 / 318 across its eight bosses. Caustic Keeper-Crusher, off the second
+boss, gives 285 / 298 / 311 / 324 — the four levels its adventure guide entry
+shows.
 
-`ItemContext` values seen on a raid item: **3, 4, 5, 6, 11, 14**. The 3/4/5/6
-group carries the difficulty *labels*, so mapping context to difficulty should
-fall out of the type-4 entries.
+The droptimizer lists every boss's levels under each raid ("Drop levels per
+boss"), so they can be checked against the game without reading any code.
 
-### The blocker
+**Worth a spot-check.** Two readings from the old session do not fit: Maze-roa
+off The Coiled Altar was reported at 315 heroic where this gives 318, and
+Aqirbane Reliquary off Ula'tek at 308 where this gives 318. Both are final-boss
+items, and a final boss cannot drop below the second boss's 311, so those
+readings are probably of an obtained copy rather than the guide. Confirming
+one of them either way settles it — and if the whole raid is one step high,
+it is a single `+ 1` in `dropLevels.js`.
 
-Walking Caustic Keeper-Crusher (item 268198, tree 5996) reaches **56 bonus
-lists** — labels, sockets, stat mods — and **not one type 14/42 entry**.
-`ChildItemLevelSelectorID` is 0 on every node reached. So the level arrives by
-a path the parent→child tree walk does not cover.
+Left alone on purpose: M+, delves and world bosses still use the curated
+tables in `season.json`. Dungeon bosses all carry sequence level 0, so there
+is no per-boss variation there to recover, and the M+ key-level tables were
+already confirmed against Raidbots.
 
-### What to try next
-
-1. `ChildItemBonusListGroupID` — a column on `ItemBonusTreeNode` that the walk
-   currently ignores. Likely `ItemBonusListGroup` / `ItemBonusListGroupEntry`
-   hold the per-difficulty levels.
-2. `IblGroupPointsModSetID`, same row, if the group tables come up empty.
-3. Cross-check against simc: it resolves these correctly, so
-   `engine/dbc/item_database.cpp` bonus-id handling shows the intended order.
-
-### How to know it works
-
-| item | expected |
-|---|---|
-| Caustic Keeper-Crusher (268198) | LFR 285 · Normal 298 · Heroic 311 · Mythic 324 |
-| Maze-roa, Warlord's Fury (268213) | Heroic 311 |
-
-When this lands, `raidDifficulties` stops being curated at all, and the same
-lookup gives M+ and delve levels for free.
+`season.raidDifficulties` survives as the fallback for the three raid items
+that have no bonus tree at all, and for caches downloaded before these tables
+were added.
 
 ---
 
-## 2. Sockets, so gems can be carried over
+## 2. Sockets and gems — **done**
 
-**The goal.** Enchants are now carried onto every suggested item. Gems are not,
-and should be: copy the equipped slot's gem into the new item, duplicated to
-fill however many sockets it has. **Skip diamonds** — they are unique-equipped,
-so duplicating one would invent a gem the character cannot wear.
+Every suggested item now inherits the slot's gems, the same way it already
+inherited the slot's enchant.
 
-**Why it is blocked.** Placing gems needs the *new* item's socket count, and
-sockets come from two places:
+The socket question turned out to have a simpler answer than expected. Only
+one item in the entire raid (Aqirbane Reliquary) is born with a socket; every
+other socket in the game is added by the player, per slot, and shows up as a
+socket bonus id on the item. So a replacement in a slot gets exactly what the
+current piece has: the same socket bonus ids, filled with the same gems.
 
-| item | declared on the item (`ItemSparse.SocketType_*`) | actually seen in game |
-|---|---|---|
-| Aqirbane Reliquary (268265) | 1 | **2** |
-| Amulet of the Twin Fangs (268251) | 0 | **1** |
+- A gem is duplicated to fill a spare socket.
+- **Except a diamond** — Eversong Diamonds are unique-equipped, so the spare
+  socket is left empty rather than inventing a gem that cannot be worn.
+- Socket count = the item's own sockets + the carried socket bonuses. That
+  gives Aqirbane Reliquary 2 and the Twin Fangs amulet 1, which is what the
+  game shows — the two mismatches recorded here before.
 
-So intrinsic sockets are only part of it; the rest are granted by the drop's
-bonus list (type 6 above) — the same lookup job 1 is blocked on. A first attempt
-that took the maximum socket bonus anywhere in the tree returned "1 socket" for
-a two-hand axe and a chest, because the tree also contains sockets an item
-*might* get rather than ones it always has. Guaranteed and optional have to be
-told apart, per context.
-
-**Interim option**, if job 1 drags: carry gems only where
-`ItemSparse.SocketType_*` declares a socket. That fixes Aqirbane Reliquary,
-never invents a gem, and still undercounts the Twin Fangs. Strictly better than
-carrying none. Ask before shipping it — it is a partial.
+Checked against simc's own stat report: bare, Aqirbane reads 1309 crit; with
+the carried socket bonus and two gems, 1341. Note that simc applies as many
+gems as the line lists and does not cap them, so the count has to be right.
 
 ---
 
-## 3. Bonus rolls section
+## 3. Bonus rolls section — **open, needs one answer**
 
 New Raidbots feature worth matching: show where a bonus roll token is best
 spent, across every raid boss and M+ dungeon at once, ranked by expected gain.
 
-**Reward levels** (from Raidbots' own UI, 12.1 season 2):
+Raidbots models it as one pseudo-instance holding the raid's eight bosses
+(each with its own sequence level, as above) plus the eight M+ dungeons.
 
-| source | item level |
+**The blocker is the reward item level, and it should not be guessed** — that
+is what went wrong twice with the raid levels. Two readings of the numbers
+captured from the Raidbots UI both fit:
+
+| source | captured |
 |---|---|
 | Raid — LFR / Normal / Heroic / Mythic | 292 / 305 / 318 / 334 |
 | M+ — M0 / +2-3 / +4-5 / +6 / +7-9 / +10 | 302 / 305 / 308 / 311 / 315 / 318 |
 
-The M+ column matches `season.json`'s existing **vault** table exactly, which
-independently confirms those numbers. The raid column sits about 7 above the
-drop levels, so bonus rolls reward at vault tier rather than drop tier.
+- The first three raid numbers are exactly what the **last** bosses drop
+  (292 / 305 / 318). If a bonus roll simply gives that boss's own loot at that
+  boss's own level, those are the picker's maximums and the section is
+  per-boss, using the levels job 1 already computes. But mythic breaks the
+  pattern: 334 is Myth 6/6, three above the 331 the last bosses drop.
+- Or the reward is a flat level per difficulty, in which case those four
+  numbers are it and the ranking is per boss only through which items each
+  boss can give.
 
-Shape: this is the existing droptimizer machinery pointed at one item level per
-source, then ranked per boss rather than per item — a boss is worth what its
-best possible drop is worth.
+**What would settle it:** a screenshot of the Raidbots bonus-roll section with
+a raid difficulty picked — if each boss shows its own item level, it is the
+first reading; if every boss shows the same number, it is the second.
+
+The M+ column matches `season.json`'s existing **vault** table exactly, which
+independently confirms that half.
+
+Once the level is known the rest is small: it is the existing droptimizer
+machinery pointed at one item level per source, ranked per boss rather than
+per item — a boss is worth what its best possible drop is worth.
 
 ---
 
 ## Smaller things still open
 
 - **Set bonuses show every spec's.** A tier set has one bonus row per spec and
-  the tooltip has no spec context, so a Blood death knight sees Frost and Unholy
-  bonuses too. Passing the character's spec through `/api/items` fixes it.
+  the tooltip has no spec context, so a Blood death knight sees Frost and
+  Unholy bonuses too. Passing the character's spec through `/api/items` fixes
+  it.
 - **3 of 6 set bonuses render** on the death knight set. The rest use stack
   tokens (`$u`), named variables (`$<rolemult>`) and a player-level scaling
   system that is not modelled. They are dropped rather than approximated —
-  keep it that way; an earlier pass printed "deals 0 Shadow damage" against the
-  game's 30,002.
+  keep it that way; an earlier pass printed "deals 0 Shadow damage" against
+  the game's 30,002.
 - **53% of loot items with effects render.** Same causes.
-- **Tertiary stats** (avoidance / speed / leech) are not shown. They are random
-  per drop, so this is deliberate.
-- **Delve pool** was re-verified before season 2 opened on 2026-08-18. Worth one
-  look at the vendor's stock now that it has.
+- **Tertiary stats** (avoidance / speed / leech) are not shown. They are
+  random per drop, so this is deliberate.
+- **Delve pool** was re-verified before season 2 opened on 2026-08-18. Worth
+  one look at the vendor's stock now that it has.
