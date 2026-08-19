@@ -684,7 +684,8 @@ app.post('/api/sim', async (req, res) => {
       return res.status(409).json({ error: 'Still checking which items your simc build supports — try again in a moment.' });
     }
     const { input, sets, profilesetCount, skippedUnknown } =
-      buildDroptimizerInput(profile, simOpts, req.body.selection ?? {}, p.lootDb, spec, p.knownItems, season);
+      buildDroptimizerInput(profile, simOpts, req.body.selection ?? {}, p.lootDb, spec, p.knownItems, season,
+        p.socketBonusIds);
     if (!profilesetCount) {
       return res.status(400).json({ error: 'Nothing to sim — enable at least one source with usable items.' });
     }

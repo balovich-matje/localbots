@@ -19,7 +19,7 @@ const LOOT_DB = join(CACHE_DIR, 'lootdb.json');
 const CURRENT_SEASON_TIER = 505; // JournalTier "Current Season" — stable across seasons
 const CRAFT_EXPANSION = 11; // ItemSparse.ExpansionID for Midnight — bump each expansion
 const CURRENT_MAP_EXPANSION = 11; // Map.ExpansionID for Midnight — bump with CRAFT_EXPANSION
-const LOOT_DB_VERSION = 6; // bump to force a rebuild when the db shape changes
+const LOOT_DB_VERSION = 7; // bump to force a rebuild when the db shape changes
 // ItemLimitCategory ids marking inherently-embellished crafted designs
 const EMBELLISHED_LIMIT_CATEGORIES = new Set([512, 697]);
 
@@ -472,6 +472,10 @@ function shapeItem(itemId, sparse, itemMeta) {
     const v = Number(s[`StatModifier_bonusStat_${i}`]);
     if (v > 0) stats.push(v);
   }
+  // sockets the item is born with — most modern gear has none and gets them
+  // from a socket bonus instead (see the droptimizer's gem carry-over)
+  let sockets = 0;
+  for (let i = 0; i < 3; i++) if (Number(s[`SocketType_${i}`]) > 0) sockets++;
   return {
     id: Number(itemId),
     name: s.Display_lang,
@@ -482,6 +486,7 @@ function shapeItem(itemId, sparse, itemMeta) {
     subclassId: Number(m.SubclassID),
     stats,
     icon: Number(m.IconFileDataID) || null,
+    ...(sockets ? { sockets } : {}),
     // inherently-embellished crafted designs (effect baked into the item)
     ...(EMBELLISHED_LIMIT_CATEGORIES.has(Number(s.LimitCategory)) ? { embellished: true } : {}),
   };

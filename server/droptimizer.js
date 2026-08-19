@@ -1,6 +1,8 @@
 // Droptimizer: turns "sim everything that can drop for me" into one big
-// profileset run. Sources come from the wago.tools loot database; item
-// levels come from the hand-curated season config.
+// profileset run. Sources and raid drop levels come from the wago.tools loot
+// database; M+, delve and world levels come from the hand-curated season
+// config. Every suggestion inherits the slot's enchant and gems, so it is
+// compared against the character's gear rather than against a bare item.
 
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -125,7 +127,7 @@ function countUsable(items, classId, specKey, knownItems) {
 //   worldBoss: { enabled: true, ilvl: 256 },
 //   outdoor: { instanceIds: [...], ilvl: 250 },
 // }
-export function buildDroptimizerInput(profileText, options, selection, lootDb, spec, knownItems = null, seasonOverride = null) {
+export function buildDroptimizerInput(profileText, options, selection, lootDb, spec, knownItems = null, seasonOverride = null, socketBonusIds = null) {
   // Carry each slot's enchant onto whatever we suggest for it. Without this
   // every candidate is simmed bare while the character keeps theirs, which
   // makes upgrades look like losses -- worst on weapons, where a death
@@ -152,6 +154,46 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
   const offspec = selection.offspec === true;
   let skippedUnknown = 0;
 
+  // Gems ride along with the slot, for the same reason enchants do. Sockets in
+  // this expansion are added per slot by the player rather than being born on
+  // the item, so a replacement in that slot gets the same treatment: the same
+  // socket bonus ids, filled with the same gems. A gem is duplicated to fill a
+  // spare socket, EXCEPT an Eversong Diamond -- those are unique-equipped, so
+  // duplicating one would invent a gem the character cannot wear, and the
+  // spare socket is left empty instead.
+  const socketIds = socketBonusIds ?? new Set();
+  const diamondIds = new Set((fullSeason.diamondOptions?.knownIds ?? []).map(Number));
+  const carriedBySlot = {};
+  for (const [slot, line] of Object.entries(parseGear(profileText).equipped)) {
+    const bonuses = (line.match(/bonus_id=([\d/]+)/)?.[1] ?? '').split('/')
+      .map(Number).filter((id) => socketIds.has(id));
+    const gems = (line.match(/gem_id=([\d/]+)/)?.[1] ?? '').split('/')
+      .filter((g) => g && g !== '0');
+    if (bonuses.length || gems.length) carriedBySlot[slot] = { bonuses, gems };
+  }
+  // -> { bonusIds, gems } for one placement of one item
+  const socketPayload = (slot, item) => {
+    const carried = carriedBySlot[slot];
+    const sockets = (item.sockets ?? 0) + (carried?.bonuses.length ?? 0);
+    if (!carried || !sockets) return { bonusIds: [], gems: [] };
+    const gems = [];
+    for (let i = 0; i < sockets; i++) {
+      const gem = carried.gems[i] ?? carried.gems[carried.gems.length - 1];
+      if (!gem) break;
+      if (i >= carried.gems.length && diamondIds.has(Number(gem))) break;
+      gems.push(gem);
+    }
+    return { bonusIds: carried.bonuses, gems };
+  };
+  // the ",bonus_id=...,gem_id=..." tail for an item line, merging any bonus
+  // ids the row already needs (an embellishment, say)
+  const sock = (slot, item, extraBonusIds = []) => {
+    const { bonusIds, gems } = socketPayload(slot, item);
+    const all = [...extraBonusIds, ...bonusIds];
+    return (all.length ? `,bonus_id=${all.join('/')}` : '')
+      + (gems.length ? `,gem_id=${gems.join('/')}` : '');
+  };
+
   const base = buildInput(profileText, options);
   const lines = [base];
   const sets = {};
@@ -170,7 +212,7 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
     group++;
     for (const placement of slots) {
       const name = `${String(item.name).replace(/["\r\n$\\]/g, "'").slice(0, 60)} [${++counter}]`;
-      lines.push(`profileset."${name}"=${placement}=,id=${item.id},ilevel=${ilvl}${ench(placement)}`);
+      lines.push(`profileset."${name}"=${placement}=,id=${item.id},ilevel=${ilvl}${ench(placement)}${sock(placement, item)}`);
       sets[name] = {
         group,
         itemName: item.name,
@@ -200,7 +242,7 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
     group++;
     for (const placement of slots) {
       const name = `${String(item.name).replace(/["\r\n$\\]/g, "'").slice(0, 46)} ${pairLabel} [${++counter}]`;
-      lines.push(`profileset."${name}"=${placement}=,id=${item.id},ilevel=${ilvl},crafted_stats=${pair},crafting_quality=5${ench(placement)}`);
+      lines.push(`profileset."${name}"=${placement}=,id=${item.id},ilevel=${ilvl},crafted_stats=${pair},crafting_quality=5${ench(placement)}${sock(placement, item)}`);
       sets[name] = {
         group,
         itemName: `${item.name}${embTag} (${pairLabel})`,
@@ -368,7 +410,7 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
           group++;
           const name = `${rowLabel.replace(/["\r\n$\\]/g, "'").slice(0, 64)} [${++counter}]`;
           placements.forEach((pl, i) => {
-            lines.push(`profileset."${name}"${i ? '+' : ''}=${pl.host.slot}=,id=${pl.host.it.id},ilevel=${ilvl},crafted_stats=${pair},crafting_quality=5,bonus_id=${pl.bonus}${ench(pl.host.slot)}`);
+            lines.push(`profileset."${name}"${i ? '+' : ''}=${pl.host.slot}=,id=${pl.host.it.id},ilevel=${ilvl},crafted_stats=${pair},crafting_quality=5${ench(pl.host.slot)}${sock(pl.host.slot, pl.host.it, [pl.bonus])}`);
           });
           sets[name] = {
             group,
