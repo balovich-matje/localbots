@@ -32,6 +32,9 @@ keys. Runs entirely on your machine from public data.
   raid drops carry their own item level read from the game's own tables, so the
   first and last bosses of a raid no longer look identical. Still open: a
   bonus-roll section — see **[docs/TODO.md](docs/TODO.md)**.
+- ✅ **Keep my tier set bonus**: a droptimizer toggle for "what if I ran this
+  through the Catalyst" — items landing in a tier slot keep the set bonus, so
+  the row shows the item's own stat difference instead of a 4-set loss.
 - ⬜ **Phase 4 — Full source parity with Raidbots**: catalyst/tier-set pieces, normal
   dungeons, Prey rewards, PvP gear, crafted gear, previous-season tiers, vault-socket
   option and off-spec loot. Detailed plan in [docs/ROADMAP.md](docs/ROADMAP.md).
