@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { usableSlots, CLASS_IDS } from './lootFilter.js';
 import { buildInput } from './profileBuilder.js';
 import { parseGear } from './gearParser.js';
+import { optionForSet } from './setBonus.js';
 
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
 
@@ -109,6 +110,43 @@ function bossDrops(boss) {
   return out;
 }
 
+// The tier set the character is actually wearing: whichever set has the most
+// equipped pieces, plus the piece-count thresholds it carries. Two pieces is
+// the smallest set bonus in the game, so anything below that is a coincidence
+// (two rings from the same old set, say) rather than a set worth protecting.
+function equippedTierSet(equipped, itemSetMap) {
+  if (!itemSetMap) return null;
+  const idBySlot = {};
+  const counts = new Map();
+  for (const [slot, line] of Object.entries(equipped)) {
+    const id = Number(line.match(/(?:^|,)id=(\d+)/)?.[1]);
+    if (!id) continue;
+    idBySlot[slot] = id;
+    const setId = itemSetMap.byItem.get(id);
+    if (setId != null) counts.set(setId, (counts.get(setId) ?? 0) + 1);
+  }
+  let best = null;
+  for (const [setId, count] of counts) if (!best || count > best.count) best = { setId, count };
+  if (!best || best.count < 2) return null;
+  const info = itemSetMap.sets.get(best.setId);
+  const thresholds = [...new Set((info?.bonuses ?? []).map((b) => b.threshold))]
+    .filter((t) => t >= 2).sort((a, b) => a - b);
+  if (!thresholds.length) return null;
+  return { ...best, name: info?.name ?? null, idBySlot, thresholds };
+}
+
+// What the UI needs to decide whether to offer the "keep my tier set bonus"
+// toggle at all: null when the character is not wearing a set.
+export function tierSetSummary(profileText, itemSetMap) {
+  const tier = equippedTierSet(parseGear(profileText).equipped, itemSetMap);
+  if (!tier) return null;
+  return {
+    name: tier.name,
+    equipped: tier.count,
+    active: tier.thresholds.filter((t) => tier.count >= t),
+  };
+}
+
 function countUsable(items, classId, specKey, knownItems) {
   const seen = new Set();
   let n = 0;
@@ -127,13 +165,16 @@ function countUsable(items, classId, specKey, knownItems) {
 //   worldBoss: { enabled: true, ilvl: 256 },
 //   outdoor: { instanceIds: [...], ilvl: 250 },
 // }
-export function buildDroptimizerInput(profileText, options, selection, lootDb, spec, knownItems = null, seasonOverride = null, socketBonusIds = null) {
+// ctx carries the lookups the caller already has loaded:
+//   { socketBonusIds, itemSetMap, setBonusNames }
+export function buildDroptimizerInput(profileText, options, selection, lootDb, spec, knownItems = null, seasonOverride = null, ctx = {}) {
+  const equipped = parseGear(profileText).equipped;
   // Carry each slot's enchant onto whatever we suggest for it. Without this
   // every candidate is simmed bare while the character keeps theirs, which
   // makes upgrades look like losses -- worst on weapons, where a death
   // knight's runeforge is worth well over 10%.
   const enchantBySlot = {};
-  for (const [slot, line] of Object.entries(parseGear(profileText).equipped)) {
+  for (const [slot, line] of Object.entries(equipped)) {
     const m = line.match(/enchant_id=(\d+)/);
     if (m) enchantBySlot[slot] = m[1];
   }
@@ -161,10 +202,10 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
   // spare socket, EXCEPT an Eversong Diamond -- those are unique-equipped, so
   // duplicating one would invent a gem the character cannot wear, and the
   // spare socket is left empty instead.
-  const socketIds = socketBonusIds ?? new Set();
+  const socketIds = ctx.socketBonusIds ?? new Set();
   const diamondIds = new Set((fullSeason.diamondOptions?.knownIds ?? []).map(Number));
   const carriedBySlot = {};
-  for (const [slot, line] of Object.entries(parseGear(profileText).equipped)) {
+  for (const [slot, line] of Object.entries(equipped)) {
     const bonuses = (line.match(/bonus_id=([\d/]+)/)?.[1] ?? '').split('/')
       .map(Number).filter((id) => socketIds.has(id));
     const gems = (line.match(/gem_id=([\d/]+)/)?.[1] ?? '').split('/')
@@ -194,6 +235,30 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
       + (gems.length ? `,gem_id=${gems.join('/')}` : '');
   };
 
+  // "Keep my tier set bonus": a piece swapped into a tier slot would drop the
+  // set below its threshold and read as a huge loss, hiding whether the item
+  // is actually better. The Catalyst turns a dropped item into the tier piece
+  // for that slot while keeping its own stats, sockets and effects, so with
+  // this on we tell simc to count the set as still complete -- which leaves
+  // the row showing the stat difference alone, the thing being asked about.
+  const tier = selection.keepTierBonus === true
+    ? equippedTierSet(equipped, ctx.itemSetMap) : null;
+  const tierOption = tier ? optionForSet(ctx.setBonusNames, tier.setId) : null;
+  // which of the set's thresholds this swap would break (empty = nothing lost,
+  // so nothing to fake: the slot holds no tier piece, the candidate is itself
+  // part of the set, or enough pieces are left over anyway)
+  const tierLoss = (placement, item) => {
+    if (!tier) return [];
+    if (ctx.itemSetMap.byItem.get(tier.idBySlot[placement]) !== tier.setId) return [];
+    if (ctx.itemSetMap.byItem.get(item.id) === tier.setId) return [];
+    return tier.thresholds.filter((t) => tier.count >= t && tier.count - 1 < t);
+  };
+  const keepTier = (name, placement, item) => {
+    const lost = tierLoss(placement, item);
+    for (const t of lost) lines.push(`profileset."${name}"+=set_bonus=${tierOption}_${t}pc=1`);
+    return lost.length > 0;
+  };
+
   const base = buildInput(profileText, options);
   const lines = [base];
   const sets = {};
@@ -213,6 +278,7 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
     for (const placement of slots) {
       const name = `${String(item.name).replace(/["\r\n$\\]/g, "'").slice(0, 60)} [${++counter}]`;
       lines.push(`profileset."${name}"=${placement}=,id=${item.id},ilevel=${ilvl}${ench(placement)}${sock(placement, item)}`);
+      const catalysed = keepTier(name, placement, item);
       sets[name] = {
         group,
         itemName: item.name,
@@ -221,6 +287,7 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
         origIlvl: baseIlvl,
         slot: placement,
         placement,
+        ...(catalysed ? { catalysed: true } : {}),
         ...labels,
       };
     }
@@ -356,7 +423,7 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
       // bonus id) so suggestions stay actually equippable.
       const markers = new Set((fullSeason.embellishmentOptions?.markerBonusIds ?? [8960]).map(Number));
       const equippedEmbSlots = new Set();
-      for (const [slot, line] of Object.entries(parseGear(profileText).equipped)) {
+      for (const [slot, line] of Object.entries(equipped)) {
         const ids = (line.match(/bonus_id=([\d/]+)/)?.[1] ?? '').split('/').map(Number);
         if (ids.some((id) => markers.has(id))) equippedEmbSlots.add(slot);
       }

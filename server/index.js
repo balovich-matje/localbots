@@ -8,13 +8,14 @@ import { resolveEquipped, clearResolveCache } from './equippedResolver.js';
 import { SimQueue, findSimc, simcVersion } from './simRunner.js';
 import { parseGear, GEAR_SLOTS } from './gearParser.js';
 import { loadLootDb, buildLootDb, downloadTables, cacheStatus, loadItemSetMap, loadBonusUpgradeMap, loadSocketBonusIds, patchPaths } from './wagoData.js';
-import { buildSourceTree, buildDroptimizerInput, seasonConfig as fullSeasonConfig } from './droptimizer.js';
+import { buildSourceTree, buildDroptimizerInput, tierSetSummary, seasonConfig as fullSeasonConfig } from './droptimizer.js';
 import { probeKnownItems, loadProbeCache } from './simcProbe.js';
 import { CLASS_IDS } from './lootFilter.js';
 import { saveHistoryEntry, listHistory, getHistoryEntry, deleteHistoryEntry } from './history.js';
 import { updateStatus } from './status.js';
 import { parseLoadouts, buildLoadoutVariants } from './talents.js';
 import { loadTraitData, decodeTalents, talentLayout, clearTraitCache } from './talentData.js';
+import { loadSetBonusNames } from './setBonus.js';
 import { detectSimcSource, startSimcUpdate } from './simcUpdater.js';
 import { invalidateStatus } from './status.js';
 import { fetchCharacter, buildProfile as buildArmoryProfile } from './armory.js';
@@ -337,6 +338,7 @@ app.post('/api/droptimizer/sources', (req, res) => {
   res.json({
     spec,
     tree,
+    tierSet: tierSetSummary(profile ?? '', p.itemSetMap ?? patches.get(DEFAULT_PATCH_ID).itemSetMap),
     season: p.config.droptimizer,
     crafted: {
       ...(p.config.crafted ?? {}),
@@ -685,8 +687,11 @@ app.post('/api/sim', async (req, res) => {
       return res.status(409).json({ error: 'Still checking which items your simc build supports — try again in a moment.' });
     }
     const { input, sets, profilesetCount, skippedUnknown } =
-      buildDroptimizerInput(profile, simOpts, req.body.selection ?? {}, p.lootDb, spec, p.knownItems, season,
-        p.socketBonusIds);
+      buildDroptimizerInput(profile, simOpts, req.body.selection ?? {}, p.lootDb, spec, p.knownItems, season, {
+        socketBonusIds: p.socketBonusIds,
+        itemSetMap: p.itemSetMap ?? patches.get(DEFAULT_PATCH_ID).itemSetMap,
+        setBonusNames: loadSetBonusNames(simcPath, p.def.ptr),
+      });
     if (!profilesetCount) {
       return res.status(400).json({ error: 'Nothing to sim — enable at least one source with usable items.' });
     }

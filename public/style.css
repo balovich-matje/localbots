@@ -311,6 +311,16 @@ button.mini {
   white-space: nowrap;
 }
 .slot-tag { color: var(--muted); font-size: 12px; margin-left: 6px; }
+/* rows whose set bonus was kept for them (the Catalyst toggle) */
+.tier-tag {
+  font-size: 11px;
+  color: var(--accent);
+  border: 1px solid var(--accent-dim);
+  border-radius: 10px;
+  padding: 0 6px;
+  margin-left: 4px;
+  white-space: nowrap;
+}
 .src-boss { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
 
 /* --- talent build cards --- */
@@ -461,6 +471,9 @@ button.mini {
   padding: 2px 6px;
 }
 .dropt-row.unavailable { opacity: 0.45; }
+/* an option whose explanation is too long to sit beside its label */
+.dropt-row.dropt-stack { flex-direction: column; align-items: flex-start; gap: 1px; }
+.dropt-row.dropt-stack .sub-note { padding-left: 22px; }
 .src-name { min-width: 170px; }
 .diff-boxes { display: flex; gap: 10px; flex-wrap: wrap; font-size: 13px; }
 .diff-boxes label { gap: 4px; }

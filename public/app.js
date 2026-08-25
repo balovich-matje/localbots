@@ -866,7 +866,20 @@ async function refreshDroptimizer() {
   }
 
   droptTree = r.tree;
+  renderTierToggle(r.tierSet);
   renderDroptSources(r.tree, r.season, r.crafted);
+}
+
+// The "keep my tier set bonus" toggle only makes sense for a character who is
+// wearing a set, so it stays hidden until one is detected.
+function renderTierToggle(tierSet) {
+  const row = $('dropt-tier-row');
+  if (!row) return;
+  const active = tierSet?.active ?? [];
+  row.classList.toggle('hidden', !active.length);
+  if (!active.length) { $('dropt-tier').checked = false; return; }
+  $('dropt-tier-note').textContent =
+    `${tierSet.name} — ${tierSet.equipped} pieces (${active.map((n) => `${n}pc`).join(' + ')})`;
 }
 
 // the six unordered combinations of the four selectable secondaries
@@ -1078,6 +1091,7 @@ function collectDroptSelection() {
     };
   }
   selection.offspec = !!$('dropt-offspec')?.checked;
+  selection.keepTierBonus = !!($('dropt-tier')?.checked && !$('dropt-tier-row')?.classList.contains('hidden'));
   selection.upgradeTo = Number($('dropt-upgrade')?.value) || 0;
   selection.voidcores = !!($('dropt-voidcore')?.checked && !$('dropt-voidcore')?.disabled);
   return selection;
@@ -1502,6 +1516,7 @@ function rowHtml(t, maxAbs) {
           name: t.itemName, ilvl: t.ilvl, slot: prettySlot(t.placement),
           source: [t.section, t.boss].filter(Boolean).join(' → '),
         }) : ''}<span><span class="${glow ? `item-glow ${glow}` : ''}">${esc(t.itemName ?? '?')}</span>${ilvls}
+        ${t.catalysed ? '<span class="tier-tag" title="Simmed as if you had run this through the Catalyst, so your set bonus stays intact">catalysed</span>' : ''}
         <span class="slot-tag">→ ${target}</span>${caret}</span></span></td>
     <td><span class="source-tag">${esc(t.section)}</span>${t.boss ? `<span class="src-boss">→ ${esc(t.boss)}</span>` : ''}</td>
     <td class="num">${Math.round(t.dps).toLocaleString()}</td>
