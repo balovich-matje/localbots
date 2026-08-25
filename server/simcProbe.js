@@ -3,6 +3,13 @@
 // season's dungeons) that simc doesn't know yet — equipping one aborts a
 // profileset run, so we find them up front via bisection and skip them.
 //
+// Armour is probed on a stand-in character that can actually WEAR it: putting
+// plate on a rogue segfaults simc, which looks exactly like "simc has never
+// heard of this item". The result is cached and shared between everyone using
+// the server, so a probe run by a leather character used to mark every plate
+// and mail item in the game unknown — and plate wearers then got a droptimizer
+// with no armour in it at all.
+//
 // Result is cached per simc build + loot database build.
 
 import { execFile } from 'node:child_process';
@@ -18,6 +25,21 @@ const PROBE_CACHE = join(CACHE_DIR, 'simc-known-items.json');
 // per-patch probe caches must never share a file: a live probe would mark
 // every PTR-only item unknown for the PTR patch (and vice versa)
 
+// Armour subclass -> a class that can wear it, so the probe tests the ITEM
+// rather than the wearer's proficiency. Everything else (weapons, cloaks,
+// jewellery, trinkets, shields) is proficiency-agnostic enough in simc to go
+// on the character we were handed.
+const ARMOR_PROBE = {
+  1: ['mage', 'fire'],
+  2: ['rogue', 'assassination'],
+  3: ['hunter', 'beast_mastery'],
+  4: ['warrior', 'fury'],
+};
+// Worn Shortsword — a vanilla white weapon every one of those classes can hold.
+// simc refuses to start a character with no weapon at all ("No active players
+// in sim!"), and this is the least interesting item that fixes that.
+const PROBE_WEAPON = 25;
+
 // inventory type -> a slot simc will accept for the probe
 const PROBE_SLOT = {
   1: 'head', 2: 'neck', 3: 'shoulder', 5: 'chest', 20: 'chest', 6: 'waist',
@@ -28,6 +50,24 @@ const PROBE_SLOT = {
 
 // The probe equips items onto the user's own character (a naked synthetic
 // character fails simc init). iterations=1 keeps each run near-pure init cost.
+function syntheticBase(cls, spec, ptr) {
+  return [
+    ...(ptr ? ['ptr=1'] : []),
+    'item_db_source=local',
+    'iterations=1',
+    'max_time=10',
+    'fight_style=Patchwerk',
+    'optimal_raid=0',
+    '',
+    `${cls}="Probe"`,
+    'level=90',
+    'race=human',
+    `spec=${spec}`,
+    `main_hand=,id=${PROBE_WEAPON}`,
+    '',
+  ].join('\n');
+}
+
 function probeBase(profileText, ptr) {
   // The probe only tests whether ITEMS initialize — talents are irrelevant,
   // and a live export's talent hash may not decode under a PTR dataset
@@ -52,11 +92,16 @@ function probeBase(profileText, ptr) {
   ].join('\n');
 }
 
+// Bumped when the probe's METHOD changes, so a cache written by an older
+// (wrong) method is thrown away instead of trusted.
+const PROBE_VERSION = 2;
+
 export function loadProbeCache(simcBuild, lootDbBuiltAt, cachePath = PROBE_CACHE) {
   if (!existsSync(cachePath)) return null;
   try {
     const c = JSON.parse(readFileSync(cachePath, 'utf8'));
-    if (c.simcBuild === simcBuild && c.lootDbBuiltAt === lootDbBuiltAt) return new Set(c.knownIds);
+    if (c.probeVersion === PROBE_VERSION && c.simcBuild === simcBuild
+        && c.lootDbBuiltAt === lootDbBuiltAt) return new Set(c.knownIds);
   } catch { /* rebuilt below */ }
   return null;
 }
@@ -73,12 +118,12 @@ export async function probeKnownItems(simcPath, simcBuild, lootDbBuiltAt, profil
   const dir = join(dirname(cachePath), ptr ? 'probe-ptr' : 'probe');
   mkdirSync(dir, { recursive: true });
 
-  const base = probeBase(profileText, ptr);
+  const ownBase = probeBase(profileText, ptr);
   const candidates = items.filter((it) => PROBE_SLOT[it.invType]);
   const bad = [];
   let runs = 0;
 
-  const runsOk = async (subset) => {
+  const run = async (base, subset) => {
     runs++;
     onProgress({ runs, remaining: subset.length, found: bad.length });
     const input = base + subset
@@ -96,22 +141,54 @@ export async function probeKnownItems(simcPath, simcBuild, lootDbBuiltAt, profil
     }
   };
 
-  const findBad = async (subset) => {
+  const findBad = async (base, subset) => {
     if (!subset.length) return;
-    if (await runsOk(subset)) return;
+    if (await run(base, subset)) return;
     if (subset.length === 1) { bad.push(subset[0].id); return; }
     const mid = Math.floor(subset.length / 2);
-    await findBad(subset.slice(0, mid));
-    await findBad(subset.slice(mid));
+    await findBad(base, subset.slice(0, mid));
+    await findBad(base, subset.slice(mid));
   };
 
-  await findBad(candidates);
+  // one bucket per stand-in wearer, plus everything else on the given character
+  const buckets = new Map(); // armour subclass (or "own") -> { base, items }
+  for (const it of candidates) {
+    const stand = Number(it.classId) === 4 ? ARMOR_PROBE[Number(it.subclassId)] : null;
+    const key = stand ? Number(it.subclassId) : 'own';
+    if (!buckets.has(key)) {
+      buckets.set(key, {
+        base: stand ? syntheticBase(stand[0], stand[1], ptr) : ownBase,
+        items: [],
+      });
+    }
+    buckets.get(key).items.push(it);
+  }
+
+  // A base profile that cannot even start a sim fails every run, and bisection
+  // would then condemn the whole bucket -- silently deleting loot from the
+  // droptimizer, which is far worse than letting one sim fail loudly. So each
+  // base is checked empty first, with the plate stand-in as the fallback, and
+  // a bucket with no working base is left unprobed (everything counts as
+  // known). The character we are handed is the usual casualty: an export with
+  // no weapon in it gives simc "No active players in sim!".
+  const fallbackBase = syntheticBase(...ARMOR_PROBE[4], ptr);
+  const workingBase = async (base) => {
+    if (await run(base, [])) return base;
+    return (base !== fallbackBase && await run(fallbackBase, [])) ? fallbackBase : null;
+  };
+  let unprobed = 0;
+  for (const bucket of buckets.values()) {
+    const base = await workingBase(bucket.base);
+    if (!base) { unprobed += bucket.items.length; continue; }
+    await findBad(base, bucket.items);
+  }
   rmSync(dir, { recursive: true, force: true });
 
   const badSet = new Set(bad);
   const knownIds = candidates.filter((it) => !badSet.has(it.id)).map((it) => it.id);
   writeFileSync(cachePath, JSON.stringify({
-    simcBuild, lootDbBuiltAt, probedAt: Date.now(), runs,
+    probeVersion: PROBE_VERSION,
+    simcBuild, lootDbBuiltAt, probedAt: Date.now(), runs, unprobed,
     knownIds, unknownIds: bad,
   }));
   return new Set(knownIds);

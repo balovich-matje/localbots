@@ -239,7 +239,8 @@ app.get('/api/season', (req, res) => {
 function uniqueLootItems(lootDb) {
   const uniq = new Map();
   for (const s of lootDb.sources) for (const b of s.bosses) for (const it of b.items) {
-    uniq.set(it.id, { id: it.id, invType: it.invType });
+    // classId/subclassId let the probe pick a stand-in who can wear the item
+    uniq.set(it.id, { id: it.id, invType: it.invType, classId: it.classId, subclassId: it.subclassId });
   }
   return [...uniq.values()];
 }
