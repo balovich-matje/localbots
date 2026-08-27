@@ -1,6 +1,10 @@
 // Filters the loot database down to items a given class/spec can actually
 // use and would want: armor type, weapon proficiency, primary stat,
 // class-locked items (tier), shields/off-hands.
+//
+// `gear` (optional) is what the character is currently holding, which decides
+// whether the off-hand slot exists at all: a two-hander fills both hands, so
+// nothing can be suggested for the off hand until the main hand changes too.
 
 // simc class name -> WoW class id
 export const CLASS_IDS = {
@@ -84,15 +88,30 @@ const INV_SLOTS = {
   22: ['off_hand'], 23: ['off_hand'], 14: ['off_hand'],
 };
 
+// Titan's Grip fury warriors carry a two-hander in each hand, so a two-hander
+// neither closes their off hand nor costs them what is in it.
+export function titansGrip(specKey) {
+  return DUAL_WIELD_2H.has(specKey);
+}
+
+export function noOffHand(gear, specKey) {
+  return gear?.twoHander === true && !titansGrip(specKey);
+}
+
 export function specKeyFor(spec) {
   return spec?.key ?? null; // from detectSpec(): "mage_fire"
 }
+
+export const TWO_HAND_INV = 17;
+
+// invType values that can only ever go in the off hand
+const OFF_HAND_ONLY = new Set([22, 23]);
 
 // Returns null if unusable, otherwise the list of simc slots to try.
 // offspec=true relaxes the primary-stat gate (Raidbots' "Include Off-Spec
 // Items") — armor type and weapon proficiency stay enforced, since simc
 // hard-rejects some of those ("Invalid type") and they'd poison the run.
-export function usableSlots(item, classId, specKey, offspec = false) {
+export function usableSlots(item, classId, specKey, offspec = false, gear = null) {
   if (item.quality < 3 && !item.curated) return null;
   if (item.allowableClass !== -1 && !(item.allowableClass & (1 << (classId - 1)))) return null;
 
@@ -104,11 +123,21 @@ export function usableSlots(item, classId, specKey, offspec = false) {
   let slots = INV_SLOTS[item.invType];
   if (!slots) return null;
 
+  // A two-hander in the main hand leaves no off-hand slot to fill, so nothing
+  // that only goes there can be suggested — simc would happily equip both and
+  // hand out a whole extra item's stats for free.
+  if (noOffHand(gear, specKey)
+      && (OFF_HAND_ONLY.has(item.invType) || (item.classId === 4 && item.subclassId === 6))) {
+    return null;
+  }
+
   if (item.classId === 2) { // weapon
     if (!(WEAPONS[classId] ?? []).includes(item.subclassId)) return null;
-    const is2h = item.invType === 17;
+    const is2h = item.invType === TWO_HAND_INV;
     const is1h = item.invType === 13 || item.invType === 21 || item.invType === 15 || item.invType === 26;
-    if (item.invType === 22) return ['off_hand'];
+    // an off-hand WEAPON needs a free hand and the ability to dual wield;
+    // a warlock or mage can hold a tome there, never a second blade
+    if (item.invType === 22) return DUAL_WIELD_1H.has(specKey) ? ['off_hand'] : null;
     if ((is1h && DUAL_WIELD_1H.has(specKey)) || (is2h && DUAL_WIELD_2H.has(specKey))) {
       return ['main_hand', 'off_hand'];
     }

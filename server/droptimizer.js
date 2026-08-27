@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { usableSlots, CLASS_IDS } from './lootFilter.js';
+import { usableSlots, titansGrip, CLASS_IDS, TWO_HAND_INV } from './lootFilter.js';
 import { buildInput } from './profileBuilder.js';
 import { parseGear } from './gearParser.js';
 import { optionForSet } from './setBonus.js';
@@ -65,20 +65,20 @@ function upgradedIlvl(baseIlvl, trackName, upgradeTo, tracks) {
 // `knownItems` (from the simc probe) marks which items the local simc build
 // can actually sim — sources with zero simmable items are flagged
 // unavailable (usually content that isn't released yet).
-export function buildSourceTree(lootDb, classId, specKey, knownItems = null) {
+export function buildSourceTree(lootDb, classId, specKey, knownItems = null, gear = null) {
   const tree = { raids: [], dungeons: [], worldBosses: [], outdoor: [], delves: [], crafted: [] };
   for (const source of lootDb.sources) {
     const bosses = source.bosses.map((b) => ({
       name: b.name,
       order: b.order,
-      usable: countUsable(b.items, classId, specKey, knownItems),
+      usable: countUsable(b.items, classId, specKey, knownItems, gear),
       // what this boss drops per difficulty, so the UI can show it and the
       // numbers can be checked against the in-game adventure guide
       ...(bossDrops(b) ? { drops: bossDrops(b) } : {}),
     }));
     const usable = bosses.reduce((n, b) => n + b.usable, 0);
     const total = source.bosses.reduce(
-      (n, b) => n + countUsable(b.items, classId, specKey, null), 0);
+      (n, b) => n + countUsable(b.items, classId, specKey, null, gear), 0);
     if (!total) continue;
     const entry = {
       instanceId: source.instanceId,
@@ -108,6 +108,19 @@ function bossDrops(boss) {
     out[diff] = { ilvl: drop.ilvl, track: drop.track, step: drop.step, max: drop.max };
   }
   return out;
+}
+
+// What the character is holding. invTypeOf resolves an item id to its
+// inventory type; without it we fall back to "they have an off-hand line, so
+// their main hand must be a one-hander", which is right except for a caster
+// holding a one-hander with the off hand left empty.
+export function weaponSetup(equipped, invTypeOf = null) {
+  const idOf = (slot) => Number(equipped[slot]?.match(/(?:^|,)id=(\d+)/)?.[1]) || null;
+  const mainId = idOf('main_hand');
+  const offId = idOf('off_hand');
+  const mainInv = mainId != null && invTypeOf ? invTypeOf(mainId) : null;
+  const twoHander = mainInv != null ? mainInv === TWO_HAND_INV : (mainId != null && offId == null);
+  return { twoHander, hasOffHand: offId != null };
 }
 
 // The tier set the character is actually wearing: whichever set has the most
@@ -147,14 +160,14 @@ export function tierSetSummary(profileText, itemSetMap) {
   };
 }
 
-function countUsable(items, classId, specKey, knownItems) {
+function countUsable(items, classId, specKey, knownItems, gear = null) {
   const seen = new Set();
   let n = 0;
   for (const it of dedupeByName(items)) {
     if (seen.has(it.id)) continue;
     seen.add(it.id);
     if (knownItems && !knownItems.has(it.id)) continue;
-    if (usableSlots(it, classId, specKey)) n++;
+    if (usableSlots(it, classId, specKey, false, gear)) n++;
   }
   return n;
 }
@@ -194,6 +207,15 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
   const voidcoreIlvl = { Myth: fullSeason.voidcore?.mythIlvl, Hero: fullSeason.voidcore?.heroIlvl };
   const offspec = selection.offspec === true;
   let skippedUnknown = 0;
+
+  // Both hands are one slot's worth of decision. A two-hander closes the off
+  // hand, so nothing is suggested for it; and putting a two-hander on someone
+  // holding a one-hander plus an off-hand costs them the off-hand, so that has
+  // to come off in the row or the two-hander is credited with its stats.
+  const gear = weaponSetup(equipped, ctx.invTypeOf ?? null);
+  const dropsOffHand = (placement, item) =>
+    placement === 'main_hand' && item.invType === TWO_HAND_INV
+    && gear.hasOffHand && !titansGrip(specKey);
 
   // Gems ride along with the slot, for the same reason enchants do. Sockets in
   // this expansion are added per slot by the player rather than being born on
@@ -267,7 +289,7 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
 
   const addItem = (item, baseIlvl, track, labels) => {
     if (knownItems && !knownItems.has(item.id)) { skippedUnknown++; return; }
-    const slots = usableSlots(item, classId, specKey, offspec);
+    const slots = usableSlots(item, classId, specKey, offspec, gear);
     if (!slots || !baseIlvl) return;
     let ilvl = upgradedIlvl(baseIlvl, track, upgradeTo, tracks);
     // Voidcores apply only to fully upgraded Hero/Myth-track weapons and trinkets
@@ -279,6 +301,8 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
       const name = `${String(item.name).replace(/["\r\n$\\]/g, "'").slice(0, 60)} [${++counter}]`;
       lines.push(`profileset."${name}"=${placement}=,id=${item.id},ilevel=${ilvl}${ench(placement)}${sock(placement, item)}`);
       const catalysed = keepTier(name, placement, item);
+      const offHandLost = dropsOffHand(placement, item);
+      if (offHandLost) lines.push(`profileset."${name}"+=off_hand=`);
       sets[name] = {
         group,
         itemName: item.name,
@@ -288,6 +312,7 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
         slot: placement,
         placement,
         ...(catalysed ? { catalysed: true } : {}),
+        ...(offHandLost ? { offHandLost: true } : {}),
         ...labels,
       };
     }
@@ -298,7 +323,7 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
   // dropped item's plain ilevel-only payload.
   const addCrafted = (item, baseIlvl, pair, craftedVoidcoreIlvl) => {
     if (knownItems && !knownItems.has(item.id)) { skippedUnknown++; return; }
-    const slots = usableSlots(item, classId, specKey, offspec);
+    const slots = usableSlots(item, classId, specKey, offspec, gear);
     if (!slots || !baseIlvl) return;
     // crafted Voidcores: weapons/trinkets at max craft can go higher
     const ilvl = craftedVoidcoreIlvl && slots.some((s) => voidcoreSlots.has(s))
@@ -409,7 +434,7 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
         for (const item of dedupe(boss.items)) {
           if (item.embellished && c.embellishments === false) continue;
           if (knownItems && !knownItems.has(item.id)) { skippedUnknown++; continue; }
-          if (!usableSlots(item, classId, specKey, offspec)) continue;
+          if (!usableSlots(item, classId, specKey, offspec, gear)) continue;
           const key = `${item.classId}:${item.subclassId}:${item.invType}:${item.embellished ? 1 : 0}`;
           const prev = best.get(key);
           if (!prev || item.quality > prev.quality
@@ -433,7 +458,7 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
       for (const item of best.values()) {
         // inherently-embellished designs count toward the cap too
         if (item.embellished) {
-          const slots = usableSlots(item, classId, specKey, offspec) ?? [];
+          const slots = usableSlots(item, classId, specKey, offspec, gear) ?? [];
           if (!capOk(slots, 1)) continue;
         }
         for (const pair of pairs) addCrafted(item, ilvl, pair, craftedVoidcoreIlvl);
@@ -456,7 +481,7 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
         const hosts = [...best.values()]
           .filter((it) => !it.embellished)
           .map((it) => {
-            const us = usableSlots(it, classId, specKey, offspec) ?? [];
+            const us = usableSlots(it, classId, specKey, offspec, gear) ?? [];
             return { it, slot: us.find((s) => equippedEmbSlots.has(s)) ?? us[0] };
           })
           .filter((h) => h.slot

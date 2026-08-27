@@ -311,7 +311,8 @@ button.mini {
   white-space: nowrap;
 }
 .slot-tag { color: var(--muted); font-size: 12px; margin-left: 6px; }
-/* rows whose set bonus was kept for them (the Catalyst toggle) */
+/* rows whose set bonus was kept for them (the Catalyst toggle), and rows
+   that had to give something up to be equippable at all */
 .tier-tag {
   font-size: 11px;
   color: var(--accent);
@@ -321,6 +322,7 @@ button.mini {
   margin-left: 4px;
   white-space: nowrap;
 }
+.tier-tag.warn { color: var(--muted); border-color: var(--border); }
 .src-boss { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
 
 /* --- talent build cards --- */

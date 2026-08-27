@@ -8,7 +8,7 @@ import { resolveEquipped, clearResolveCache } from './equippedResolver.js';
 import { SimQueue, findSimc, simcVersion } from './simRunner.js';
 import { parseGear, GEAR_SLOTS } from './gearParser.js';
 import { loadLootDb, buildLootDb, downloadTables, cacheStatus, loadItemSetMap, loadBonusUpgradeMap, loadSocketBonusIds, patchPaths } from './wagoData.js';
-import { buildSourceTree, buildDroptimizerInput, tierSetSummary, seasonConfig as fullSeasonConfig } from './droptimizer.js';
+import { buildSourceTree, buildDroptimizerInput, tierSetSummary, weaponSetup, seasonConfig as fullSeasonConfig } from './droptimizer.js';
 import { probeKnownItems, loadProbeCache } from './simcProbe.js';
 import { CLASS_IDS } from './lootFilter.js';
 import { saveHistoryEntry, listHistory, getHistoryEntry, deleteHistoryEntry } from './history.js';
@@ -246,6 +246,15 @@ function uniqueLootItems(lootDb) {
   return [...uniq.values()];
 }
 
+// item id -> inventory type, for working out whether the character's main hand
+// is a two-hander. Uses the tooltip tables, which the droptimizer page loads
+// anyway; null when they are not available and the caller falls back.
+function invTypeLookup(p) {
+  p.itemTables ??= loadItemTables(p.paths.cacheDir);
+  const items = p.itemTables?.items;
+  return items ? (id) => items.get(Number(id))?.invType ?? null : null;
+}
+
 function ensureProbe(p, profileText) {
   if (!p.lootDb || p.knownItems || p.probeRunning) return;
   p.probeRunning = true;
@@ -334,7 +343,8 @@ app.post('/api/droptimizer/sources', (req, res) => {
     return res.status(400).json({ error: 'Paste your /simc export first — the droptimizer filters loot for your class and spec.' });
   }
   ensureProbe(p, profile);
-  const tree = buildSourceTree(p.lootDb, CLASS_IDS[spec.class], spec.key, p.knownItems);
+  const tree = buildSourceTree(p.lootDb, CLASS_IDS[spec.class], spec.key, p.knownItems,
+    weaponSetup(parseGear(profile ?? '').equipped, invTypeLookup(p)));
   res.json({
     spec,
     tree,
@@ -633,7 +643,14 @@ app.post('/api/sim', async (req, res) => {
         minimums,
       };
     }
-    let { input, sets, skippedBySets } = buildTopGearInput(profile, simOpts, clean, setCtx);
+    // both hands are one decision: see buildTopGearInput
+    const invTypeOf = invTypeLookup(p);
+    const handCtx = {
+      ...weaponSetup(parseGear(profile).equipped, invTypeOf),
+      specKey: detectSpec(profile).key,
+      invTypeOf,
+    };
+    let { input, sets, skippedBySets, skippedByHands } = buildTopGearInput(profile, simOpts, clean, setCtx, handCtx);
     // compare groups: `true` (or missing selection) means "all options";
     // an object with per-category arrays narrows what gets simmed
     const sel = (group) => (typeof compare[group] === 'object' && compare[group] !== null
@@ -677,7 +694,11 @@ app.post('/api/sim', async (req, res) => {
     }
     const job = queue.submit(input, { spec, sets, gearBySlot: gearBySlotFrom(profile) });
     persistWhenDone(job, 'topgear', options ?? {}, p);
-    return res.json({ jobId: job.id, skippedBySets: skippedBySets ?? 0 });
+    return res.json({
+      jobId: job.id,
+      skippedBySets: skippedBySets ?? 0,
+      skippedByHands: skippedByHands ?? 0,
+    });
   }
 
   if (mode === 'droptimizer') {
@@ -691,6 +712,7 @@ app.post('/api/sim', async (req, res) => {
         socketBonusIds: p.socketBonusIds,
         itemSetMap: p.itemSetMap ?? patches.get(DEFAULT_PATCH_ID).itemSetMap,
         setBonusNames: loadSetBonusNames(simcPath, p.def.ptr),
+        invTypeOf: invTypeLookup(p),
       });
     if (!profilesetCount) {
       return res.status(400).json({ error: 'Nothing to sim — enable at least one source with usable items.' });

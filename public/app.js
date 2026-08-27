@@ -1254,6 +1254,10 @@ async function startSim() {
   }
 
   currentJobId = body.jobId;
+  // items that could not be simmed as asked, rather than dropping them quietly
+  skippedNote = body.skippedByHands
+    ? `${body.skippedByHands} off-hand item${body.skippedByHands === 1 ? '' : 's'} skipped — a two-hander fills both hands.`
+    : '';
   $('cancel-button').classList.remove('hidden');
   $('history-banner').classList.add('hidden');
   $('empty-state').classList.add('hidden');
@@ -1369,6 +1373,7 @@ function renderResult(r) {
 }
 
 let tgRows = [];
+let skippedNote = ''; // items the sim could not take as asked (an off-hand next to a two-hander)
 let tgActiveChip = null;
 let tgActiveSlot = null;
 let tgEquipped = null; // slot -> { name, ilvl } of the character's own gear
@@ -1391,6 +1396,7 @@ function renderTopGear(r) {
     r.player.spec,
     `${r.topgear.length} item${r.topgear.length === 1 ? '' : 's'} compared`,
     r.elapsedSeconds ? `simmed in ${r.elapsedSeconds.toFixed(1)}s` : null,
+    skippedNote || null,
   ].filter(Boolean).join(' · ');
 
   tgRows = r.topgear;
@@ -1517,6 +1523,7 @@ function rowHtml(t, maxAbs) {
           source: [t.section, t.boss].filter(Boolean).join(' → '),
         }) : ''}<span><span class="${glow ? `item-glow ${glow}` : ''}">${esc(t.itemName ?? '?')}</span>${ilvls}
         ${t.catalysed ? '<span class="tier-tag" title="Simmed as if you had run this through the Catalyst, so your set bonus stays intact">catalysed</span>' : ''}
+        ${t.offHandLost ? '<span class="tier-tag warn" title="A two-hander fills both hands, so this was simmed with your off-hand taken off — its stats are not counted">off-hand removed</span>' : ''}
         <span class="slot-tag">→ ${target}</span>${caret}</span></span></td>
     <td><span class="source-tag">${esc(t.section)}</span>${t.boss ? `<span class="src-boss">→ ${esc(t.boss)}</span>` : ''}</td>
     <td class="num">${Math.round(t.dps).toLocaleString()}</td>

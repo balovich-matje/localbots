@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { placementsFor } from './gearParser.js';
+import { noOffHand, titansGrip, TWO_HAND_INV } from './lootFilter.js';
 import { isDualWield } from './lootFilter.js';
 
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
@@ -148,12 +149,19 @@ function hasConsumableLine(text, key) {
 // setCtx (optional) enforces "Minimum Set Bonus": { byItem: {itemId: setId},
 // equippedIds: {slot: itemId}, minimums: {setId: 2|4} } — swaps that would
 // drop a set below its minimum are skipped.
-export function buildTopGearInput(profileText, options, items, setCtx = null) {
+// gear (optional) is the character's weapon setup, so both hands stay a single
+// decision: { twoHander, hasOffHand, titansGrip, invTypeOf }. A two-hander
+// fills both hands, so an off-hand cannot be tried next to one, and putting a
+// two-hander on someone holding an off-hand has to take that off-hand off --
+// simc equips both happily and would credit the two-hander with its stats.
+export function buildTopGearInput(profileText, options, items, setCtx = null, gear = null) {
   const base = buildInput(profileText, options);
   const lines = [base];
   const sets = {};
   const usedNames = new Set();
+  const specKey = gear?.specKey ?? null;
   let skippedBySets = 0;
+  let skippedByHands = 0;
 
   // equipped piece count per set, for the minimum-bonus constraint
   const setCounts = {};
@@ -184,16 +192,22 @@ export function buildTopGearInput(profileText, options, items, setCtx = null) {
       rest = rest.replace(/,ilevel=\d+/g, '');
       rest += `,ilevel=${item.targetIlvl}`;
     }
+    const isTwoHander = gear?.invTypeOf && itemId ? gear.invTypeOf(itemId) === TWO_HAND_INV : false;
     for (const placement of placementsFor(slotMatch[1])) {
       if (breaksSetMinimum(itemId, placement)) { skippedBySets++; continue; }
+      if (placement === 'off_hand' && noOffHand(gear, specKey)) { skippedByHands++; continue; }
+      const offHandLost = placement === 'main_hand' && isTwoHander
+        && gear?.hasOffHand && !titansGrip(specKey);
       let name = sanitizeSetName(
         `${item.name ?? slotMatch[1]}${upgraded ? ` +${item.targetIlvl}` : ''} @${placement}`);
       let n = 2;
       while (usedNames.has(name)) name = sanitizeSetName(`${item.name} #${n++} @${placement}`);
       usedNames.add(name);
       lines.push(`profileset."${name}"=${placement}=${rest}`);
+      if (offHandLost) lines.push(`profileset."${name}"+=off_hand=`);
       sets[name] = {
         group: index, // one group per source item, across its placements
+        ...(offHandLost ? { offHandLost: true } : {}),
         itemName: item.name ?? null,
         ilvl: upgraded ? item.targetIlvl : (item.ilvl ?? null),
         origIlvl: item.ilvl ?? null,
@@ -203,7 +217,7 @@ export function buildTopGearInput(profileText, options, items, setCtx = null) {
       };
     }
   }
-  return { input: lines.join('\n') + '\n', sets, skippedBySets };
+  return { input: lines.join('\n') + '\n', sets, skippedBySets, skippedByHands };
 }
 
 function sanitizeSetName(name) {
