@@ -35,6 +35,9 @@ keys. Runs entirely on your machine from public data.
 - ✅ **Keep my tier set bonus**: a droptimizer toggle for "what if I ran this
   through the Catalyst" — items landing in a tier slot keep the set bonus, so
   the row shows the item's own stat difference instead of a 4-set loss.
+- ✅ **Shareable reports**: "Save report" in the footer writes any finished sim
+  to one self-contained HTML file — opens in any browser, no install, and
+  prints to PDF if you want one.
 - ⬜ **Phase 4 — Full source parity with Raidbots**: catalyst/tier-set pieces, normal
   dungeons, Prey rewards, PvP gear, crafted gear, previous-season tiers, vault-socket
   option and off-spec loot. Detailed plan in [docs/ROADMAP.md](docs/ROADMAP.md).
