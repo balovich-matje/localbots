@@ -1266,6 +1266,7 @@ async function startSim() {
   $('results-area').classList.add('hidden');
   $('topgear-area').classList.add('hidden');
   $('progress-area').classList.remove('hidden');
+  showQueue(null);
   setProgress('Starting…', 0, '');
 
   eventSource = new EventSource(`/api/sim/${currentJobId}/events`);
@@ -1281,8 +1282,9 @@ async function startSim() {
 
 function handleUpdate(u) {
   if (u.status === 'queued') {
-    setProgress(`Queued (position ${u.queuePosition})`, 0, 'Another sim is running — yours starts automatically.');
+    renderQueued(u);
   } else if (u.status === 'running') {
+    showQueue(null);
     const p = u.progress;
     if (p) {
       const phase = p.item
@@ -1298,6 +1300,7 @@ function handleUpdate(u) {
       setProgress('Initializing simc…', 2, '');
     }
   } else if (u.status === 'done') {
+    showQueue(null);
     const finishedId = currentJobId; // finishStream clears it
     finishStream();
     $('history-banner').classList.add('hidden');
@@ -1305,11 +1308,13 @@ function handleUpdate(u) {
     else renderResult(u.result);
     setReportId(finishedId);
   } else if (u.status === 'failed') {
+    showQueue(null);
     finishStream();
     showError(`Sim failed:\n${u.error ?? 'unknown error'}`);
     $('progress-area').classList.add('hidden');
     $('empty-state').classList.remove('hidden');
   } else if (u.status === 'cancelled') {
+    showQueue(null);
     finishStream();
     $('progress-area').classList.add('hidden');
     $('empty-state').classList.remove('hidden');
@@ -1334,6 +1339,45 @@ async function cancelSim() {
 }
 
 // ---------- rendering ----------
+// Waiting behind other people's sims. There is no progress to show, so this
+// says where you are in the line, what is running in front of you, and how far
+// along that one is — enough to know whether to wait or come back later.
+function renderQueued(u) {
+  const q = u.queue ?? { position: u.queuePosition ?? 1, ahead: u.queuePosition ?? 1, running: null };
+  const ahead = q.ahead ?? 0;
+  setProgress(
+    ahead === 1 ? 'Waiting — you are next' : `Waiting — ${ahead} sims ahead of you`,
+    0,
+    'Sims run one at a time on this server. Yours starts on its own; you can leave this tab open.');
+  $('progress-bar').classList.add('waiting');
+  showQueue(q);
+}
+
+function showQueue(q) {
+  const area = $('queue-area');
+  if (!q) {
+    area.classList.add('hidden');
+    $('progress-bar').classList.remove('waiting');
+    return;
+  }
+  area.classList.remove('hidden');
+  // one pip for the sim running now, then one per waiting sim up to yours
+  const pips = [];
+  if (q.running) {
+    pips.push(`<span class="queue-pip now" title="${esc(q.running.label ?? 'running')}">running${
+      q.running.percent != null ? ` ${Math.round(q.running.percent)}%` : ''}</span>`);
+  }
+  for (let i = 1; i <= (q.position ?? 1); i++) {
+    const mine = i === q.position;
+    pips.push(`<span class="queue-pip${mine ? ' mine' : ''}">${mine ? 'you' : i}</span>`);
+  }
+  $('queue-pips').innerHTML = pips.join('');
+  $('queue-ahead').textContent = [
+    q.running ? `Running now: ${q.running.label}${q.running.eta ? ` · ETA ${q.running.eta}` : ''}` : null,
+    q.waiting > 1 ? `${q.waiting} sims waiting` : null,
+  ].filter(Boolean).join(' · ');
+}
+
 function setProgress(phase, percent, detail) {
   $('progress-phase').textContent = phase;
   $('progress-bar').style.width = `${percent}%`;

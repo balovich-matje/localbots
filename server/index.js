@@ -728,7 +728,7 @@ app.post('/api/sim', async (req, res) => {
         return res.status(500).json({ error: `Could not resolve equipped item levels: ${e.message}` });
       }
     }
-    const job = queue.submit(input, { spec, sets, gearBySlot: gearBySlotFrom(profile) });
+    const job = queue.submit(input, { mode: 'topgear', spec, sets, gearBySlot: gearBySlotFrom(profile) });
     persistWhenDone(job, 'topgear', options ?? {}, p);
     return res.json({
       jobId: job.id,
@@ -753,13 +753,13 @@ app.post('/api/sim', async (req, res) => {
     if (!profilesetCount) {
       return res.status(400).json({ error: 'Nothing to sim — enable at least one source with usable items.' });
     }
-    const job = queue.submit(input, { spec, sets, gearBySlot: gearBySlotFrom(profile) });
+    const job = queue.submit(input, { mode: 'droptimizer', spec, sets, gearBySlot: gearBySlotFrom(profile) });
     persistWhenDone(job, 'droptimizer', options ?? {}, p);
     return res.json({ jobId: job.id, profilesetCount, skippedUnknown });
   }
 
   const input = buildInput(profile, simOpts);
-  const job = queue.submit(input, { spec, gearBySlot: gearBySlotFrom(profile) });
+  const job = queue.submit(input, { mode: 'quick', spec, gearBySlot: gearBySlotFrom(profile) });
   persistWhenDone(job, 'quick', options ?? {}, p);
   res.json({ jobId: job.id });
 });
@@ -803,6 +803,7 @@ app.get('/api/sim/:id/events', (req, res) => {
       status: j.status,
       progress: j.progress,
       queuePosition: j.status === 'queued' ? queue.queuePosition(j.id) + 1 : 0,
+      queue: j.status === 'queued' ? queue.queueInfo(j.id) : null,
       error: j.error,
       result: j.status === 'done' ? j.result : null,
     };

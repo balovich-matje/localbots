@@ -170,8 +170,10 @@ developer account.
 
 ## What "shared" actually means
 
-- **Sims run one at a time.** If three people press Sim at once, they queue and
-  each person sees their position in the queue. Nobody's run is dropped.
+- **Sims run one at a time.** If three people press Sim at once, they queue.
+  Each person sees their place in the line, what is running in front of them
+  and how far along it is, and the line counts down live as sims finish.
+  Nobody's run is dropped, and nobody has to keep pressing anything.
 - **The History page is shared.** Everyone sees everyone's saved sims, including
   character names. That is fine for a friend group; just know it is not private.
 - **Everything else is per-browser.** The profile you paste stays in your own tab.

@@ -686,6 +686,37 @@ button.danger-outline:hover { background: rgba(224, 95, 95, 0.12); }
   background: linear-gradient(90deg, var(--accent-dim), var(--accent));
   transition: width 0.4s ease;
 }
+/* Waiting in the queue has no percentage to show, so the bar drifts instead
+   of sitting at 0% looking like a sim that hung. */
+#progress-bar.waiting {
+  width: 100%;
+  background: repeating-linear-gradient(115deg,
+    var(--panel-2) 0 14px, var(--accent-dim) 14px 28px);
+  opacity: 0.55;
+  animation: queue-drift 1.1s linear infinite;
+}
+@keyframes queue-drift { to { background-position: 62px 0; } }
+@media (prefers-reduced-motion: reduce) { #progress-bar.waiting { animation: none; } }
+
+/* one pip per sim in the line, yours highlighted */
+#queue-area { margin-top: 14px; }
+#queue-pips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.queue-pip {
+  min-width: 30px;
+  height: 26px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.queue-pip.now { border-color: var(--green); color: var(--green); }
+.queue-pip.mine { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 
 .dps-hero {
   background: var(--panel-2);

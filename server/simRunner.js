@@ -60,6 +60,15 @@ function parseProgressLine(line) {
   return null;
 }
 
+// "Skibidk's Droptimizer" — enough for someone waiting to know what is ahead
+// of them on a shared server.
+function describe(job) {
+  const name = job.meta?.spec?.name ?? null;
+  const mode = { quick: 'Quick Sim', topgear: 'Top Gear', droptimizer: 'Droptimizer' }[job.meta?.mode]
+    ?? 'sim';
+  return name ? `${name}'s ${mode}` : mode;
+}
+
 export class SimQueue extends EventEmitter {
   constructor(simcPath) {
     super();
@@ -103,7 +112,7 @@ export class SimQueue extends EventEmitter {
     if (!job) return false;
     if (job.status === 'queued') {
       this.queue = this.queue.filter((j) => j.id !== id);
-      this.#finish(job, 'cancelled');
+      this.#finish(job, 'cancelled'); // #finish pumps, which re-broadcasts
       return true;
     }
     if (job.status === 'running' && job.proc) {
@@ -118,11 +127,42 @@ export class SimQueue extends EventEmitter {
     return this.queue.findIndex((j) => j.id === id);
   }
 
+  // What a waiting job needs to show someone: where they are in the line, and
+  // what is actually happening in front of them.
+  queueInfo(id) {
+    const index = this.queue.findIndex((j) => j.id === id);
+    const running = this.running;
+    return {
+      position: index < 0 ? 0 : index + 1,
+      // the running sim counts as one ahead of you; a queued job is only
+      // waiting because something is running
+      ahead: index < 0 ? 0 : index + (running ? 1 : 0),
+      waiting: this.queue.length,
+      running: running ? {
+        label: describe(running),
+        percent: running.progress?.percent ?? null,
+        eta: running.progress?.eta ?? null,
+        mine: running.id === id,
+      } : null,
+    };
+  }
+
+  // The line moved, so everyone still in it needs to hear about it. Without
+  // this a waiting job gets no events until it starts, and its position sits
+  // frozen at whatever it was when it was submitted.
+  #broadcastQueue() {
+    for (const job of this.queue) this.emit(`update:${job.id}`, job);
+  }
+
   #pump() {
-    if (this.running || this.queue.length === 0) return;
+    if (this.running || this.queue.length === 0) {
+      this.#broadcastQueue();
+      return;
+    }
     const job = this.queue.shift();
     this.running = job;
     this.#run(job);
+    this.#broadcastQueue();
   }
 
   #run(job) {
