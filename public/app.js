@@ -544,6 +544,7 @@ async function viewHistoryEntry(id) {
   const banner = $('history-banner');
   banner.textContent = `Saved ${entry.modeLabel ?? 'sim'} from ${new Date(entry.savedAt).toLocaleString()}`;
   banner.classList.remove('hidden');
+  setReportId(entry.id);
 }
 
 // restore last session
@@ -1233,6 +1234,7 @@ async function startSim() {
   }
 
   $('sim-button').disabled = true;
+  setReportId(null); // the previous result is no longer what is on screen
 
   let resp;
   try {
@@ -1296,10 +1298,12 @@ function handleUpdate(u) {
       setProgress('Initializing simc…', 2, '');
     }
   } else if (u.status === 'done') {
+    const finishedId = currentJobId; // finishStream clears it
     finishStream();
     $('history-banner').classList.add('hidden');
     if (u.result?.topgear) renderTopGear(u.result);
     else renderResult(u.result);
+    setReportId(finishedId);
   } else if (u.status === 'failed') {
     finishStream();
     showError(`Sim failed:\n${u.error ?? 'unknown error'}`);
@@ -1649,6 +1653,23 @@ function esc(s) {
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[c]));
 }
+
+// ---------- save report ----------
+// Whichever result is on screen — a run that just finished, or a saved one
+// opened from History. Null while nothing is shown, which greys the button.
+let reportId = null;
+
+function setReportId(id) {
+  reportId = id ?? null;
+  const btn = $('report-button');
+  if (btn) btn.disabled = !reportId;
+}
+
+$('report-button').addEventListener('click', () => {
+  if (!reportId) return;
+  // the server sends it as an attachment, so this saves rather than navigates
+  window.location.href = `/api/history/${encodeURIComponent(reportId)}/report`;
+});
 
 // ---------- shutdown ----------
 $('shutdown-button').addEventListener('click', async () => {

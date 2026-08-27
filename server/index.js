@@ -12,6 +12,7 @@ import { buildSourceTree, buildDroptimizerInput, tierSetSummary, weaponSetup, se
 import { probeKnownItems, loadProbeCache } from './simcProbe.js';
 import { CLASS_IDS } from './lootFilter.js';
 import { saveHistoryEntry, listHistory, getHistoryEntry, deleteHistoryEntry } from './history.js';
+import { buildReportHtml, reportFilename } from './report.js';
 import { updateStatus } from './status.js';
 import { parseLoadouts, buildLoadoutVariants } from './talents.js';
 import { loadTraitData, decodeTalents, talentLayout, clearTraitCache } from './talentData.js';
@@ -158,6 +159,41 @@ app.get('/api/history/:id', (req, res) => {
 app.delete('/api/history/:id', (req, res) => {
   res.json({ deleted: deleteHistoryEntry(req.params.id) });
 });
+
+// One self-contained HTML file for a finished sim, to hand to someone else.
+// Served as a download so the browser saves it instead of opening it.
+app.get('/api/history/:id/report', (req, res) => {
+  const entry = getHistoryEntry(req.params.id);
+  if (!entry) return res.status(404).json({ error: 'unknown history entry' });
+  // icons come from the patch the sim was run against, so a PTR report still
+  // draws the right art
+  const p = patches.get(entry.patch?.id ?? DEFAULT_PATCH_ID) ?? patches.get(DEFAULT_PATCH_ID);
+  const iconMap = p.iconMap ?? patches.get(DEFAULT_PATCH_ID).iconMap;
+  const icons = {};
+  if (iconMap) {
+    for (const id of reportItemIds(entry)) {
+      const file = iconMap.get(Number(id));
+      if (file) icons[id] = file;
+    }
+  }
+  const consumableLabels = {};
+  for (const list of Object.values(p.config?.consumableOptions ?? {})) {
+    if (Array.isArray(list)) for (const o of list) consumableLabels[o.value] = o.label;
+  }
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Content-Disposition',
+    `attachment; filename="${reportFilename(entry).replace(/"/g, '')}"`);
+  res.send(buildReportHtml(entry, { icons, consumableLabels }));
+});
+
+// every item the report draws a tile for
+function reportItemIds(entry) {
+  const r = entry.result ?? {};
+  const ids = new Set();
+  for (const t of r.topgear ?? []) if (t.itemId) ids.add(Number(t.itemId));
+  for (const it of Object.values(r.equipped ?? {})) if (it?.id) ids.add(Number(it.id));
+  return ids;
+}
 
 // ---------- patch registry ----------
 // Each patch (live, PTR) carries its own season config, consumable defaults,
