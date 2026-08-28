@@ -208,12 +208,18 @@ export function effectContext(itemId, ilvl, tables, scaling) {
   };
 }
 
-export function itemStats(itemId, ilvl, tables, scaling) {
+// statSourceId: a Catalyst-converted item keeps the SECONDARIES of the piece it
+// was made from, so its stat line does not match its own item record. The simc
+// export writes that source as `redirected_base_stats=<id>`, and simc sims it
+// that way — without this the tooltip shows the tier piece's original stats and
+// disagrees with the game.
+export function itemStats(itemId, ilvl, tables, scaling, statSourceId = null) {
   if (!tables || !scaling || !ilvl) return null;
   const it = tables.items.get(Number(itemId));
   if (!it) return null;
   const budget = tables.budget.get(Number(ilvl));
   if (!budget) return null;
+  const allocs = (statSourceId && tables.items.get(Number(statSourceId))?.allocs) || it.allocs;
 
   const c = tables.classes.get(Number(itemId)) ?? { cls: 4, sub: 0 };
   const slot = budgetSlot(it.invType, c.cls, c.sub);
@@ -224,7 +230,7 @@ export function itemStats(itemId, ilvl, tables, scaling) {
   const primary = [];
   const secondary = [];
   let stamina = null;
-  for (const { stat, alloc } of it.allocs) {
+  for (const { stat, alloc } of allocs) {
     let v = alloc * budget[slot] * 0.0001;
     if (RATINGS.has(stat)) v *= crMult;
     else if (stat === 7) v *= stamMult;

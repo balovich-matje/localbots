@@ -674,6 +674,7 @@ async function refreshGearList() {
         <input type="checkbox" data-gear-index="${i}" checked>
         <span class="gear-icon-row">${itemTile(item.id, {
           name: item.name, ilvl: item.targetIlvl ?? item.ilvl, slot: prettySlot(item.slot),
+          statSource: Number(String(item.line ?? '').match(/redirected_base_stats=(\d+)/)?.[1]) || null,
           source: section, quality: item.quality,
         })}<span>${esc(item.name)}<span class="slot-tag">${esc(prettySlot(item.slot))}</span></span></span>
         ${ilvlControl(item, i)}
@@ -783,6 +784,7 @@ function renderEquippedList() {
       <input type="checkbox" data-tuslot="${esc(it.slot)}" ${checked ? 'checked' : ''} ${upgradable ? '' : 'disabled'}>
       <span class="gear-icon-row">${itemTile(it.id, {
         name: it.name, ilvl: it.ilvl, slot: prettySlot(it.slot),
+        statSource: it.statSource ?? null,
         source: it.track ? `${it.track}${it.stepIdx != null ? ` ${it.stepIdx + 1}/6` : ''}` : null,
       })}<span>${esc(it.name)} <span class="hint-inline">${it.ilvl}${why}${it.track ? ` · ${it.track}${it.stepIdx != null ? ` ${it.stepIdx + 1}/6` : ''}${it.trackSource === 'guessed' ? ' (guessed)' : ''}` : ''}</span></span>
     </span></label>`;
@@ -1920,6 +1922,8 @@ function itemTile(id, info = {}) {
   const q = info.quality ?? 4;
   const data = [
     `data-item="${Number(id) || 0}"`,
+    // a catalysed piece keeps the stats of what it was made from
+    info.statSource ? `data-statsrc="${Number(info.statSource)}"` : '',
     info.name ? `data-name="${esc(info.name)}"` : '',
     info.ilvl ? `data-ilvl="${esc(info.ilvl)}"` : '',
     info.slot ? `data-slot="${esc(info.slot)}"` : '',
@@ -2022,7 +2026,8 @@ function showItemTip(el) {
   const tip = itemTip();
   const id = Number(d.item);
   const ilvl = Number(d.ilvl);
-  const key = id && ilvl ? `${id}:${ilvl}` : null;
+  const src = Number(d.statsrc) || 0;
+  const key = id && ilvl ? `${id}:${ilvl}${src ? `:${src}` : ''}` : null;
 
   tip.innerHTML = tipShell(d, key ? statLines(statCache.get(key)) : '');
   tip.classList.remove('hidden');

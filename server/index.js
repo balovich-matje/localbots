@@ -414,6 +414,10 @@ function enrichEquipped(profile, resolved, p) {
   const itemIds = equippedIdsFrom(equipped); // so the page can draw item icons
   return resolved.map((it0) => {
     const it = { ...it0, id: itemIds[it0.slot] ?? null };
+    // a Catalyst-converted piece keeps the secondaries of what it was made
+    // from, and the export names that source
+    const src = equipped[it0.slot]?.match(/redirected_base_stats=(\d+)/)?.[1];
+    if (src) it.statSource = Number(src);
     const ids = (equipped[it.slot]?.match(/bonus_id=([\d/]+)/)?.[1] ?? '')
       .split('/').map(Number);
     const up = bonusMap
@@ -540,8 +544,10 @@ function detectItemSets(equipped, bagItems, itemSetMap) {
 // use Blizzard's armory API.
 // Icon file ids for a batch of item ids. The page asks for whatever it is about
 // to draw and caches the answer, so this stays one small request per screen.
-// Tooltip data for a batch of "itemId:itemLevel" pairs. Stats are computed the
-// way the game computes them (see server/itemStats.js) and cached per patch.
+// Tooltip data for a batch of "itemId:itemLevel" pairs, or
+// "itemId:itemLevel:statSourceId" for a Catalyst-converted piece, which wears
+// the secondaries of whatever it was made from. Stats are computed the way the
+// game computes them (see server/itemStats.js) and cached per patch.
 app.get('/api/items', (req, res) => {
   const p = getPatch(req);
   const icons = p.iconMap ?? patches.get(DEFAULT_PATCH_ID).iconMap;
@@ -549,12 +555,12 @@ app.get('/api/items', (req, res) => {
   const scaling = loadScaling(simcPath, p.def.ptr);
   const out = {};
   for (const pair of String(req.query.q ?? '').split(',').slice(0, 60)) {
-    const [rawId, rawIlvl] = pair.split(':');
+    const [rawId, rawIlvl, rawSrc] = pair.split(':');
     const id = Number(rawId);
     const ilvl = Number(rawIlvl);
     if (!id) continue;
     const entry = { icon: icons?.get(id) ?? null };
-    const st = itemStats(id, ilvl, p.itemTables, scaling);
+    const st = itemStats(id, ilvl, p.itemTables, scaling, Number(rawSrc) || null);
     if (st) Object.assign(entry, st);
     const fx = loadEffectData(simcPath, p.def.ptr);
     const ctx = effectContext(id, ilvl, p.itemTables, scaling);
