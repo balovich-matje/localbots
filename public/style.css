@@ -316,6 +316,8 @@ button.mini {
 .track-tag.tier-c { color: #0070dd; }
 .track-tag.tier-h { color: #a335ee; }
 .track-tag.tier-m { color: #ff8000; }
+.track-scheme { display: inline-flex; gap: 2px; margin-left: 6px; }
+.track-scheme .track-tag.dim { opacity: 0.25; font-weight: 400; }
 /* rows whose set bonus was kept for them (the Catalyst toggle), and rows
    that had to give something up to be equippable at all */
 .tier-tag {
