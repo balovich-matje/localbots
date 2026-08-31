@@ -1634,6 +1634,10 @@ function rowHtml(t, maxAbs) {
   // rarity-style glow for big upgrades: 1% rare blue, 2% epic purple, 3%+ legendary orange
   const glow = t.deltaPct >= 3 ? 'glow-legendary' : t.deltaPct >= 2 ? 'glow-epic' : t.deltaPct >= 1 ? 'glow-rare' : '';
   const eq = REAL_SLOTS.has(t.placement) ? tgEquipped?.[t.placement] : null;
+  // sims saved before itemId was stored on Top Gear rows have none — for a
+  // row that just re-sims what you're already wearing, the equipped record
+  // (which always carried its item id) names the same item and can stand in
+  const itemId = t.itemId ?? (t.section === 'Equipped' && eq?.name === t.itemName ? eq.id : null);
   // "(your ilvl -> suggested ilvl) -> the item it replaces (slot)"
   const ilvls = eq?.ilvl && t.ilvl
     ? ` <span class="ilvl${t.origIlvl && t.origIlvl !== t.ilvl ? ' upgraded' : ''}"
@@ -1657,7 +1661,7 @@ function rowHtml(t, maxAbs) {
     : '';
   return `
   <tr>
-    <td><span class="gear-icon-row">${t.itemId ? itemTile(t.itemId, {
+    <td><span class="gear-icon-row">${itemId ? itemTile(itemId, {
           name: t.itemName, ilvl: t.ilvl, slot: prettySlot(t.placement),
           source: [t.section, t.boss].filter(Boolean).join(' → '),
         }) : ''}<span><span class="${glow ? `item-glow ${glow}` : ''}">${esc(t.itemName ?? '?')}</span>${ilvls}${trackSchemeFor(t.ilvl)}
@@ -1727,13 +1731,16 @@ function renderBestSetup() {
       : '';
     const eq = REAL_SLOTS.has(t.placement) ? tgEquipped?.[t.placement] : null;
     const swap = eq?.name ? `<span class="hint-inline">replaces ${esc(eq.name)}</span>` : '';
+    // sims saved before itemId was stored on Top Gear rows have none — see
+    // the same fallback in rowHtml() above
+    const itemId = t.itemId ?? (t.section === 'Equipped' && eq?.name === t.itemName ? eq.id : null);
     // a gain under twice its error bar could still be simulation noise
     const shaky = t.delta < t.error * 2
       ? ' <span class="bs-shaky" title="This gain is small next to the run\'s margin of error — re-run at a higher precision to confirm it">close to the margin</span>' : '';
     return `<li class="bs-item">
         <div class="bs-row">
           <span class="bs-label">${esc(p.label)}</span>
-          <span class="bs-pick"><span class="gear-icon-row">${t.itemId ? itemTile(t.itemId, {
+          <span class="bs-pick"><span class="gear-icon-row">${itemId ? itemTile(itemId, {
               name: t.itemName, ilvl: t.ilvl, slot: prettySlot(t.placement),
               source: [t.section, t.boss].filter(Boolean).join(' → '),
             }) : ''}<span>${esc(t.itemName ?? '?')}${t.ilvl && eq?.ilvl ? ` <span class="ilvl">(${eq.ilvl} → ${t.ilvl})</span>` : ''}${trackSchemeFor(t.ilvl)}</span></span></span>
