@@ -307,6 +307,19 @@ function trackTagFor(item) {
   return info ? TRACK_TAG[info.track] ?? null : null;
 }
 
+const TRACK_SCHEME = [['Veteran', 'v'], ['Champion', 'c'], ['Hero', 'h'], ['Myth', 'm']];
+
+// The V/C/H/M scheme shown after an item's name, with the item's own track
+// lit up and the rest dimmed — a quick "where does this sit" at a glance.
+function trackSchemeFor(ilvl) {
+  if (!season?.tracks || !ilvl) return '';
+  const info = trackForIlvl(ilvl, season.tracks);
+  if (!info) return '';
+  const letters = TRACK_SCHEME.map(([name, cls]) =>
+    `<span class="track-tag tier-${cls}${name === info.track ? '' : ' dim'}">${cls.toUpperCase()}</span>`).join('');
+  return `<span class="track-scheme" title="Upgrade track: ${info.track}">${letters}</span>`;
+}
+
 // Upgrade levels this specific item can actually reach.
 // Crafted items (marked by crafted_stats= in the export): max craft, then
 // Voidcore for weapons/trinkets. Dropped items: steps within the item's own
@@ -1647,7 +1660,7 @@ function rowHtml(t, maxAbs) {
     <td><span class="gear-icon-row">${t.itemId ? itemTile(t.itemId, {
           name: t.itemName, ilvl: t.ilvl, slot: prettySlot(t.placement),
           source: [t.section, t.boss].filter(Boolean).join(' → '),
-        }) : ''}<span><span class="${glow ? `item-glow ${glow}` : ''}">${esc(t.itemName ?? '?')}</span>${ilvls}
+        }) : ''}<span><span class="${glow ? `item-glow ${glow}` : ''}">${esc(t.itemName ?? '?')}</span>${ilvls}${trackSchemeFor(t.ilvl)}
         ${t.catalysed ? '<span class="tier-tag" title="Simmed as if you had run this through the Catalyst, so your set bonus stays intact">catalysed</span>' : ''}
         ${t.offHandLost ? '<span class="tier-tag warn" title="A two-hander fills both hands, so this was simmed with your off-hand taken off — its stats are not counted">off-hand removed</span>' : ''}
         <span class="slot-tag">→ ${target}</span>${caret}</span></span></td>
@@ -1720,7 +1733,10 @@ function renderBestSetup() {
     return `<li class="bs-item">
         <div class="bs-row">
           <span class="bs-label">${esc(p.label)}</span>
-          <span class="bs-pick">${esc(t.itemName ?? '?')}${t.ilvl && eq?.ilvl ? ` <span class="ilvl">(${eq.ilvl} → ${t.ilvl})</span>` : ''}</span>
+          <span class="bs-pick"><span class="gear-icon-row">${t.itemId ? itemTile(t.itemId, {
+              name: t.itemName, ilvl: t.ilvl, slot: prettySlot(t.placement),
+              source: [t.section, t.boss].filter(Boolean).join(' → '),
+            }) : ''}<span>${esc(t.itemName ?? '?')}${t.ilvl && eq?.ilvl ? ` <span class="ilvl">(${eq.ilvl} → ${t.ilvl})</span>` : ''}${trackSchemeFor(t.ilvl)}</span></span></span>
           <span class="bs-gain delta-pos">+${Math.round(t.delta).toLocaleString()}${shaky}</span>
         </div>
         ${swap}${changes}
@@ -1730,6 +1746,7 @@ function renderBestSetup() {
     <p class="hint">Each change was simmed on its own against your current character. Stacking them
       usually lands close to the total above, but stat changes shift each other's value — re-run a
       sim after making them to see the real number.</p>`;
+  paintItemIcons(el);
 }
 
 document.querySelectorAll('.result-tab').forEach((tab) => {
