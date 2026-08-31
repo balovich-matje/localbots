@@ -45,6 +45,14 @@
       334
     ]
   },
+  "upgradeCrests": {
+    "_comment": "Currency ids from the addon export's upgrade_currencies= line (c:<id>:<amount>), one per track. Each upgrade step (1/6 -> 2/6, ..., 5/6 -> 6/6) costs upgradeCrestCost crests of the item's own track. Confirmed against a live 12.1 export: Veteran 3443, Champion 3444, Hero 3445, Myth 3446 (3442 is a different, non-track currency and is ignored).",
+    "Veteran": 3443,
+    "Champion": 3444,
+    "Hero": 3445,
+    "Myth": 3446
+  },
+  "upgradeCrestCost": 20,
   "consumableOptions": {
     "_comment": "Alternatives for the Top Gear consumables comparison. Season-1 consumables carry into 12.1; the two 12.1 feast foods are included (their stats are not measured yet — labels say \"new in 12.1\").",
     "flask": [

@@ -615,10 +615,11 @@ app.post('/api/gear', async (req, res) => {
     return res.status(400).json({ error: 'No profile text supplied.' });
   }
   const p = getPatch(req);
-  const { equipped, items } = parseGear(profile);
+  const { equipped, items, equippedItems: equippedGear } = parseGear(profile);
   const out = {
     equippedSlots: Object.keys(equipped),
     items,
+    equippedGear,
     itemSets: detectItemSets(equipped, items, p.itemSetMap ?? patches.get(DEFAULT_PATCH_ID).itemSetMap),
     loadouts: parseLoadouts(profile).loadouts.map((l) => ({ name: l.name, isActive: l.isActive })),
     talents: talentPayload(profile, p, customLoadouts),

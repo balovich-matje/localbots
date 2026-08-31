@@ -297,11 +297,21 @@ function updateCompareCounts() {
   }
 }
 
+const TRACK_TAG = { Adventurer: 'A', Veteran: 'V', Champion: 'C', Hero: 'H', Myth: 'M' };
+
+// The item's track, guessed from its ilvl, as the short tag shown next to its
+// name (e.g. "(V)") — null when the ilvl matches no known track step.
+function trackTagFor(item) {
+  if (!season?.tracks || item.crafted || !item.ilvl) return null;
+  const info = trackForIlvl(item.ilvl, season.tracks);
+  return info ? TRACK_TAG[info.track] ?? null : null;
+}
+
 // Upgrade levels this specific item can actually reach.
 // Crafted items (marked by crafted_stats= in the export): max craft, then
-// Voidcore for weapons/trinkets. Dropped items: every track step above the
-// current ilvl (we don't know the item's track, so we offer the union),
-// then the Myth Voidcore level for weapons/trinkets.
+// Voidcore for weapons/trinkets. Dropped items: steps within the item's own
+// track only (never a higher track's levels), then the Myth Voidcore level
+// for weapons/trinkets.
 function upgradeOptionsFor(item) {
   if (!season || !item.ilvl) return [];
   const isVoidcoreSlot = season.voidcore?.slots?.includes(item.slot);
@@ -315,16 +325,41 @@ function upgradeOptionsFor(item) {
     return opts;
   }
 
-  const steps = new Set();
-  for (const track of Object.values(season.tracks ?? {})) {
-    for (const ilvl of track) if (ilvl > item.ilvl) steps.add(ilvl);
-  }
-  opts.push(...[...steps].sort((a, b) => a - b).map((ilvl) => ({ ilvl, label: String(ilvl) })));
+  // the item's own track cap (6/6) is always called out, whether or not the
+  // crests parsed from upgrade_currencies= can afford it yet
+  const ownTrack = trackForIlvl(item.ilvl, season.tracks ?? {});
+  const trackCap = ownTrack ? season.tracks[ownTrack.track].at(-1) : null;
+  const maxAffordable = maxAffordableIlvlFor(item);
+  const steps = ownTrack ? season.tracks[ownTrack.track].filter((ilvl) => ilvl > item.ilvl) : [];
+  opts.push(...steps.sort((a, b) => a - b).map((ilvl) => {
+    const tags = [];
+    if (ilvl === maxAffordable) tags.push('max affordable');
+    if (ilvl === trackCap) tags.push(`${ownTrack.track} 6/6`);
+    return { ilvl, label: tags.length ? `${ilvl} — ${tags.join(', ')}` : String(ilvl) };
+  }));
   const vc = season.voidcore?.mythIlvl;
   if (isVoidcoreSlot && vc && vc > item.ilvl) {
     opts.push({ ilvl: vc, label: `${vc} — Voidcore (Myth 6/6)` });
   }
   return opts;
+}
+
+// The highest ilvl this item's own track can reach given the crests parsed
+// from the pasted export's upgrade_currencies= line, at upgradeCrestCost per
+// step. Returns null when no track/crests are known or nothing is affordable.
+function maxAffordableIlvlFor(item) {
+  if (!season?.tracks || !season.upgradeCrests || item.crafted || !item.ilvl) return null;
+  const info = trackForIlvl(item.ilvl, season.tracks);
+  if (!info) return null;
+  const crestId = season.upgradeCrests[info.track];
+  if (!crestId) return null;
+  const cost = season.upgradeCrestCost || 20;
+  const wallet = crestWalletFromProfile($('profile').value);
+  const afford = Math.floor((wallet.get(crestId) ?? 0) / cost);
+  if (afford <= 0) return null;
+  const track = season.tracks[info.track];
+  const target = track[Math.min(track.length - 1, info.stepIdx + afford)];
+  return target > item.ilvl ? target : null;
 }
 
 // ---------- boot ----------
@@ -612,6 +647,7 @@ $('profile').addEventListener('input', () => {
 
 $('gear-all').addEventListener('click', () => setAllGear(true));
 $('gear-none').addEventListener('click', () => setAllGear(false));
+$('gear-max-upgrade').addEventListener('click', applyMaxAffordableUpgrades);
 
 // Voidcore toggle is only meaningful on fully upgraded (6/6) items
 $('dropt-upgrade').addEventListener('change', () => {
@@ -624,6 +660,42 @@ $('dropt-upgrade').addEventListener('change', () => {
 function setAllGear(checked) {
   document.querySelectorAll('#gear-list input').forEach((cb) => { cb.checked = checked; });
   updateGearCount();
+}
+
+// upgrade_currencies=c:1792:16/c:3443:13/... (see server/gearParser.js for the
+// equivalent equipped-item id parsing) — a comment line the addon writes once
+// near the bottom of the export, id:amount pairs prefixed c: (currency) or i: (item).
+function crestWalletFromProfile(text) {
+  const m = text.match(/^\s*#?\s*upgrade_currencies=(\S+)/m);
+  const wallet = new Map();
+  if (!m) return wallet;
+  for (const part of m[1].split('/')) {
+    const [, id, amount] = part.match(/^c:(\d+):(\d+)$/) ?? [];
+    if (id) wallet.set(Number(id), Number(amount));
+  }
+  return wallet;
+}
+
+const TRACK_UPGRADE_ORDER = ['Myth', 'Hero', 'Champion', 'Veteran', 'Adventurer'];
+function trackForIlvl(ilvl, tracks) {
+  for (const name of TRACK_UPGRADE_ORDER) {
+    const idx = (tracks[name] ?? []).indexOf(ilvl);
+    if (idx >= 0) return { track: name, stepIdx: idx };
+  }
+  return null;
+}
+
+// Sets every bag item to the highest step its own track's crests can still
+// afford — crest cost per step and the currency id for each track come from
+// data/season.json's upgradeCrests (hand-confirmed against a live export).
+function applyMaxAffordableUpgrades() {
+  gearItems.forEach((item, i) => {
+    item.targetIlvl = maxAffordableIlvlFor(item);
+    const sel = document.querySelector(`#gear-list select.ilvl-select[data-gear-index="${i}"]`);
+    if (sel && [...sel.options].some((o) => o.value === String(item.targetIlvl ?? ''))) {
+      sel.value = String(item.targetIlvl ?? '');
+    }
+  });
 }
 
 function updateGearCount() {
@@ -648,7 +720,10 @@ async function refreshGearList() {
       body: JSON.stringify({ profile, patch, customLoadouts }),
     });
     const body = await resp.json();
-    gearItems = body.items ?? [];
+    // equipped items come after bag/vault ones, so the "Equipped" group in
+    // the list renders below "Bags" — same checkbox+ilvl-select UI, used to
+    // compare "what would upgrading what I already have get me".
+    gearItems = [...(body.items ?? []), ...(body.equippedGear ?? [])];
     itemSets = body.itemSets ?? [];
     renderItemSets();
     renderLoadoutOptions(body.talents ?? { available: false, loadouts: body.loadouts ?? [] });
@@ -676,7 +751,7 @@ async function refreshGearList() {
           name: item.name, ilvl: item.targetIlvl ?? item.ilvl, slot: prettySlot(item.slot),
           statSource: Number(String(item.line ?? '').match(/redirected_base_stats=(\d+)/)?.[1]) || null,
           source: section, quality: item.quality,
-        })}<span>${esc(item.name)}<span class="slot-tag">${esc(prettySlot(item.slot))}</span></span></span>
+        })}<span>${esc(item.name)}${trackTagFor(item) ? ` <span class="track-tag tier-${trackTagFor(item).toLowerCase()}">(${trackTagFor(item)})</span>` : ''}<span class="slot-tag">${esc(prettySlot(item.slot))}</span></span></span>
         ${ilvlControl(item, i)}
       </label>`).join('')}
   `).join('');
@@ -1113,7 +1188,8 @@ function renderItemSets() {
     return `<div class="dropt-row">
       <span class="src-name">${esc(s.name)} <span class="hint-inline">${s.equipped} equipped · ${s.owned} owned</span></span>
       <span class="diff-boxes">${thresholds.map((t) => `
-        <button class="mini setmin ${t === def ? 'active' : ''}" data-set="${s.setId}" data-min="${t}">${t} set</button>`).join('')}
+        <button class="mini setmin ${t === def ? 'active' : ''}" data-set="${s.setId}" data-min="${t}"
+          title="${t === 0 ? 'No set bonus protected — every suggestion is shown, even ones that break it' : `Hide suggestions that would drop below the ${t}-piece bonus`}">${t === 0 ? 'Any' : `${t} set`}</button>`).join('')}
       </span></div>`;
   }).join('');
   document.querySelectorAll('#itemsets-list .setmin').forEach((btn) => {
@@ -1135,7 +1211,7 @@ function ilvlControl(item, i) {
     </select>`;
   }
   return `<select class="ilvl-select" data-gear-index="${i}" title="Sim this item at a higher upgrade level">
-    <option value="">${item.ilvl} (as looted)</option>
+    <option value="">${item.ilvl} (current)</option>
     ${opts.map((o) => `<option value="${o.ilvl}">${esc(o.label)}</option>`).join('')}
     <option value="custom">custom…</option>
   </select>`;

@@ -7,7 +7,9 @@
 //      # head=,id=250060,bonus_id=12806/13335
 //
 // Returns { equipped: {slot: line}, equippedNames: {slot: name},
-//           items: [{name, ilvl, slot, line, section}] }.
+//           items: [{name, ilvl, slot, line, section}],
+//           equippedItems: the same shape, one per currently-worn item, for
+//           comparing "what would upgrading what I already have get me". }.
 
 export const GEAR_SLOTS = [
   'head', 'neck', 'shoulder', 'back', 'chest', 'wrist', 'hands', 'waist',
@@ -17,12 +19,14 @@ export const GEAR_SLOTS = [
 
 const SLOT_LINE = new RegExp(`^(${GEAR_SLOTS.join('|')})=(.*)$`);
 const NAME_LINE = /^(.*?)\s*\((\d+)\)\s*$/;
+const ID_FIELD = /(?:^|,)id=(\d+)/;
 
 export function parseGear(profileText) {
   const equipped = {};
   const equippedNames = {};
   const equippedIlvls = {}; // from the "# Item Name (289)" comment above each line
   const items = [];
+  const equippedItems = [];
   let section = null;
   let pendingName = null;
 
@@ -48,6 +52,7 @@ export function parseGear(profileText) {
           name: pendingName?.name ?? prettyNameFromLine(slotMatch[2]) ?? slotMatch[1],
           ilvl: pendingName?.ilvl ?? null,
           slot: slotMatch[1],
+          id: Number(slotMatch[2].match(ID_FIELD)?.[1]) || null,
           line: content,
           section: section ?? 'Bags',
           // crafted gear always carries crafted_stats= in the export;
@@ -69,11 +74,22 @@ export function parseGear(profileText) {
       // the item's display name + ilvl come from the comment line just above
       if (pendingName?.name) equippedNames[eq[1]] = pendingName.name;
       if (pendingName?.ilvl) equippedIlvls[eq[1]] = pendingName.ilvl;
+      if (eq[2].includes('id=')) {
+        equippedItems.push({
+          name: pendingName?.name ?? prettyNameFromLine(eq[2]) ?? eq[1],
+          ilvl: pendingName?.ilvl ?? null,
+          slot: eq[1],
+          id: Number(eq[2].match(ID_FIELD)?.[1]) || null,
+          line,
+          section: 'Equipped',
+          crafted: /[,=]crafted_stats=/.test(`,${line}`),
+        });
+      }
       pendingName = null;
     }
   }
 
-  return { equipped, equippedNames, equippedIlvls, items };
+  return { equipped, equippedNames, equippedIlvls, items, equippedItems };
 }
 
 function prettyNameFromLine(rest) {
