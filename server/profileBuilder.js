@@ -209,6 +209,7 @@ export function buildTopGearInput(profileText, options, items, setCtx = null, ge
         group: index, // one group per source item, across its placements
         ...(offHandLost ? { offHandLost: true } : {}),
         itemName: item.name ?? null,
+        itemId,
         ilvl: upgraded ? item.targetIlvl : (item.ilvl ?? null),
         origIlvl: item.ilvl ?? null,
         slot: slotMatch[1],
