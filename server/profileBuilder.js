@@ -161,6 +161,7 @@ export function buildTopGearInput(profileText, options, items, setCtx = null, ge
   const usedNames = new Set();
   const specKey = gear?.specKey ?? null;
   let skippedBySets = 0;
+  let skippedAsWorn = 0;
   let skippedByHands = 0;
 
   // equipped piece count per set, for the minimum-bonus constraint
@@ -187,6 +188,11 @@ export function buildTopGearInput(profileText, options, items, setCtx = null, ge
     let rest = slotMatch[2];
     const itemId = Number(rest.match(/(?:^|,)id=(\d+)/)?.[1]) || null;
     const upgraded = item.targetIlvl && item.targetIlvl !== item.ilvl;
+    // An equipped item at its current level, in the slot it already occupies,
+    // is a swap with itself: the profileset reproduces the baseline and the
+    // result is a row saying "replace X with X" at ~0%. Equipped items are in
+    // the list so an UPGRADED level can be compared, so only skip the no-op.
+    if (item.section === 'Equipped' && !upgraded) { skippedAsWorn++; continue; }
     if (upgraded) {
       // ilevel= wins over bonus_id-derived levels, so this "upgrades" the item.
       rest = rest.replace(/,ilevel=\d+/g, '');
@@ -219,7 +225,7 @@ export function buildTopGearInput(profileText, options, items, setCtx = null, ge
       };
     }
   }
-  return { input: lines.join('\n') + '\n', sets, skippedBySets, skippedByHands };
+  return { input: lines.join('\n') + '\n', sets, skippedBySets, skippedByHands, skippedAsWorn };
 }
 
 function sanitizeSetName(name) {
