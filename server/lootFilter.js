@@ -123,6 +123,15 @@ export function usableSlots(item, classId, specKey, offspec = false, gear = null
   let slots = INV_SLOTS[item.invType];
   if (!slots) return null;
 
+  // Unique-equipped and already worn: the only legal suggestion is a better
+  // copy in the slot it already occupies. Offering it for the sibling slot
+  // (trinket1 vs trinket2, finger1 vs finger2) proposes a second copy the
+  // character cannot equip.
+  if (item.uniqueEquipped && slots.length > 1) {
+    const worn = gear?.slotOfId?.get(item.id);
+    if (worn && slots.includes(worn)) slots = [worn];
+  }
+
   // A two-hander in the main hand leaves no off-hand slot to fill, so nothing
   // that only goes there can be suggested — simc would happily equip both and
   // hand out a whole extra item's stats for free.

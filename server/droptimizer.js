@@ -120,7 +120,14 @@ export function weaponSetup(equipped, invTypeOf = null) {
   const offId = idOf('off_hand');
   const mainInv = mainId != null && invTypeOf ? invTypeOf(mainId) : null;
   const twoHander = mainInv != null ? mainInv === TWO_HAND_INV : (mainId != null && offId == null);
-  return { twoHander, hasOffHand: offId != null };
+  // Which slot each worn item id sits in, so a unique-equipped item already
+  // on the character is not offered for its sibling slot.
+  const slotOfId = new Map();
+  for (const slot of Object.keys(equipped)) {
+    const id = idOf(slot);
+    if (id && !slotOfId.has(id)) slotOfId.set(id, slot);
+  }
+  return { twoHander, hasOffHand: offId != null, slotOfId };
 }
 
 // The tier set the character is actually wearing: whichever set has the most
