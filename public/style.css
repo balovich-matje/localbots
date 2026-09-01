@@ -984,9 +984,3 @@ span.char-item.missing,
 }
 .crest-free { border-left: 3px solid var(--green); }
 .crest-ach  { border-left: 3px solid var(--accent, #7aa2f7); }
-.cost-badge {
-  font-size: 11px; padding: 0 5px; border-radius: 9px; border: 1px solid var(--border);
-  font-variant-numeric: tabular-nums; margin-left: 4px;
-}
-.cost-badge.free { border-color: var(--green); color: var(--green); }
-.cost-badge.half { border-color: var(--accent, #7aa2f7); }

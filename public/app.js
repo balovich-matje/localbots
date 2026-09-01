@@ -363,8 +363,11 @@ function maxAffordableIlvlFor(item) {
   // below the item's real track, so what this adds is the COST side: ranks that
   // are FREE under this character's slot watermark, and tiers halved by an
   // account-wide achievement. Without it every rank is priced at the full 20.
+  // Match on item id, not just slot: bag lines carry real slot names too
+  // (gearParser.js), so slot+ilvl alone would price a bag ring off the
+  // EQUIPPED ring's ladder and hand back a level it cannot reach.
   const priced = crestPrices?.bySlot?.[item.slot];
-  if (priced && priced.ilvl === item.ilvl) {
+  if (priced && !item.crafted && priced.id === item.id && priced.ilvl === item.ilvl) {
     const wallet = crestPrices.tiers?.[priced.track];
     let spent = 0, target = null;
     for (const r of [...priced.free, ...priced.paid]) {
@@ -394,19 +397,32 @@ let crestPrices = null;
 
 async function refreshCrestPrices() {
   const profile = $('profile').value.trim();
-  if (!profile) { crestPrices = null; return; }
+  if (!profile) { crestPrices = null; renderCrestSummary(); return; }
   try {
-    const d = await api('/api/crests', { profile });
-    crestPrices = { ...d, bySlot: Object.fromEntries(d.items.map((i) => [i.slot, i])) };
-  } catch { crestPrices = null; }
+    const resp = await fetch('/api/crests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile, patch }),
+    });
+    const body = await resp.json();
+    if (!resp.ok) {
+      // The server explains itself here ("Game data not downloaded yet — use
+      // Refresh data first"), so pass it on rather than silently pricing every
+      // rank at full cost with no hint as to why.
+      crestPrices = null;
+      $('crest-summary')?.classList.add('hidden');
+      console.warn('crest prices unavailable:', body.error);
+    } else {
+      crestPrices = { ...body, bySlot: Object.fromEntries(body.items.map((i) => [i.slot, i])) };
+    }
+  } catch (e) {
+    crestPrices = null;
+    console.warn('crest prices unavailable:', e.message);
+  }
   renderCrestSummary();
+  renderGearList?.();
 }
 
-function crestCostBadge(cost) {
-  if (cost === 0) return '<span class="cost-badge free">free</span>';
-  if (cost < (season?.upgradeCrestCost ?? 20)) return `<span class="cost-badge half">${cost}</span>`;
-  return `<span class="cost-badge">${cost}</span>`;
-}
 
 // Balances, what is free right now, and which discounts are active -- the two
 // discounts are the least obvious part of the system and the easiest to waste.
@@ -1431,9 +1447,16 @@ async function startSim() {
 
   currentJobId = body.jobId;
   // items that could not be simmed as asked, rather than dropping them quietly
-  skippedNote = body.skippedByHands
-    ? `${body.skippedByHands} off-hand item${body.skippedByHands === 1 ? '' : 's'} skipped — a two-hander fills both hands.`
-    : '';
+  skippedNote = [
+    body.skippedByHands
+      ? `${body.skippedByHands} off-hand item${body.skippedByHands === 1 ? '' : 's'} skipped — a two-hander fills both hands.`
+      : null,
+    // Equipped rows ticked without raising their level would sim against
+    // themselves, so they are dropped — say so rather than let them vanish.
+    body.skippedAsWorn
+      ? `${body.skippedAsWorn} equipped item${body.skippedAsWorn === 1 ? '' : 's'} skipped — raise the item level to compare an upgrade.`
+      : null,
+  ].filter(Boolean).join(' ');
   $('cancel-button').classList.remove('hidden');
   $('history-banner').classList.add('hidden');
   $('empty-state').classList.add('hidden');
