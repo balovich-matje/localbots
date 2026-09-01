@@ -59,18 +59,30 @@ export function parseCrestExport(profileText) {
 }
 
 // Equipped items with their upgrade track, current rank and reachable ranks.
-export function equippedUpgradables(profileText, bonusMap, season) {
+// `decodeTrack` is injected rather than reimplemented: server/index.js owns the
+// canonical one, and importing it here would close a cycle (index imports
+// crestPlan). Falls back to reading the bonus ids directly when not supplied.
+export function equippedUpgradables(profileText, bonusMap, season, decodeTrack = null) {
   const out = [];
   const lines = profileText.split('\n');
   for (let i = 0; i < lines.length; i++) {
     const m = lines[i].match(GEAR_RE);
     if (!m) continue;
     const [, slot, rest] = m;
-    const bonuses = (rest.match(/bonus_id=([\d/]+)/)?.[1] ?? '').split('/').map(Number);
-    const track = bonuses.map((b) => bonusMap?.get(b)).find((v) => v && v.seasonId === season.upgradeSeasonId);
-    if (!track) continue;                       // not on this season's upgrade system
+    let track;
+    if (decodeTrack) {
+      const d = decodeTrack(lines[i]);
+      if (d?.trackSource !== 'exact') continue;  // crafted, last season's, or unknown
+      track = { track: d.track, level: d.stepIdx + 1 };
+    } else {
+      const bonuses = (rest.match(/bonus_id=([\d/]+)/)?.[1] ?? '').split('/').map(Number);
+      track = bonuses.map((b) => bonusMap?.get(b)).find((v) => v && v.seasonId === season.upgradeSeasonId);
+    }
+    if (!track) continue;                        // not on this season's upgrade system
     const ladder = season.tracks?.[track.track];
     if (!ladder) continue;
+    track.max ??= ladder.length;
+    track.ilvl ??= ladder[track.level - 1];
     const name = lines[i - 1]?.match(/^# (.+?) \(\d+\)\s*$/)?.[1] ?? slot;
     const id = Number(rest.match(/(?:^|,)id=(\d+)/)?.[1]);
     const steps = ladder.slice(track.level).map((ilvl, k) => ({ rank: track.level + k + 1, ilvl }));
@@ -101,9 +113,10 @@ export function priceLadder(item, parsed, season) {
   return { ...item, priced, freeRanks: priced.slice(0, free), paidRanks: priced.slice(free) };
 }
 
-export function crestPlan(profileText, bonusMap, season) {
+export function crestPlan(profileText, bonusMap, season, decodeTrack = null) {
   const parsed = parseCrestExport(profileText);
-  const items = equippedUpgradables(profileText, bonusMap, season).map((it) => priceLadder(it, parsed, season));
+  const items = equippedUpgradables(profileText, bonusMap, season, decodeTrack)
+    .map((it) => priceLadder(it, parsed, season));
   const tiers = {};
   for (const [track, currencyId] of Object.entries(season.upgradeCrests ?? {})) {
     if (track.startsWith('_')) continue;                 // the schema's _comment key

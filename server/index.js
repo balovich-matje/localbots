@@ -674,7 +674,7 @@ app.post('/api/crests', (req, res) => {
   const season = p.config;
   if (!season?.upgradeCrests) return res.status(409).json({ error: 'This patch has no crest data curated yet.' });
   try {
-    const plan = crestPlan(profile, bonusMap, season);
+    const plan = crestPlan(profile, bonusMap, season, (line) => decodeTrack(line, p));
     res.json({
       hasWatermarks: plan.watermarks.size > 0,
       tiers: plan.tiers,

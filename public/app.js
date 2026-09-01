@@ -359,10 +359,10 @@ function upgradeOptionsFor(item) {
 // from the pasted export's upgrade_currencies= line, at upgradeCrestCost per
 // step. Returns null when no track/crests are known or nothing is affordable.
 function maxAffordableIlvlFor(item) {
-  // Server-priced ladder when we have it: it knows the item's real track (from
-  // its bonus id, not an ambiguous item-level match), which ranks are FREE
-  // below this character's slot watermark, and which tiers are halved by an
-  // account-wide achievement. Falls back to the flat-cost estimate otherwise.
+  // Server-priced ladder when we have it. decodeTrack already gives the fallback
+  // below the item's real track, so what this adds is the COST side: ranks that
+  // are FREE under this character's slot watermark, and tiers halved by an
+  // account-wide achievement. Without it every rank is priced at the full 20.
   const priced = crestPrices?.bySlot?.[item.slot];
   if (priced && priced.ilvl === item.ilvl) {
     const wallet = crestPrices.tiers?.[priced.track];
