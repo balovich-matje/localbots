@@ -420,7 +420,6 @@ async function refreshCrestPrices() {
     console.warn('crest prices unavailable:', e.message);
   }
   renderCrestSummary();
-  renderGearList?.();
 }
 
 
@@ -816,7 +815,9 @@ function updateGearCount() {
 }
 
 async function refreshGearList() {
-  refreshCrestPrices();   // priced ladder for the affordable-upgrade button and summary
+  // await: the rows tag their "max affordable" ilvl option from this (maxAffordableIlvlFor),
+  // so letting it race the render leaves a cold load with every rank priced at the full 20.
+  await refreshCrestPrices();
   const profile = $('profile').value;
   gearItems = [];
   if (!profile.trim()) {
