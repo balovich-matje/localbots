@@ -5,7 +5,8 @@
   "type": "module",
   "main": "server/index.js",
   "scripts": {
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "lint": "eslint public/app.js server scripts && node scripts/check-css-vars.mjs public/style.css public/index.html public/app.js server/report.js"
   },
   "engines": {
     "node": ">=18"
@@ -17,5 +18,9 @@
   },
   "dependencies": {
     "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "eslint": "^10.9.1",
+    "globals": "^16.5.0"
   }
 }
