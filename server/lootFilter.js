@@ -111,7 +111,19 @@ const OFF_HAND_ONLY = new Set([22, 23]);
 // offspec=true relaxes the primary-stat gate (Raidbots' "Include Off-Spec
 // Items") — armor type and weapon proficiency stay enforced, since simc
 // hard-rejects some of those ("Invalid type") and they'd poison the run.
+// Unique-equipped and already worn: the only legal suggestion is a better copy
+// in the slot it already occupies. This has to apply to the FINAL placement
+// list, not the inventory-type one: a one-hander starts as ['main_hand'] and
+// only becomes ['main_hand','off_hand'] once dual-wield is known, so narrowing
+// earlier misses exactly the case where the duplicate would be proposed.
 export function usableSlots(item, classId, specKey, offspec = false, gear = null) {
+  const slots = placementsFor(item, classId, specKey, offspec, gear);
+  if (!slots || slots.length < 2 || !item.uniqueEquipped) return slots;
+  const worn = gear?.slotOfId?.get(item.id);
+  return worn && slots.includes(worn) ? [worn] : slots;
+}
+
+function placementsFor(item, classId, specKey, offspec = false, gear = null) {
   if (item.quality < 3 && !item.curated) return null;
   if (item.allowableClass !== -1 && !(item.allowableClass & (1 << (classId - 1)))) return null;
 
@@ -127,11 +139,6 @@ export function usableSlots(item, classId, specKey, offspec = false, gear = null
   // copy in the slot it already occupies. Offering it for the sibling slot
   // (trinket1 vs trinket2, finger1 vs finger2) proposes a second copy the
   // character cannot equip.
-  if (item.uniqueEquipped && slots.length > 1) {
-    const worn = gear?.slotOfId?.get(item.id);
-    if (worn && slots.includes(worn)) slots = [worn];
-  }
-
   // A two-hander in the main hand leaves no off-hand slot to fill, so nothing
   // that only goes there can be suggested — simc would happily equip both and
   // hand out a whole extra item's stats for free.
