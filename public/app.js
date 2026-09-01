@@ -396,16 +396,21 @@ async function refreshCrestPrices() {
   const profile = $('profile').value.trim();
   if (!profile) { crestPrices = null; return; }
   try {
-    const d = await api('/api/crests', { profile });
+    // explicit fetch, matching refreshGearList below -- there is no api() helper
+    const resp = await fetch('/api/crests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile, patch }),
+    });
+    const d = await resp.json();
+    if (!resp.ok) throw new Error(d.error ?? `HTTP ${resp.status}`);
     crestPrices = { ...d, bySlot: Object.fromEntries(d.items.map((i) => [i.slot, i])) };
-  } catch { crestPrices = null; }
+  } catch (e) {
+    crestPrices = null;
+    // the server's 409s ("Game data not downloaded yet") are worth seeing
+    console.warn('crest prices unavailable:', e.message);
+  }
   renderCrestSummary();
-}
-
-function crestCostBadge(cost) {
-  if (cost === 0) return '<span class="cost-badge free">free</span>';
-  if (cost < (season?.upgradeCrestCost ?? 20)) return `<span class="cost-badge half">${cost}</span>`;
-  return `<span class="cost-badge">${cost}</span>`;
 }
 
 // Balances, what is free right now, and which discounts are active -- the two
