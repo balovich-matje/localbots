@@ -320,6 +320,7 @@ export function buildDroptimizerInput(profileText, options, selection, lootDb, s
         placement,
         ...(catalysed ? { catalysed: true } : {}),
         ...(offHandLost ? { offHandLost: true } : {}),
+        ...(track ? { track } : {}), // the drop's real track, for the results table
         ...labels,
       };
     }

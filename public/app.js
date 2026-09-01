@@ -299,25 +299,23 @@ function updateCompareCounts() {
 
 const TRACK_TAG = { Adventurer: 'A', Veteran: 'V', Champion: 'C', Hero: 'H', Myth: 'M' };
 
-// The item's track, guessed from its ilvl, as the short tag shown next to its
-// name (e.g. "(V)") — null when the ilvl matches no known track step.
+// The item's track as the short tag shown next to its name (e.g. "(H)").
+// Decoded server-side from the item's own bonus id — never inferred from item
+// level, which is ambiguous (321 is both Hero 6/6 and Myth 2/6).
 function trackTagFor(item) {
-  if (!season?.tracks || item.crafted || !item.ilvl) return null;
-  const info = trackForIlvl(item.ilvl, season.tracks);
-  return info ? TRACK_TAG[info.track] ?? null : null;
+  return item.track ? TRACK_TAG[item.track] ?? null : null;
 }
 
 const TRACK_SCHEME = [['Veteran', 'v'], ['Champion', 'c'], ['Hero', 'h'], ['Myth', 'm']];
 
-// The V/C/H/M scheme shown after an item's name, with the item's own track
-// lit up and the rest dimmed — a quick "where does this sit" at a glance.
-function trackSchemeFor(ilvl) {
-  if (!season?.tracks || !ilvl) return '';
-  const info = trackForIlvl(ilvl, season.tracks);
-  if (!info) return '';
+// The V/C/H/M scheme shown after an item's name, with its own track lit up and
+// the rest dimmed. Takes the decoded track; a row without one (crafted gear,
+// last season's) shows nothing rather than a guess.
+function trackSchemeFor(track) {
+  if (!track || !TRACK_SCHEME.some(([name]) => name === track)) return '';
   const letters = TRACK_SCHEME.map(([name, cls]) =>
-    `<span class="track-tag tier-${cls}${name === info.track ? '' : ' dim'}">${cls.toUpperCase()}</span>`).join('');
-  return `<span class="track-scheme" title="Upgrade track: ${info.track}">${letters}</span>`;
+    `<span class="track-tag tier-${cls}${name === track ? '' : ' dim'}">${cls.toUpperCase()}</span>`).join('');
+  return `<span class="track-scheme" title="Upgrade track: ${track}">${letters}</span>`;
 }
 
 // Upgrade levels this specific item can actually reach.
@@ -340,7 +338,7 @@ function upgradeOptionsFor(item) {
 
   // the item's own track cap (6/6) is always called out, whether or not the
   // crests parsed from upgrade_currencies= can afford it yet
-  const ownTrack = trackForIlvl(item.ilvl, season.tracks ?? {});
+  const ownTrack = trackInfo(item);
   const trackCap = ownTrack ? season.tracks[ownTrack.track].at(-1) : null;
   const maxAffordable = maxAffordableIlvlFor(item);
   const steps = ownTrack ? season.tracks[ownTrack.track].filter((ilvl) => ilvl > item.ilvl) : [];
@@ -362,7 +360,7 @@ function upgradeOptionsFor(item) {
 // step. Returns null when no track/crests are known or nothing is affordable.
 function maxAffordableIlvlFor(item) {
   if (!season?.tracks || !season.upgradeCrests || item.crafted || !item.ilvl) return null;
-  const info = trackForIlvl(item.ilvl, season.tracks);
+  const info = trackInfo(item);
   if (!info) return null;
   const crestId = season.upgradeCrests[info.track];
   if (!crestId) return null;
@@ -689,26 +687,40 @@ function crestWalletFromProfile(text) {
   return wallet;
 }
 
-const TRACK_UPGRADE_ORDER = ['Myth', 'Hero', 'Champion', 'Veteran', 'Adventurer'];
-function trackForIlvl(ilvl, tracks) {
-  for (const name of TRACK_UPGRADE_ORDER) {
-    const idx = (tracks[name] ?? []).indexOf(ilvl);
-    if (idx >= 0) return { track: name, stepIdx: idx };
-  }
-  return null;
+// An item's place on its track, as decoded from its bonus id by the server
+// (see decodeTrack in server/index.js). Item levels are shared between tracks
+// -- 321 is Hero 6/6 AND Myth 2/6, 308 is Champion 6/6 AND Hero 2/6 -- so
+// there is nothing to work out here: either the item told us, or we do not
+// offer upgrades for it.
+function trackInfo(item) {
+  if (!item?.track || item.stepIdx == null) return null;
+  if (!season?.tracks?.[item.track]) return null;
+  return { track: item.track, stepIdx: item.stepIdx };
 }
 
 // Sets every bag item to the highest step its own track's crests can still
 // afford — crest cost per step and the currency id for each track come from
 // data/season.json's upgradeCrests (hand-confirmed against a live export).
 function applyMaxAffordableUpgrades() {
+  let changed = 0;
   gearItems.forEach((item, i) => {
     item.targetIlvl = maxAffordableIlvlFor(item);
     const sel = document.querySelector(`#gear-list select.ilvl-select[data-gear-index="${i}"]`);
     if (sel && [...sel.options].some((o) => o.value === String(item.targetIlvl ?? ''))) {
       sel.value = String(item.targetIlvl ?? '');
     }
+    // an item worth upgrading is worth simming, so tick it — equipped rows
+    // start unticked precisely so this is the thing that turns them on
+    if (item.targetIlvl) {
+      const box = document.querySelector(`#gear-list input[data-gear-index="${i}"]`);
+      if (box) box.checked = true;
+      changed++;
+    }
   });
+  updateGearCount();
+  $('gear-count').textContent += changed
+    ? ` · ${changed} item${changed === 1 ? '' : 's'} set to their highest affordable step`
+    : ' · nothing your crests can upgrade further';
 }
 
 function updateGearCount() {
@@ -759,7 +771,8 @@ async function refreshGearList() {
     <div class="gear-group">${esc(section)} (${entries.length})</div>
     ${entries.map(({ item, i }) => `
       <label>
-        <input type="checkbox" data-gear-index="${i}" checked>
+        <input type="checkbox" data-gear-index="${i}"
+          ${item.section === 'Equipped' ? '' : 'checked'}>
         <span class="gear-icon-row">${itemTile(item.id, {
           name: item.name, ilvl: item.targetIlvl ?? item.ilvl, slot: prettySlot(item.slot),
           statSource: Number(String(item.line ?? '').match(/redirected_base_stats=(\d+)/)?.[1]) || null,
@@ -1664,7 +1677,7 @@ function rowHtml(t, maxAbs) {
     <td><span class="gear-icon-row">${itemId ? itemTile(itemId, {
           name: t.itemName, ilvl: t.ilvl, slot: prettySlot(t.placement),
           source: [t.section, t.boss].filter(Boolean).join(' → '),
-        }) : ''}<span><span class="${glow ? `item-glow ${glow}` : ''}">${esc(t.itemName ?? '?')}</span>${ilvls}${trackSchemeFor(t.ilvl)}
+        }) : ''}<span><span class="${glow ? `item-glow ${glow}` : ''}">${esc(t.itemName ?? '?')}</span>${ilvls}${trackSchemeFor(t.track)}
         ${t.catalysed ? '<span class="tier-tag" title="Simmed as if you had run this through the Catalyst, so your set bonus stays intact">catalysed</span>' : ''}
         ${t.offHandLost ? '<span class="tier-tag warn" title="A two-hander fills both hands, so this was simmed with your off-hand taken off — its stats are not counted">off-hand removed</span>' : ''}
         <span class="slot-tag">→ ${target}</span>${caret}</span></span></td>
@@ -1743,7 +1756,7 @@ function renderBestSetup() {
           <span class="bs-pick"><span class="gear-icon-row">${itemId ? itemTile(itemId, {
               name: t.itemName, ilvl: t.ilvl, slot: prettySlot(t.placement),
               source: [t.section, t.boss].filter(Boolean).join(' → '),
-            }) : ''}<span>${esc(t.itemName ?? '?')}${t.ilvl && eq?.ilvl ? ` <span class="ilvl">(${eq.ilvl} → ${t.ilvl})</span>` : ''}${trackSchemeFor(t.ilvl)}</span></span></span>
+            }) : ''}<span>${esc(t.itemName ?? '?')}${t.ilvl && eq?.ilvl ? ` <span class="ilvl">(${eq.ilvl} → ${t.ilvl})</span>` : ''}${trackSchemeFor(t.track)}</span></span></span>
           <span class="bs-gain delta-pos">+${Math.round(t.delta).toLocaleString()}${shaky}</span>
         </div>
         ${swap}${changes}

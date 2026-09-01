@@ -407,10 +407,29 @@ app.post('/api/droptimizer/sources', (req, res) => {
 // would offer upgrades the game will not sell, so once the bonus map is loaded an
 // item without a current-season track bonus is reported as untracked. The ilvl
 // guess survives only as a fallback for installs with no bonus data cached yet.
-function enrichEquipped(profile, resolved, p) {
-  const { equipped } = parseGear(profile);
+// An item's upgrade track, read from the track bonus id on its own gear line.
+// This is the ONLY reliable source: item levels overlap between tracks (321 is
+// both Hero 6/6 and Myth 2/6, 308 is both Champion 6/6 and Hero 2/6), so a
+// level cannot say which track a piece is on, and guessing the higher one
+// offers upgrades that do not exist. trackSource:
+//   'exact'   — decoded from the bonus id
+//   'none'    — no current-season track: crafted gear, or last season's, which
+//               genuinely cannot be upgraded
+//   'guessed' — only when the bonus map is unavailable at all
+export function decodeTrack(line, p) {
   const bonusMap = p.bonusUpgradeMap ?? patches.get(DEFAULT_PATCH_ID).bonusUpgradeMap;
   const seasonId = p.config?.upgradeSeasonId ?? null;
+  const ids = (String(line ?? '').match(/bonus_id=([\d/]+)/)?.[1] ?? '').split('/').map(Number);
+  const up = bonusMap
+    ? ids.map((id) => bonusMap.get(id)).find((u) => u && (seasonId === null || u.seasonId === seasonId))
+    : null;
+  if (up) return { track: up.track, stepIdx: up.level - 1, trackSource: 'exact' };
+  if (bonusMap) return { track: null, stepIdx: null, trackSource: 'none' };
+  return { track: null, stepIdx: null, trackSource: 'guessed' };
+}
+
+function enrichEquipped(profile, resolved, p) {
+  const { equipped } = parseGear(profile);
   const itemIds = equippedIdsFrom(equipped); // so the page can draw item icons
   return resolved.map((it0) => {
     const it = { ...it0, id: itemIds[it0.slot] ?? null };
@@ -418,14 +437,8 @@ function enrichEquipped(profile, resolved, p) {
     // from, and the export names that source
     const src = equipped[it0.slot]?.match(/redirected_base_stats=(\d+)/)?.[1];
     if (src) it.statSource = Number(src);
-    const ids = (equipped[it.slot]?.match(/bonus_id=([\d/]+)/)?.[1] ?? '')
-      .split('/').map(Number);
-    const up = bonusMap
-      ? ids.map((id) => bonusMap.get(id))
-        .find((u) => u && (seasonId === null || u.seasonId === seasonId))
-      : null;
-    if (up) return { ...it, track: up.track, stepIdx: up.level - 1, trackSource: 'exact' };
-    if (bonusMap) return { ...it, track: null, stepIdx: null, trackSource: 'none' };
+    const decoded = decodeTrack(equipped[it.slot], p);
+    if (decoded.trackSource !== 'guessed') return { ...it, ...decoded };
     const guess = trackFor(it.ilvl, p.config?.tracks ?? {});
     return {
       ...it,
@@ -616,10 +629,13 @@ app.post('/api/gear', async (req, res) => {
   }
   const p = getPatch(req);
   const { equipped, items, equippedItems: equippedGear } = parseGear(profile);
+  // bag and equipped items alike carry their own bonus ids, so both get the
+  // exact track rather than one guessed from item level
+  const withTrack = (list) => list.map((it) => ({ ...it, ...decodeTrack(it.line, p) }));
   const out = {
     equippedSlots: Object.keys(equipped),
-    items,
-    equippedGear,
+    items: withTrack(items),
+    equippedGear: withTrack(equippedGear),
     itemSets: detectItemSets(equipped, items, p.itemSetMap ?? patches.get(DEFAULT_PATCH_ID).itemSetMap),
     loadouts: parseLoadouts(profile).loadouts.map((l) => ({ name: l.name, isActive: l.isActive })),
     talents: talentPayload(profile, p, customLoadouts),

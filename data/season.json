@@ -46,7 +46,8 @@
     ]
   },
   "upgradeCrests": {
-    "_comment": "Currency ids from the addon export's upgrade_currencies= line (c:<id>:<amount>), one per track. Each upgrade step (1/6 -> 2/6, ..., 5/6 -> 6/6) costs upgradeCrestCost crests of the item's own track. Confirmed against a live 12.1 export: Veteran 3443, Champion 3444, Hero 3445, Myth 3446 (3442 is a different, non-track currency and is ignored).",
+    "_comment": "Currency ids from the addon export's upgrade_currencies= line (c:<id>:<amount>), one per track. Each upgrade step costs upgradeCrestCost crests of the item's OWN track — which is decoded from the item's bonus id, never guessed from its item level. Verified against live bonus data for 12.1: Adventurer 3442, Veteran 3443, Champion 3444, Hero 3445, Myth 3446, 20 crests per step on every track.",
+    "Adventurer": 3442,
     "Veteran": 3443,
     "Champion": 3444,
     "Hero": 3445,

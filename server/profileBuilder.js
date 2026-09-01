@@ -210,6 +210,7 @@ export function buildTopGearInput(profileText, options, items, setCtx = null, ge
         ...(offHandLost ? { offHandLost: true } : {}),
         itemName: item.name ?? null,
         itemId,
+        ...(item.track ? { track: item.track } : {}), // decoded, never guessed
         ilvl: upgraded ? item.targetIlvl : (item.ilvl ?? null),
         origIlvl: item.ilvl ?? null,
         slot: slotMatch[1],
