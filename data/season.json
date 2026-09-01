@@ -54,6 +54,15 @@
     "Myth": 3446
   },
   "upgradeCrestCost": 20,
+  "upgradeCrestCostDiscounted": 10,
+  "upgradeCrestAchievements": {
+    "_comment": "Account-wide \"Outgrow the use of X Mistcrests\" achievements. Holding one halves that tier's crest cost on every character. Ids appear in the export's upgrade_achievements= line; each needs every core slot's ACCOUNT high-watermark to reach that track's 6/6 item level.",
+    "Adventurer": 62410,
+    "Veteran": 62411,
+    "Champion": 62412,
+    "Hero": 62414,
+    "Myth": 62416
+  },
   "consumableOptions": {
     "_comment": "Alternatives for the Top Gear consumables comparison. Season-1 consumables carry into 12.1; the two 12.1 feast foods are included (their stats are not measured yet — labels say \"new in 12.1\").",
     "flask": [
