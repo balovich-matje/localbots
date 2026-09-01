@@ -680,7 +680,7 @@ app.post('/api/crests', (req, res) => {
       tiers: plan.tiers,
       achievements: achievementProgress(plan, season),
       items: plan.items.map((i) => ({
-        slot: i.slot, name: i.name, track: i.track, rank: i.rank, max: i.max, ilvl: i.ilvl,
+        slot: i.slot, id: i.id, name: i.name, track: i.track, rank: i.rank, max: i.max, ilvl: i.ilvl,
         free: i.freeRanks.map((r) => ({ rank: r.rank, ilvl: r.ilvl })),
         paid: i.paidRanks.map((r) => ({ rank: r.rank, ilvl: r.ilvl, cost: r.cost })),
       })),
@@ -744,7 +744,7 @@ app.post('/api/sim', async (req, res) => {
       specKey: detectSpec(profile).key,
       invTypeOf,
     };
-    let { input, sets, skippedBySets, skippedByHands } = buildTopGearInput(profile, simOpts, clean, setCtx, handCtx);
+    let { input, sets, skippedBySets, skippedByHands, skippedAsWorn } = buildTopGearInput(profile, simOpts, clean, setCtx, handCtx);
     // compare groups: `true` (or missing selection) means "all options";
     // an object with per-category arrays narrows what gets simmed
     const sel = (group) => (typeof compare[group] === 'object' && compare[group] !== null
@@ -792,6 +792,7 @@ app.post('/api/sim', async (req, res) => {
       jobId: job.id,
       skippedBySets: skippedBySets ?? 0,
       skippedByHands: skippedByHands ?? 0,
+      skippedAsWorn: skippedAsWorn ?? 0,
     });
   }
 
