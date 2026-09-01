@@ -19,7 +19,7 @@ const LOOT_DB = join(CACHE_DIR, 'lootdb.json');
 const CURRENT_SEASON_TIER = 505; // JournalTier "Current Season" — stable across seasons
 const CRAFT_EXPANSION = 11; // ItemSparse.ExpansionID for Midnight — bump each expansion
 const CURRENT_MAP_EXPANSION = 11; // Map.ExpansionID for Midnight — bump with CRAFT_EXPANSION
-const LOOT_DB_VERSION = 7; // bump to force a rebuild when the db shape changes
+const LOOT_DB_VERSION = 8; // bump to force a rebuild when the db shape changes
 // ItemLimitCategory ids marking inherently-embellished crafted designs
 const EMBELLISHED_LIMIT_CATEGORIES = new Set([512, 697]);
 
@@ -36,7 +36,7 @@ const TABLES = {
   Item: ['ID', 'ClassID', 'SubclassID', 'InventoryType', 'IconFileDataID'],
   ItemSparse: [
     'ID', 'Display_lang', 'ItemLevel', 'AllowableClass', 'InventoryType', 'OverallQualityID', 'ExpansionID',
-    'LimitCategory',
+    'LimitCategory', 'Flags_0',
     'StatModifier_bonusStat_0', 'StatModifier_bonusStat_1', 'StatModifier_bonusStat_2',
     'StatModifier_bonusStat_3', 'StatModifier_bonusStat_4', 'StatModifier_bonusStat_5',
     // stat allocation budget + weapon fields, for item tooltips
@@ -489,6 +489,10 @@ function shapeItem(itemId, sparse, itemMeta) {
     ...(sockets ? { sockets } : {}),
     // inherently-embellished crafted designs (effect baked into the item)
     ...(EMBELLISHED_LIMIT_CATEGORIES.has(Number(s.LimitCategory)) ? { embellished: true } : {}),
+    // ITEM_FLAG_UNIQUE_EQUIPPED (0x80000): the character may wear only one.
+    // Without this a droptimizer happily suggests a second copy for the other
+    // trinket/ring slot, which cannot be equipped.
+    ...(Number(s.Flags_0) & 0x80000 ? { uniqueEquipped: true } : {}),
   };
 }
 
