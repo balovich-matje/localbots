@@ -43,6 +43,14 @@ export function realmSlug(realm) {
 
 const token = (s) => String(s).trim().toLowerCase().replace(/[\s'’-]+/g, '_');
 
+// simc's class keyword, which is the token with separators removed rather than
+// underscored: "Death Knight" is `deathknight`, not `death_knight`. Every class
+// simc knows is a single word (engine/util/util.cpp, player_type_string), so
+// stripping is right for all of them, not just the two-word ones. Races and
+// specs do keep their underscores (blood_elf, beast_mastery), so this cannot
+// simply replace token().
+const classToken = (s) => token(s).replace(/_/g, '');
+
 // Pick the best source available. A Blizzard failure that is not "no such
 // character" falls back to raider.io rather than failing the import: a missing
 // key, an expired secret or a Blizzard outage should degrade, not break.
@@ -146,7 +154,7 @@ export function buildProfile(c) {
   L.push(`# ${c.name} - ${c.spec} - imported from ${where} - ${c.region.toUpperCase()}/${c.realm}`);
   if (c.crawledAt) L.push(`# character data last updated ${c.crawledAt}`);
   L.push('');
-  L.push(`${token(c.className)}="${c.name.replace(/"/g, '')}"`);
+  L.push(`${classToken(c.className)}="${c.name.replace(/"/g, '')}"`);
   // level only when the source actually knows it; simc otherwise defaults to
   // the max level of the build it was compiled for, which stays correct
   if (c.level) L.push(`level=${c.level}`);
