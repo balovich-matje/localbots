@@ -24,8 +24,9 @@ const WATERMARK_SLOTS = {
   5: ['legs'], 6: ['feet'], 7: ['wrist'], 8: ['hands'],
   9: ['finger1', 'finger2'],      // pair: value is the level you own two of
   10: ['trinket1', 'trinket2'],   // pair
-  11: ['back'], 12: ['main_hand'], 16: ['off_hand'],
-  // 13,14,15 are unidentified and carry no slot we upgrade
+  11: ['back'], 14: ['main_hand'], 15: ['off_hand'],
+  // 12 two-hand, 13 ranged, 16 shield / held-in-off-hand: real entries, but no
+  // slot the upgrade list touches, so they are read and discarded
 };
 
 const GEAR_RE = /^(head|neck|shoulder|back|chest|waist|wrist|hands|legs|feet|finger1|finger2|trinket1|trinket2|main_hand|off_hand)=(.*)$/;
