@@ -359,6 +359,21 @@ function upgradeOptionsFor(item) {
 // from the pasted export's upgrade_currencies= line, at upgradeCrestCost per
 // step. Returns null when no track/crests are known or nothing is affordable.
 function maxAffordableIlvlFor(item) {
+  // Server-priced ladder when we have it: it knows the item's real track (from
+  // its bonus id, not an ambiguous item-level match), which ranks are FREE
+  // below this character's slot watermark, and which tiers are halved by an
+  // account-wide achievement. Falls back to the flat-cost estimate otherwise.
+  const priced = crestPrices?.bySlot?.[item.slot];
+  if (priced && priced.ilvl === item.ilvl) {
+    const wallet = crestPrices.tiers?.[priced.track];
+    let spent = 0, target = null;
+    for (const r of [...priced.free, ...priced.paid]) {
+      const cost = r.cost ?? 0;
+      if (spent + cost > (wallet?.balance ?? 0)) break;
+      spent += cost; target = r.ilvl;
+    }
+    return target && target > item.ilvl ? target : null;
+  }
   if (!season?.tracks || !season.upgradeCrests || item.crafted || !item.ilvl) return null;
   const info = trackInfo(item);
   if (!info) return null;
@@ -371,6 +386,60 @@ function maxAffordableIlvlFor(item) {
   const track = season.tracks[info.track];
   const target = track[Math.min(track.length - 1, info.stepIdx + afford)];
   return target > item.ilvl ? target : null;
+}
+
+// Priced upgrade ladder for the pasted character, from /api/crests. Null until
+// fetched, which is why maxAffordableIlvlFor keeps a standalone fallback.
+let crestPrices = null;
+
+async function refreshCrestPrices() {
+  const profile = $('profile').value.trim();
+  if (!profile) { crestPrices = null; return; }
+  try {
+    const d = await api('/api/crests', { profile });
+    crestPrices = { ...d, bySlot: Object.fromEntries(d.items.map((i) => [i.slot, i])) };
+  } catch { crestPrices = null; }
+  renderCrestSummary();
+}
+
+function crestCostBadge(cost) {
+  if (cost === 0) return '<span class="cost-badge free">free</span>';
+  if (cost < (season?.upgradeCrestCost ?? 20)) return `<span class="cost-badge half">${cost}</span>`;
+  return `<span class="cost-badge">${cost}</span>`;
+}
+
+// Balances, what is free right now, and which discounts are active -- the two
+// discounts are the least obvious part of the system and the easiest to waste.
+function renderCrestSummary() {
+  const el = $('crest-summary');
+  if (!el) return;
+  if (!crestPrices?.hasWatermarks) { el.classList.add('hidden'); return; }
+  const tiers = Object.entries(crestPrices.tiers).filter(([, t]) => t.balance);
+  const free = crestPrices.items.filter((i) => i.free.length);
+  const ach = crestPrices.achievements ?? [];
+  const earned = ach.filter((a) => a.earned);
+  const next = ach.filter((a) => !a.earned && a.short.length)
+                  .sort((a, b) => a.short.length - b.short.length)[0];
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <div class="crest-tiers">${tiers.map(([track, t]) => `
+      <div class="crest-tier${t.ranks ? '' : ' spent'}">
+        <span class="ct-name">${esc(track)}</span>
+        <span class="ct-bal">${t.balance}</span>
+        <span class="ct-sub">${t.perRank}/rank${t.discounted ? ' <span class="ct-off">half</span>' : ''}</span>
+        <span class="ct-sub">${t.ranks} rank${t.ranks === 1 ? '' : 's'}</span>
+      </div>`).join('')}</div>
+    ${free.length ? `<p class="crest-free"><strong>Free right now.</strong> These sit below a level you
+      have already reached in that slot, so they cost no crests:
+      ${free.map((i) => `${esc(i.slot)} ${i.ilvl}&rarr;${i.free[i.free.length - 1].ilvl}`).join(' &middot; ')}</p>` : ''}
+    ${earned.length ? `<p class="crest-ach"><strong>Half price:</strong>
+      ${earned.map((a) => esc(a.track)).join(', ')} &mdash; you hold the "Outgrow" achievement, so those
+      ranks cost ${crestPrices.tiers[earned[0].track].perRank} instead of ${season?.upgradeCrestCost ?? 20},
+      on every character.</p>` : ''}
+    ${next ? `<p class="crest-ach"><strong>Next discount:</strong> ${esc(next.track)} halves once every slot
+      reaches <strong>${next.cap}</strong> account-wide &mdash; ${next.short.length} still short
+      (${next.short.slice(0, 5).map((sh) => `${esc(sh.slot)} ${sh.account}`).join(', ')}${next.short.length > 5 ? ', …' : ''}).
+      It is permanent and applies to every character.</p>` : ''}`;
 }
 
 // ---------- boot ----------
@@ -731,6 +800,7 @@ function updateGearCount() {
 }
 
 async function refreshGearList() {
+  refreshCrestPrices();   // priced ladder for the affordable-upgrade button and summary
   const profile = $('profile').value;
   gearItems = [];
   if (!profile.trim()) {

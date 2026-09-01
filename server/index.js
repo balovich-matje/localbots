@@ -23,6 +23,7 @@ import { fetchCharacter, buildProfile as buildArmoryProfile } from './armory.js'
 import { buildIconMap, loadIconMap } from './itemIcons.js';
 import { loadScaling, loadItemTables, itemStats, effectContext, clearScalingCache } from './itemStats.js';
 import { loadEffectData, itemEffects, renderSpell, clearEffectCache } from './itemEffects.js';
+import { crestPlan, achievementProgress } from './crests.js';
 
 // Optional local secrets (Blizzard API credentials for the Armory tab). The
 // file is gitignored; nothing here is required for Localbots to run.
@@ -653,6 +654,40 @@ app.post('/api/gear', async (req, res) => {
     }
   }
   res.json(out);
+});
+
+// Per-slot crest upgrade prices for the pasted character.
+//
+// The gear list's "highest affordable upgrade" needs three things the
+// upgrade_currencies= line alone does not give:
+//   * an item's real track, read from its bonus id -- matching on item level is
+//     ambiguous (295 is both Veteran 6/6 and Champion 2/6, 305 both Champion
+//     5/6 and Hero 1/6)
+//   * FREE ranks, from the export's slot_high_watermarks
+//   * the halved cost on tiers whose account-wide achievement is held
+app.post('/api/crests', (req, res) => {
+  const { profile } = req.body ?? {};
+  if (!profile || typeof profile !== 'string') return res.status(400).json({ error: 'No profile text supplied.' });
+  const p = getPatch(req);
+  const bonusMap = p.bonusUpgradeMap ?? patches.get(DEFAULT_PATCH_ID).bonusUpgradeMap;
+  if (!bonusMap) return res.status(409).json({ error: 'Game data not downloaded yet — use "Refresh data" first.' });
+  const season = p.config;
+  if (!season?.upgradeCrests) return res.status(409).json({ error: 'This patch has no crest data curated yet.' });
+  try {
+    const plan = crestPlan(profile, bonusMap, season);
+    res.json({
+      hasWatermarks: plan.watermarks.size > 0,
+      tiers: plan.tiers,
+      achievements: achievementProgress(plan, season),
+      items: plan.items.map((i) => ({
+        slot: i.slot, name: i.name, track: i.track, rank: i.rank, max: i.max, ilvl: i.ilvl,
+        free: i.freeRanks.map((r) => ({ rank: r.rank, ilvl: r.ilvl })),
+        paid: i.paidRanks.map((r) => ({ rank: r.rank, ilvl: r.ilvl, cost: r.cost })),
+      })),
+    });
+  } catch (e) {
+    res.status(400).json({ error: `Could not read crest data: ${e.message}` });
+  }
 });
 
 app.post('/api/sim', async (req, res) => {

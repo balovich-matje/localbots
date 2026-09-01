@@ -966,3 +966,27 @@ span.char-item.missing,
 .item-tip .tip-set { margin-top: 7px; border-top: 1px solid var(--border); padding-top: 6px; }
 .item-tip .tip-setname { color: var(--accent); font-weight: 600; }
 .item-tip .tip-setb { color: #4ade80; margin-top: 4px; }
+
+/* --- crest pricing summary --------------------------------------------- */
+.crest-summary { margin: 10px 0 14px; }
+.crest-tiers { display: flex; flex-wrap: wrap; gap: 8px; }
+.crest-tier {
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px;
+  display: flex; flex-direction: column; gap: 1px; min-width: 96px;
+}
+.crest-tier.spent { opacity: .45; }
+.crest-tier .ct-name { font-size: 11px; letter-spacing: .02em; opacity: .75; }
+.crest-tier .ct-bal { font-size: 16px; font-variant-numeric: tabular-nums; }
+.crest-tier .ct-sub { font-size: 11px; opacity: .7; font-variant-numeric: tabular-nums; }
+.crest-tier .ct-off { color: var(--good); font-weight: 600; }
+.crest-free, .crest-ach {
+  font-size: 12.5px; margin: 10px 0 0; padding: 7px 11px; border-radius: 0 6px 6px 0;
+}
+.crest-free { border-left: 3px solid var(--good); }
+.crest-ach  { border-left: 3px solid var(--accent, #7aa2f7); }
+.cost-badge {
+  font-size: 11px; padding: 0 5px; border-radius: 9px; border: 1px solid var(--line);
+  font-variant-numeric: tabular-nums; margin-left: 4px;
+}
+.cost-badge.free { border-color: var(--good); color: var(--good); }
+.cost-badge.half { border-color: var(--accent, #7aa2f7); }
