@@ -34,6 +34,19 @@ const STAT_NAMES = {
 const RATINGS = new Set([32, 36, 40, 49]);
 const PRIMARY_COMBINED = new Set([71, 72, 73, 74]); // "best of" primary placeholders
 
+// Item.SubclassID, for the type line under an item's slot ("Chest ... Cloth")
+// -- stable WoW constants (ITEM_SUBCLASS_ARMOR / _WEAPON), not something wago
+// needs to be asked for by name.
+const ARMOR_SUBCLASS = { 1: 'Cloth', 2: 'Leather', 3: 'Mail', 4: 'Plate', 6: 'Shield' };
+const WEAPON_SUBCLASS = {
+  0: 'One-Handed Axe', 1: 'Two-Handed Axe', 2: 'Bow', 3: 'Gun', 4: 'One-Handed Mace',
+  5: 'Two-Handed Mace', 6: 'Polearm', 7: 'One-Handed Sword', 8: 'Two-Handed Sword',
+  10: 'Staff', 13: 'Fist Weapon', 15: 'Dagger', 16: 'Thrown', 17: 'Spear',
+  18: 'Crossbow', 19: 'Wand',
+};
+// Item.Bonding -> ITEM_BIND enum
+const BIND_TEXT = { 1: 'Binds when picked up', 2: 'Binds when equipped' };
+
 // combat_rating_multiplier_type, in simc's order
 const CR_ARMOR = 0, CR_WEAPON = 1, CR_TRINKET = 2, CR_JEWELRY = 3;
 
@@ -142,6 +155,7 @@ export function loadItemTables(cacheDir) {
     'StatPercentEditor_3', 'StatPercentEditor_4', 'StatPercentEditor_5',
     'StatModifier_bonusStat_0', 'StatModifier_bonusStat_1', 'StatModifier_bonusStat_2',
     'StatModifier_bonusStat_3', 'StatModifier_bonusStat_4', 'StatModifier_bonusStat_5',
+    'Bonding', 'RequiredLevel',
   ]);
   if (!sparse) return null;
   const items = new Map();
@@ -158,6 +172,8 @@ export function loadItemTables(cacheDir) {
       invType: Number(r.InventoryType),
       delay: Number(r.ItemDelay),
       variance: Number(r.DmgVariance),
+      bonding: Number(r.Bonding),
+      requiredLevel: Number(r.RequiredLevel),
       allocs,
     });
   }
@@ -270,5 +286,11 @@ export function itemStats(itemId, ilvl, tables, scaling, statSourceId = null) {
     }
   }
 
-  return { name: it.name, quality: it.quality, primary, stamina, secondary, weapon, armor };
+  const typeLabel = c.cls === 4 ? ARMOR_SUBCLASS[c.sub] : c.cls === 2 ? WEAPON_SUBCLASS[c.sub] : null;
+
+  return {
+    name: it.name, quality: it.quality, primary, stamina, secondary, weapon, armor, typeLabel,
+    bindText: BIND_TEXT[it.bonding] ?? null,
+    requiredLevel: it.requiredLevel > 1 ? it.requiredLevel : null,
+  };
 }

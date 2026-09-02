@@ -4,6 +4,8 @@ let currentJobId = null;
 let eventSource = null;
 let mode = 'quick';
 let gearItems = []; // last parsed bag/vault items, indexes match checkboxes
+let catalystSlots = null; // slot -> {id, name}, this class's real tier piece (from /api/gear)
+let equippedEnchGemBySlot = {}; // slot -> {enchantId, gemIds}, what every candidate for that slot is actually simmed with
 let itemSets = []; // detected item sets from /api/gear
 let setMinimums = {}; // setId -> chosen minimum bonus (0/2/4)
 let season = null; // upgrade tracks + voidcore info from the patch's season config
@@ -12,9 +14,46 @@ let season = null; // upgrade tracks + voidcore info from the patch's season con
 let patch = localStorage.getItem('localbots-patch') ?? 'live';
 let patchDefs = [];
 
+// ---------- language switch (item/set/loot names) ----------
+// English is always cached; Spanish is downloaded the first time it's
+// selected and "Refresh data" is hit, same as a brand-new patch — see
+// server/index.js's getPatch(). This never changes the sim math, only which
+// language item/set/instance names come back in.
+const LANGS = [{ id: 'en', label: 'EN' }, { id: 'es', label: 'ES' }];
+let lang = localStorage.getItem('localbots-lang') ?? 'en';
+
+function renderLangSwitch() {
+  const el = $('lang-switch');
+  if (!el) return;
+  el.innerHTML = LANGS.map((l) => `
+    <button class="lang-btn ${l.id === lang ? 'active' : ''}" data-langid="${esc(l.id)}"
+      title="${l.id === 'en' ? 'Item, set and loot names in English (always available)'
+        : 'Item, set and loot names in Spanish -- the first time you pick this, hit “Refresh data” to download it'}">${esc(l.label)}</button>`).join('');
+  el.querySelectorAll('.lang-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (btn.dataset.langid === lang) return;
+      lang = btn.dataset.langid;
+      localStorage.setItem('localbots-lang', lang);
+      renderLangSwitch();
+      // language-specific state is stale now, same as a patch switch
+      statCache.clear(); // item stat/effect tooltips carry set-bonus text in the old language
+      enchantNameCache.clear();
+      equippedItems = null;
+      delete $('tu-list').dataset.rendered;
+      droptTree = null;
+      await reloadSeason();
+      if (mode === 'topgear') {
+        refreshGearList();
+        if ($('track-upgrades-toggle').checked) loadEquippedItems();
+      }
+      if (mode === 'droptimizer') refreshDroptimizer();
+    });
+  });
+}
+
 async function reloadSeason() {
   try {
-    season = await (await fetch(`/api/season?patch=${encodeURIComponent(patch)}`)).json();
+    season = await (await fetch(`/api/season?patch=${encodeURIComponent(patch)}&lang=${encodeURIComponent(lang)}`)).json();
     renderCompareGroups();
   } catch { /* unreachable server is reported by the status chips */ }
 }
@@ -28,6 +67,7 @@ async function initPatches() {
     patch = (patchDefs.find((d) => d.available) ?? patchDefs[0])?.id ?? 'live';
   }
   renderPatchSwitch();
+  renderLangSwitch();
   await reloadSeason();
 }
 initPatches();
@@ -311,6 +351,15 @@ const TRACK_SCHEME = [['Veteran', 'v'], ['Champion', 'c'], ['Hero', 'h'], ['Myth
 // The V/C/H/M scheme shown after an item's name, with its own track lit up and
 // the rest dimmed. Takes the decoded track; a row without one (crafted gear,
 // last season's) shows nothing rather than a guess.
+// A result row only carries the track name and the ilvl it landed on, not
+// the step index gear-list items get from the server -- but the season's
+// per-track ilvl list IS the step index, so a lookup is all that's needed.
+function trackStepFor(track, ilvl) {
+  const steps = season?.tracks?.[track];
+  const idx = steps ? steps.indexOf(Number(ilvl)) : -1;
+  return idx >= 0 ? { track, trackStep: idx + 1, trackMax: steps.length } : null;
+}
+
 function trackSchemeFor(track) {
   if (!track || !TRACK_SCHEME.some(([name]) => name === track)) return '';
   const letters = TRACK_SCHEME.map(([name, cls]) =>
@@ -700,7 +749,7 @@ $('preset-all-on').addEventListener('click', () => setAllBuffsConsumables(true))
 $('preset-all-off').addEventListener('click', () => setAllBuffsConsumables(false));
 
 // ---------- tabs ----------
-const SIM_LABELS = { quick: 'Sim it', topgear: 'Compare gear', droptimizer: 'Run droptimizer' };
+const SIM_LABELS = { quick: 'Sim it', topgear: 'Compare gear', droptimizer: 'Run droptimizer', statweights: 'Calc stat weights' };
 document.querySelectorAll('.tab').forEach((tab) => {
   tab.addEventListener('click', () => {
     mode = tab.dataset.mode;
@@ -728,6 +777,14 @@ $('profile').addEventListener('input', () => {
 $('gear-all').addEventListener('click', () => setAllGear(true));
 $('gear-none').addEventListener('click', () => setAllGear(false));
 $('gear-max-upgrade').addEventListener('click', applyMaxAffordableUpgrades);
+$('gear-catalyst-toggle').addEventListener('change', refreshGearList);
+$('gear-slot-filter').addEventListener('click', (e) => {
+  const chip = e.target.closest('button.chip');
+  if (!chip) return;
+  chip.classList.toggle('active');
+  const slots = [...$('gear-slot-filter').querySelectorAll('button.chip.active')].map((c) => c.dataset.slot);
+  if (slots.length) soloGearSlots(slots); else setAllGear(true);
+});
 
 // Voidcore toggle is only meaningful on fully upgraded (6/6) items
 $('dropt-upgrade').addEventListener('change', () => {
@@ -740,6 +797,30 @@ $('dropt-upgrade').addEventListener('change', () => {
 function setAllGear(checked) {
   document.querySelectorAll('#gear-list input').forEach((cb) => { cb.checked = checked; });
   updateGearCount();
+}
+
+// Tick only the "Items to compare" rows in the given slots, untick the rest —
+// used by both the per-item slot button (one slot) and the "Filter Sim by
+// Slot" multi-select above the list (one or more), which stay in sync.
+function soloGearSlots(slots) {
+  const wanted = new Set(slots);
+  document.querySelectorAll('#gear-list input[data-gear-index]').forEach((cb) => {
+    const it = gearItems[Number(cb.dataset.gearIndex)];
+    cb.checked = !!it && wanted.has(it.slot);
+  });
+  updateGearCount();
+}
+
+const SLOT_ORDER = ['head', 'neck', 'shoulder', 'back', 'chest', 'wrist', 'hands', 'waist',
+  'legs', 'feet', 'finger1', 'finger2', 'trinket1', 'trinket2', 'main_hand', 'off_hand'];
+
+function populateGearSlotFilter() {
+  const row = $('gear-slot-filter');
+  const present = new Set(gearItems.map((it) => it.slot));
+  const slots = SLOT_ORDER.filter((s) => present.has(s));
+  const prevActive = new Set([...row.querySelectorAll('button.chip.active')].map((c) => c.dataset.slot));
+  row.innerHTML = slots.map((s) => `<button type="button" class="chip${prevActive.has(s) ? ' active' : ''}"
+    data-slot="${esc(s)}">${esc(prettySlot(s))}</button>`).join('');
 }
 
 // upgrade_currencies=c:1792:16/c:3443:13/... (see server/gearParser.js for the
@@ -799,6 +880,33 @@ function updateGearCount() {
     : '';
 }
 
+// One synthetic "Catalyzed" candidate per non-crafted item that's in a
+// catalyst-eligible slot: the real tier piece it becomes, carrying the
+// looted item's own stats over via redirected_base_stats= (see
+// profileBuilder.js). Skips items with no known ilvl (nothing to redirect
+// from) and items that already ARE the tier piece.
+function catalystEntriesFor(sourceItems) {
+  if (!catalystSlots) return [];
+  const out = [];
+  for (const item of sourceItems) {
+    if (item.crafted) continue;
+    const target = catalystSlots[item.slot];
+    const ilvl = item.targetIlvl ?? item.ilvl;
+    if (!target || !ilvl || target.id === item.id) continue;
+    out.push({
+      name: target.name ?? `${item.name} (catalyzed)`,
+      id: target.id,
+      ilvl,
+      targetIlvl: null,
+      slot: item.slot,
+      section: 'Catalyzed',
+      catalystFrom: item.name,
+      line: `${item.slot}=,id=${target.id},ilevel=${ilvl},redirected_base_stats=${item.id}`,
+    });
+  }
+  return out;
+}
+
 async function refreshGearList() {
   refreshCrestPrices();   // priced ladder for the affordable-upgrade button and summary
   const profile = $('profile').value;
@@ -812,14 +920,35 @@ async function refreshGearList() {
     const resp = await fetch('/api/gear', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profile, patch, customLoadouts }),
+      body: JSON.stringify({ profile, patch, lang, customLoadouts }),
     });
     const body = await resp.json();
     // equipped items come after bag/vault ones, so the "Equipped" group in
     // the list renders below "Bags" — same checkbox+ilvl-select UI, used to
     // compare "what would upgrading what I already have get me".
     gearItems = [...(body.items ?? []), ...(body.equippedGear ?? [])];
+    catalystSlots = body.catalystSlots ?? null;
+    // "Catalyzed" is a synthetic section: one extra candidate per ticked-
+    // eligible looted item, simmed as the real tier piece it becomes (see
+    // catalystEntriesFor) — appended so it renders as its own gear-list group
+    // via the same bySection logic below, and gets real indices into
+    // gearItems so submitting/ticking it works exactly like any other item.
+    if ($('gear-catalyst-toggle')?.checked) {
+      gearItems = [...gearItems, ...catalystEntriesFor(gearItems)];
+    }
     itemSets = body.itemSets ?? [];
+    // every candidate is simmed with the enchant/gems already on that slot
+    // (see droptimizer.js) rather than whatever the bag item itself carries,
+    // so the tooltip should show that carried-over enchant/gems too, not the
+    // (usually empty) ones on the dropped item's own line
+    equippedEnchGemBySlot = {};
+    for (const eq of body.equippedGear ?? []) {
+      const line = String(eq.line ?? '');
+      equippedEnchGemBySlot[eq.slot] = {
+        enchantId: Number(line.match(/enchant_id=(\d+)/)?.[1]) || null,
+        gemIds: (line.match(/gem_id=([\d/]+)/)?.[1] ?? '').split('/').filter((g) => g && g !== '0'),
+      };
+    }
     renderItemSets();
     renderLoadoutOptions(body.talents ?? { available: false, loadouts: body.loadouts ?? [] });
   } catch {
@@ -847,7 +976,12 @@ async function refreshGearList() {
           name: item.name, ilvl: item.targetIlvl ?? item.ilvl, slot: prettySlot(item.slot),
           statSource: Number(String(item.line ?? '').match(/redirected_base_stats=(\d+)/)?.[1]) || null,
           source: section, quality: item.quality,
-        })}<span>${esc(item.name)}${trackTagFor(item) ? ` <span class="track-tag tier-${trackTagFor(item).toLowerCase()}">(${trackTagFor(item)})</span>` : ''}<span class="slot-tag">${esc(prettySlot(item.slot))}</span></span></span>
+          enchantId: equippedEnchGemBySlot[item.slot]?.enchantId,
+          gemIds: equippedEnchGemBySlot[item.slot]?.gemIds,
+          ...(trackInfo(item)
+            ? { track: item.track, trackStep: item.stepIdx + 1, trackMax: season.tracks[item.track].length }
+            : {}),
+        })}<span>${esc(item.name)}${trackTagFor(item) ? ` <span class="track-tag tier-${trackTagFor(item).toLowerCase()}">(${trackTagFor(item)})</span>` : ''}<button type="button" class="slot-tag" data-solo-slot="${esc(item.slot)}" title="Tick only ${esc(prettySlot(item.slot))} items">${esc(prettySlot(item.slot))}</button></span></span>
         ${ilvlControl(item, i)}
       </label>`).join('')}
   `).join('');
@@ -855,6 +989,17 @@ async function refreshGearList() {
   document.querySelectorAll('#gear-list input[type="checkbox"]').forEach((cb) => {
     cb.addEventListener('change', updateGearCount);
   });
+  document.querySelectorAll('#gear-list button.slot-tag').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      soloGearSlots([btn.dataset.soloSlot]);
+      $('gear-slot-filter').querySelectorAll('button.chip').forEach((c) => {
+        c.classList.toggle('active', c.dataset.slot === btn.dataset.soloSlot);
+      });
+    });
+  });
+  populateGearSlotFilter();
   document.querySelectorAll('#gear-list select.ilvl-select').forEach((sel) => {
     sel.addEventListener('click', (e) => e.preventDefault()); // don't toggle the row checkbox
     sel.addEventListener('change', () => {
@@ -913,7 +1058,7 @@ async function loadEquippedItems() {
     const r = await (await fetch('/api/gear', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profile: $('profile').value, resolveIlvls: true, patch }),
+      body: JSON.stringify({ profile: $('profile').value, resolveIlvls: true, patch, lang }),
     })).json();
     equippedItems = r.equippedItems ?? null;
     $('tu-status').textContent = r.equippedItemsError ? `Failed: ${r.equippedItemsError}` : '';
@@ -974,7 +1119,7 @@ $('dropt-refresh').addEventListener('click', async () => {
   await fetch('/api/data/refresh', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ patch }),
+    body: JSON.stringify({ patch, lang }),
   });
   refreshDroptimizer();
 });
@@ -998,7 +1143,7 @@ async function refreshDroptimizer() {
     r = await (await fetch('/api/droptimizer/sources', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profile, patch }),
+      body: JSON.stringify({ profile, patch, lang }),
     })).json();
   } catch {
     $('dropt-status').textContent = 'Could not reach the server.';
@@ -1365,7 +1510,7 @@ async function startSim() {
 
   hideError();
 
-  const payload = { profile, options, patch };
+  const payload = { profile, options, patch, lang };
   if (mode === 'topgear') {
     payload.mode = 'topgear';
     payload.items = [...document.querySelectorAll('#gear-list input[type="checkbox"]')]
@@ -1405,6 +1550,8 @@ async function startSim() {
       showError('Crafted gear is ticked but no stat combo is selected — tick at least one stat pair.');
       return;
     }
+  } else if (mode === 'statweights') {
+    payload.mode = 'statweights';
   }
 
   $('sim-button').disabled = true;
@@ -1592,11 +1739,23 @@ function renderResult(r) {
     </tr>`).join('');
   document.querySelector('#buffs-table tbody').innerHTML =
     buffRows || '<tr><td colspan="2">No notable buffs.</td></tr>';
+
+  $('statweights-block').classList.toggle('hidden', !r.statWeights?.length);
+  if (r.statWeights?.length) {
+    const maxWeight = Math.max(...r.statWeights.map((s) => s.value), 0.0001);
+    document.querySelector('#statweights-table tbody').innerHTML = r.statWeights.map((s) => `
+      <tr>
+        <td>${esc(s.label)}</td>
+        <td class="num">${s.value.toFixed(2)}</td>
+        <td>${shareBar(s.normalized * 100, (s.value / maxWeight) * 100)}</td>
+      </tr>`).join('');
+  }
 }
 
 let tgRows = [];
 let skippedNote = ''; // items the sim could not take as asked (an off-hand next to a two-hander)
 let tgActiveChip = null;
+let tgShowFilters = false; // Details' search/chips are worth showing (many sections/rows)
 let tgActiveSlot = null;
 let tgEquipped = null; // slot -> { name, ilvl } of the character's own gear
 
@@ -1626,16 +1785,21 @@ function renderTopGear(r) {
   tgActiveChip = null;
   tgActiveSlot = null;
   $('tg-search').value = '';
-  // a fresh result always opens on the detailed table
-  document.querySelectorAll('.result-tab').forEach((t) => t.classList.toggle('active', t.dataset.restab === 'details'));
+  // a fresh result always opens on "Your Top Gear" (paperdoll + Details table)
+  document.querySelectorAll('.result-tab').forEach((t) => t.classList.toggle('active', t.dataset.restab === 'gear'));
   $('best-setup').classList.add('hidden');
   $('topgear-table').classList.remove('hidden');
+  $('tg-gear').classList.remove('hidden');
+  renderTopGearGrid();
+  // the enchant subline is now always visible (not just on hover), so warm
+  // its cache up front instead of showing "enchant #NNNN" until first hover
+  warmEnchantNames(tgEquipped);
 
   // filter chips (droptimizer runs have many sections; top gear has few)
   const sections = [...new Set(tgRows.map((t) => t.section))];
-  const showFilters = sections.length > 2 || tgRows.length > 30;
-  $('tg-filters').classList.toggle('hidden', !showFilters);
-  if (showFilters) {
+  tgShowFilters = sections.length > 2 || tgRows.length > 30;
+  $('tg-filters').classList.toggle('hidden', !tgShowFilters);
+  if (tgShowFilters) {
     $('tg-chips').innerHTML = ['All', ...sections].map((s, i) =>
       `<button class="chip ${i === 0 ? 'active' : ''}" data-chip="${i === 0 ? '' : esc(s)}">${esc(s)}</button>`).join('');
     document.querySelectorAll('#tg-chips .chip').forEach((chip) => {
@@ -1742,15 +1906,19 @@ function rowHtml(t, maxAbs) {
           ${esc(c.from)} → <strong>${esc(c.to)}</strong></li>`).join('')}
       </ul></td></tr>`
     : '';
+  const info = {
+    name: t.itemName, ilvl: t.ilvl, slot: prettySlot(t.placement),
+    source: [t.section, t.boss].filter(Boolean).join(' → '),
+    enchantId: eq?.enchantId, gemIds: eq?.gemIds,
+    ...(trackStepFor(t.track, t.ilvl) ?? {}),
+  };
   return `
   <tr>
-    <td><span class="gear-icon-row">${itemId ? itemTile(itemId, {
-          name: t.itemName, ilvl: t.ilvl, slot: prettySlot(t.placement),
-          source: [t.section, t.boss].filter(Boolean).join(' → '),
-        }) : ''}<span><span class="${glow ? `item-glow ${glow}` : ''}">${esc(t.itemName ?? '?')}</span>${ilvls}${trackSchemeFor(t.track)}
-        ${t.catalysed ? '<span class="tier-tag" title="Simmed as if you had run this through the Catalyst, so your set bonus stays intact">catalysed</span>' : ''}
+    <td><span class="gear-icon-row" ${itemId ? tileDataAttrs(itemId, info) : ''}>${itemId ? itemTileWithBadge(itemId, info, t) : ''}<span><span class="${glow ? `item-glow ${glow}` : ''}">${esc(t.itemName ?? '?')}</span>${ilvls}${trackSchemeFor(t.track)}
+        ${t.catalysed ? `<span class="tier-tag" title="Catalyzed${t.catalystFromName ? ` from ${esc(t.catalystFromName)}` : ''} — shown as the real tier piece it becomes">catalyzed</span>` : ''}
         ${t.offHandLost ? '<span class="tier-tag warn" title="A two-hander fills both hands, so this was simmed with your off-hand taken off — its stats are not counted">off-hand removed</span>' : ''}
-        <span class="slot-tag">→ ${target}</span>${caret}</span></span></td>
+        <span class="slot-tag">→ ${target}</span>${caret}
+        ${itemId ? enchGemSubline(eq?.enchantId, eq?.gemIds) : ''}</span></span></td>
     <td><span class="source-tag">${esc(t.section)}</span>${t.boss ? `<span class="src-boss">→ ${esc(t.boss)}</span>` : ''}</td>
     <td class="num">${Math.round(t.dps).toLocaleString()}</td>
     <td class="num ${cls}">${sign}${Math.round(t.delta).toLocaleString()}</td>
@@ -1775,6 +1943,62 @@ function bucketFor(t) {
   if (k === 'folio') return { key: `f:${t.boss}`, label: `Omnium Folio · ${t.boss}`, order: 5 };
   if (k === 'upgrades') return null; // upgrading is not an either/or choice
   return { key: `s:${t.placement}`, label: prettySlot(t.placement), order: 6 };
+}
+
+// ---------- "Your Top Gear": the paperdoll, mirrors the downloaded report ----------
+// slot -> the best row for it, same rule Best Setup and the downloaded
+// report use: it must beat what's equipped there and clear its own margin
+// of error, or the slot keeps showing what you already have.
+function bestGearPicksBySlot() {
+  const best = new Map();
+  for (const t of tgRows) {
+    if (NON_SLOT_KINDS.has(t.sourceKind) || !t.placement) continue;
+    const cur = best.get(t.placement);
+    if (!cur || t.delta > cur.delta) best.set(t.placement, t);
+  }
+  for (const [slot, t] of [...best]) {
+    if (/\(current\)/.test(t.itemName ?? '') || !(t.delta > t.error)) best.delete(slot);
+  }
+  return best;
+}
+const NON_SLOT_KINDS = new Set(['enchants', 'gems', 'upgrades', 'folio', 'consumables', 'talents']);
+
+function renderTopGearGrid() {
+  const el = $('tg-gear');
+  if (!tgEquipped) {
+    el.innerHTML = '<p class="hint">This sim predates equipped-gear tracking — re-run it to see this tab.</p>';
+    return;
+  }
+  const picks = bestGearPicksBySlot();
+  const slots = SLOT_ORDER.filter((s) => tgEquipped[s]);
+  if (!slots.length) { el.innerHTML = '<p class="hint">No equipped-gear data for this sim.</p>'; return; }
+  const cellFor = (slot) => {
+    const eq = tgEquipped[slot];
+    const pick = picks.get(slot);
+    const itemId = pick ? pick.itemId : eq?.id;
+    const name = pick ? pick.itemName : eq?.name;
+    const ilvl = pick ? pick.ilvl : eq?.ilvl;
+    const info = {
+      name, ilvl, slot: prettySlot(slot), enchantId: eq?.enchantId, gemIds: eq?.gemIds,
+      ...(pick ? (trackStepFor(pick.track, pick.ilvl) ?? {}) : {}),
+    };
+    const detail = pick
+      ? `<span class="hint-inline block">was ${esc(eq?.name ?? 'nothing')} <span class="delta-pos">+${Math.round(pick.delta).toLocaleString()} DPS</span></span>`
+      : '';
+    return `<div class="pd-row${pick ? ' pd-changed' : ''}">
+      <div class="pd-slot hint-inline">${esc(prettySlot(slot))}</div>
+      <span class="gear-icon-row" ${tileDataAttrs(itemId, info)}>${itemTileWithBadge(itemId, info, pick)}<span>${esc(name ?? '?')}${ilvl ? ` <span class="hint-inline">(${ilvl})</span>` : ''}
+        ${enchGemSubline(eq?.enchantId, eq?.gemIds)}${detail}</span></span>
+    </div>`;
+  };
+  const half = Math.ceil(slots.length / 2);
+  el.innerHTML = `<p class="hint">Highlighted slots beat what you have equipped — enchant &amp; gems shown for the
+      rest carry over to every candidate in that slot in Details.</p>
+    <div class="pd-grid">
+      <div class="pd-col">${slots.slice(0, half).map(cellFor).join('')}</div>
+      <div class="pd-col">${slots.slice(half).map(cellFor).join('')}</div>
+    </div>`;
+  paintItemIcons(el);
 }
 
 function renderBestSetup() {
@@ -1820,13 +2044,18 @@ function renderBestSetup() {
     // a gain under twice its error bar could still be simulation noise
     const shaky = t.delta < t.error * 2
       ? ' <span class="bs-shaky" title="This gain is small next to the run\'s margin of error — re-run at a higher precision to confirm it">close to the margin</span>' : '';
+    const bsInfo = {
+      name: t.itemName, ilvl: t.ilvl, slot: prettySlot(t.placement),
+      source: [t.section, t.boss].filter(Boolean).join(' → '),
+      enchantId: eq?.enchantId, gemIds: eq?.gemIds,
+      ...(trackStepFor(t.track, t.ilvl) ?? {}),
+    };
     return `<li class="bs-item">
         <div class="bs-row">
           <span class="bs-label">${esc(p.label)}</span>
-          <span class="bs-pick"><span class="gear-icon-row">${itemId ? itemTile(itemId, {
-              name: t.itemName, ilvl: t.ilvl, slot: prettySlot(t.placement),
-              source: [t.section, t.boss].filter(Boolean).join(' → '),
-            }) : ''}<span>${esc(t.itemName ?? '?')}${t.ilvl && eq?.ilvl ? ` <span class="ilvl">(${eq.ilvl} → ${t.ilvl})</span>` : ''}${trackSchemeFor(t.track)}</span></span></span>
+          <span class="bs-pick"><span class="gear-icon-row" ${itemId ? tileDataAttrs(itemId, bsInfo) : ''}>${itemId ? itemTileWithBadge(itemId, bsInfo, t) : ''}<span>${esc(t.itemName ?? '?')}${t.ilvl && eq?.ilvl ? ` <span class="ilvl">(${eq.ilvl} → ${t.ilvl})</span>` : ''}${trackSchemeFor(t.track)}
+              ${t.catalysed ? `<span class="tier-tag" title="Catalyzed${t.catalystFromName ? ` from ${esc(t.catalystFromName)}` : ''} — shown as the real tier piece it becomes">catalyzed</span>` : ''}
+              ${itemId ? enchGemSubline(eq?.enchantId, eq?.gemIds) : ''}</span></span></span>
           <span class="bs-gain delta-pos">+${Math.round(t.delta).toLocaleString()}${shaky}</span>
         </div>
         ${swap}${changes}
@@ -1843,10 +2072,13 @@ document.querySelectorAll('.result-tab').forEach((tab) => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.result-tab').forEach((t) => t.classList.toggle('active', t === tab));
     const best = tab.dataset.restab === 'best';
+    // "Your Top Gear" is the paperdoll AND the full Details table together
     $('best-setup').classList.toggle('hidden', !best);
+    $('tg-gear').classList.toggle('hidden', best);
     $('topgear-table').classList.toggle('hidden', best);
-    $('tg-filters').classList.toggle('hidden', best || !tgRows.length);
+    $('tg-filters').classList.toggle('hidden', best || !tgShowFilters);
     if (best) renderBestSetup();
+    else renderTopGearGrid();
   });
 });
 
@@ -1897,7 +2129,7 @@ function setReportId(id) {
 $('report-button').addEventListener('click', () => {
   if (!reportId) return;
   // the server sends it as an attachment, so this saves rather than navigates
-  window.location.href = `/api/history/${encodeURIComponent(reportId)}/report`;
+  window.location.href = `/api/history/${encodeURIComponent(reportId)}/report?lang=${encodeURIComponent(lang)}`;
 });
 
 // ---------- shutdown ----------
@@ -1921,6 +2153,10 @@ $('shutdown-button').addEventListener('click', async () => {
 function showError(msg) {
   $('error-box').textContent = msg;
   $('error-box').classList.remove('hidden');
+  // the submit button lives in the header now, away from this box, so make
+  // sure a validation error is actually visible instead of silently sitting
+  // off-screen below whatever the user last scrolled to
+  $('error-box').scrollIntoView({ block: 'nearest' });
 }
 function hideError() {
   $('error-box').classList.add('hidden');
@@ -2101,9 +2337,12 @@ const ICON_CDN = 'https://render.worldofwarcraft.com/us/icons/56';
 const iconIds = new Map(); // item id -> file id (null = looked up, has none)
 let iconFetch = null; // in-flight batch, so a burst of renders makes one request
 
-function itemTile(id, info = {}) {
+// Shared by itemTile() and by list rows that want the whole row (icon, name,
+// AND the enchant/gem subline under it) to trigger the same item hovercard,
+// not just the icon -- see topGearRowHtml() and renderTopGearGrid().
+function tileDataAttrs(id, info = {}) {
   const q = info.quality ?? 4;
-  const data = [
+  return [
     `data-item="${Number(id) || 0}"`,
     // a catalysed piece keeps the stats of what it was made from
     info.statSource ? `data-statsrc="${Number(info.statSource)}"` : '',
@@ -2111,10 +2350,65 @@ function itemTile(id, info = {}) {
     info.ilvl ? `data-ilvl="${esc(info.ilvl)}"` : '',
     info.slot ? `data-slot="${esc(info.slot)}"` : '',
     info.source ? `data-source="${esc(info.source)}"` : '',
+    // the enchant/gems carried over from the equipped item in this slot (see
+    // droptimizer.js) -- every candidate for a slot is simmed with these, so
+    // showing them on the hovercard tells you what the row actually used
+    info.enchantId ? `data-enchant="${Number(info.enchantId)}"` : '',
+    info.gemIds?.length ? `data-gems="${info.gemIds.map(Number).join(',')}"` : '',
+    // upgrade track (e.g. "Myth 6/6") -- decoded server-side, never guessed
+    info.track ? `data-track="${esc(info.track)}"` : '',
+    info.trackStep != null ? `data-track-step="${Number(info.trackStep)}"` : '',
+    info.trackMax != null ? `data-track-max="${Number(info.trackMax)}"` : '',
     `data-quality="${q}"`,
   ].filter(Boolean).join(' ');
-  if (!id) return `<span class="item-tile missing q${q}" ${data}></span>`;
-  return `<img class="item-tile q${q}" alt="" ${data}>`;
+}
+
+function itemTile(id, info = {}) {
+  const q = info.quality ?? 4;
+  const data = tileDataAttrs(id, info);
+  const cls = `item-tile q${q}${info.mini ? ' mini-icon' : ''}`;
+  if (!id) return `<span class="${cls} missing" ${data}></span>`;
+  return `<img class="${cls}" alt="" ${data}>`;
+}
+
+// Small flask badge over an item's icon: a catalyzed row already shows the
+// real tier piece (its itemId/itemName were swapped server-side — see
+// profileBuilder.js), and the badge is what makes that visible at a glance
+// without reading the row's text.
+function catalystBadge(t) {
+  if (!t?.catalysed) return '';
+  const title = `Catalyzed${t.catalystFromName ? ` from ${t.catalystFromName}` : ''} — shown as the tier piece it becomes, not the looted item`;
+  return `<span class="catalyst-badge" title="${esc(title)}">
+    <svg viewBox="0 0 24 24" width="10" height="10"><path d="M9 2v6.3L3.4 19a2 2 0 0 0 1.8 3h13.6a2 2 0 0 0 1.8-3L15 8.3V2M9 2h6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg>
+  </span>`;
+}
+
+function itemTileWithBadge(id, info, t) {
+  if (!id) return itemTile(id, info);
+  return `<span class="item-tile-wrap">${itemTile(id, info)}${catalystBadge(t)}</span>`;
+}
+
+// The game's own enchant data has no per-enchant icon (SpellItemEnchantment's
+// IconFileDataID is 0 on every row), which is why Raidbots' Top Gear report —
+// the reference for this UI — shows the exact same generic scroll icon next
+// to every enchant rather than a distinct one each. This is that same asset,
+// hosted by Raidbots.
+const ENCHANT_ICON_URL = 'https://www.raidbots.com/static/images/icons/56/inv_misc_enchantedscroll.png';
+
+// The enchant/gem line shown under an item's name, each with its own small
+// icon (the fixed generic one for an enchant, or the gem's own real icon --
+// which reuses itemTile and gets its own hovercard on top). Hovering the
+// line's text still pops the parent item's card too (see the data attrs on
+// its wrapping row in renderTopGearGrid/rowHtml/renderBestSetup).
+function enchGemSubline(enchantId, gemIds) {
+  const parts = [];
+  if (enchantId) {
+    parts.push(`<span class="enchgem-item"><img class="mini-icon" alt="" src="${ENCHANT_ICON_URL}"> ${esc(gemOrEnchantLabel(enchantId, 'enchant'))}</span>`);
+  }
+  for (const g of gemIds ?? []) {
+    parts.push(`<span class="enchgem-item">${itemTile(g, { name: gemOrEnchantLabel(g, 'gem'), mini: true })} ${esc(gemOrEnchantLabel(g, 'gem'))}</span>`);
+  }
+  return parts.length ? `<span class="hint-inline block enchgem">${parts.join('')}</span>` : '';
 }
 
 // Fill in every tile on the page that does not have its image yet.
@@ -2176,8 +2470,11 @@ function statLines(s) {
   if (s.stamina) out.push(`<div class="tip-stat">+${s.stamina.value.toLocaleString()} Stamina</div>`);
   for (const r of s.secondary ?? []) out.push(`<div class="tip-sec">+${r.value.toLocaleString()} ${esc(r.name)}</div>`);
   if (s.set) {
+    const pieces = (s.set.items ?? []).filter((it) => it.name)
+      .map((it) => `<li>${esc(it.name)}</li>`).join('');
     const rows = s.set.bonuses.map((b) => `<div class="tip-setb">(${b.threshold}) Set: ${esc(b.text.replace(/\n+/g, ' '))}</div>`).join('');
-    out.push(`<div class="tip-set"><div class="tip-setname">${esc(s.set.name)} (0/${s.set.pieces})</div>${rows}</div>`);
+    out.push(`<div class="tip-set"><div class="tip-setname">${esc(s.set.name)} (${s.set.pieces}-piece set)</div>`
+      + (pieces ? `<ul class="tip-setlist">${pieces}</ul>` : '') + rows + '</div>');
   }
   for (const e of s.effects ?? []) {
     const label = e.trigger ? `${esc(e.trigger)}: ` : '';
@@ -2189,17 +2486,102 @@ function statLines(s) {
   return out.join('');
 }
 
-function tipShell(d, statsHtml) {
+// enchant id -> its real name ("Enchant Chest - Mark of the Worldsoul"),
+// fetched from the game client's own data (see /api/enchant-names) the first
+// time it's needed and cached from then on; null = looked up, found nothing.
+const enchantNameCache = new Map();
+let enchantNameFetch = null;
+
+// Prefetches every equipped slot's enchant name in one request, so "Your Top
+// Gear" and Details show the real name straight away instead of "enchant
+// #NNNN" until something happens to be hovered. Also skips names already in
+// the season's curated comparison list (gemOrEnchantLabel finds those on its
+// own, no fetch needed).
+async function warmEnchantNames(equipped) {
+  const ids = [...new Set(Object.values(equipped ?? {})
+    .map((eq) => eq?.enchantId).filter(Boolean))]
+    .filter((id) => !enchantNameCache.has(id) && gemOrEnchantLabel(id, 'enchant') === `enchant #${id}`);
+  if (!ids.length) return;
+  try {
+    const r = await fetch(`/api/enchant-names?ids=${ids.join(',')}&patch=${encodeURIComponent(patch)}&lang=${encodeURIComponent(lang)}`);
+    const j = await r.json();
+    for (const id of ids) enchantNameCache.set(id, j.names?.[id] ?? null);
+  } catch {
+    for (const id of ids) enchantNameCache.set(id, null);
+  }
+  // redraw whatever's currently showing the enchant sublines
+  if (!$('tg-gear').classList.contains('hidden')) renderTopGearGrid();
+  if (!$('topgear-table').classList.contains('hidden')) renderTopGearRows();
+}
+
+async function fetchEnchantName(id, onReady) {
+  if (enchantNameCache.has(id)) return;
+  await enchantNameFetch; // one in-flight batch at a time is plenty for a single hover
+  if (enchantNameCache.has(id)) return;
+  enchantNameFetch = (async () => {
+    try {
+      const r = await fetch(`/api/enchant-names?ids=${id}&patch=${encodeURIComponent(patch)}&lang=${encodeURIComponent(lang)}`);
+      const j = await r.json();
+      enchantNameCache.set(id, j.names?.[id] ?? null);
+    } catch { enchantNameCache.set(id, null); }
+  })();
+  await enchantNameFetch;
+  onReady?.();
+}
+
+// id -> the season's display name for a gem or enchant, from the option
+// lists the "Also compare" panel already loaded into `season` -- an enchant
+// not in that curated list falls back to enchantNameCache (the real game
+// name, fetched on demand) and finally to the raw id.
+function gemOrEnchantLabel(id, kind) {
+  if (kind === 'enchant') {
+    for (const arr of Object.values(season?.enchantOptions ?? {})) {
+      const m = Array.isArray(arr) && arr.find((e) => String(e.id) === String(id));
+      if (m) return m.label;
+    }
+    const cached = enchantNameCache.get(Number(id));
+    return cached ?? `enchant #${id}`;
+  }
+  const g = (season?.gemOptions ?? []).find((g) => String(g.id) === String(id))
+    ?? (season?.diamondOptions?.options ?? []).find((x) => String(x.id) === String(id));
+  return g?.label ?? `gem #${id}`;
+}
+
+// title-case: slot/track names arrive in simc's lowercase form
+const titleCase = (s) => String(s).replace(/\b\w/g, (c) => c.toUpperCase());
+
+// A wow.tools/Raidbots-style item card: name, upgrade track, binding, slot +
+// armor/weapon type, stats, enchant/gems, requirements, set bonuses. `s` is
+// this item's fetched /api/items entry (null until it lands — see
+// showItemTip), so everything sourced from it is missing on the first,
+// synchronous render and fades in on the redraw once the fetch resolves.
+function tipShell(d, s) {
   const rows = [];
   if (d.ilvl) rows.push(`<div class="tip-ilvl">Item Level ${esc(d.ilvl)}</div>`);
-  // slot names arrive in simc's lowercase form; title-case them for the card
-  if (d.slot) {
-    const slot = String(d.slot).replace(/\b\w/g, (c) => c.toUpperCase());
-    rows.push(`<div class="tip-slot">${esc(slot)}</div>`);
+  if (d.track && d.trackStep && d.trackMax) {
+    const tier = (TRACK_TAG[d.track] ?? '').toLowerCase();
+    rows.push(`<div class="tip-track${tier ? ` tier-${tier}` : ''}">Upgrade Level: ${esc(d.track)} ${esc(d.trackStep)}/${esc(d.trackMax)}</div>`);
   }
+  if (s?.bindText) rows.push(`<div class="tip-dim">${esc(s.bindText)}</div>`);
+  if (d.slot || s?.typeLabel) {
+    rows.push(`<div class="tip-slot-row">${d.slot ? `<span class="tip-slot">${esc(titleCase(d.slot))}</span>` : ''}${
+      s?.typeLabel ? `<span class="tip-type">${esc(s.typeLabel)}</span>` : ''}</div>`);
+  }
+  const statsHtml = statLines(s);
+  if (statsHtml) rows.push(`<div class="tip-stats">${statsHtml}</div>`);
+  // enchant/gems this row was actually simmed with (carried from the
+  // currently-equipped item in this slot -- see gemOrEnchantLabel above)
+  if (d.enchant) {
+    const slot = d.slot ? ` ${titleCase(d.slot)}` : '';
+    rows.push(`<div class="tip-sec">Enchant${esc(slot)} - ${esc(gemOrEnchantLabel(d.enchant, 'enchant'))}</div>`);
+  }
+  if (d.gems) {
+    const names = d.gems.split(',').map((id) => gemOrEnchantLabel(id, 'gem')).join(', ');
+    rows.push(`<div class="tip-sec">Gems: ${esc(names)}</div>`);
+  }
+  if (s?.requiredLevel) rows.push(`<div class="tip-dim">Requires Level ${esc(s.requiredLevel)}</div>`);
   return `<div class="tip-name q${esc(d.quality ?? 4)}">${esc(d.name ?? 'Item')}</div>`
     + rows.join('')
-    + (statsHtml ? `<div class="tip-stats">${statsHtml}</div>` : '')
     + (d.source ? `<div class="tip-source">${esc(d.source)}</div>` : '');
 }
 
@@ -2212,20 +2594,30 @@ function showItemTip(el) {
   const src = Number(d.statsrc) || 0;
   const key = id && ilvl ? `${id}:${ilvl}${src ? `:${src}` : ''}` : null;
 
-  tip.innerHTML = tipShell(d, key ? statLines(statCache.get(key)) : '');
+  tip.innerHTML = tipShell(d, key ? statCache.get(key) : null);
   tip.classList.remove('hidden');
   positionTip(el);
 
+  const token = ++tipToken;
+  const redraw = () => {
+    if (token !== tipToken || tip.classList.contains('hidden')) return;
+    tip.innerHTML = tipShell(d, key ? statCache.get(key) : null);
+    positionTip(el);
+  };
+
+  // an enchant outside the season's curated comparison list needs its real
+  // name fetched on demand (see fetchEnchantName above); redraw once it lands
+  if (d.enchant && !enchantNameCache.has(Number(d.enchant))) {
+    fetchEnchantName(Number(d.enchant), redraw);
+  }
+
   if (!key || statCache.has(key)) return;
   // fetch once, then redraw if the pointer is still on this item
-  const token = ++tipToken;
-  fetch(`/api/items?q=${key}&patch=${encodeURIComponent(patch)}`)
+  fetch(`/api/items?q=${key}&patch=${encodeURIComponent(patch)}&lang=${encodeURIComponent(lang)}`)
     .then((r) => r.json())
     .then((j) => {
       statCache.set(key, j.items?.[key] ?? null);
-      if (token !== tipToken || tip.classList.contains('hidden')) return;
-      tip.innerHTML = tipShell(d, statLines(statCache.get(key)));
-      positionTip(el);
+      redraw();
     })
     .catch(() => statCache.set(key, null));
 }

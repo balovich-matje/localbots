@@ -16,9 +16,14 @@
       <button class="page-btn" data-page="history">History</button>
     </nav>
     <nav class="patch-switch" id="patch-switch"></nav>
+    <nav class="lang-switch" id="lang-switch"></nav>
     <span id="status-bar">
       <span class="status-chip" id="status-app"><span class="dot dot-unknown"></span><span class="chip-text">Localbots</span></span>
       <span class="status-chip" id="status-simc"><span class="dot dot-unknown"></span><span class="chip-text">Simc</span></span>
+    </span>
+    <span class="header-actions">
+      <button id="sim-button" class="primary">Sim it</button>
+      <button id="cancel-button" class="danger hidden">Cancel</button>
     </span>
   </header>
 
@@ -28,6 +33,7 @@
         <button class="tab active" data-mode="quick">Quick Sim</button>
         <button class="tab" data-mode="topgear">Top Gear</button>
         <button class="tab" data-mode="droptimizer">Droptimizer</button>
+        <button class="tab" data-mode="statweights">Stat Weights</button>
       </div>
 
       <h2>Character</h2>
@@ -128,6 +134,10 @@
       </div>
 
       <div id="gear-section" class="hidden">
+        <h2>Filter Sim by Slot</h2>
+        <p class="hint">Click one or more slots to tick only their items below; click a highlighted
+          slot again to drop it, or clear them all to show every slot.</p>
+        <div id="gear-slot-filter" class="chip-row"></div>
         <h2>Items to compare</h2>
         <p class="hint">Gear found in your bags (and vault choices) inside the export.
           Each ticked item is simmed in place of what you have equipped.</p>
@@ -138,6 +148,9 @@
           <button class="mini" id="gear-max-upgrade"
             title="Sets each item's sim level to the highest step its own track's crests can afford (20 crests per step), read from upgrade_currencies= in your export">
             Highest affordable upgrade</button>
+          <label class="hint-inline" id="gear-catalyst-label"
+            title="Adds a 'Catalyzed' section below with the real tier piece each looted (non-crafted) item in a tier slot becomes when run through the Catalyst — tick the ones you want compared, same as any other item">
+            <input type="checkbox" id="gear-catalyst-toggle"> Catalyze selected items</label>
           <span id="gear-count" class="hint"></span>
         </div>
         <div id="gear-list"></div>
@@ -227,10 +240,6 @@
           recommended; expect several minutes.</p>
       </div>
 
-      <div class="actions">
-        <button id="sim-button" class="primary">Sim it</button>
-        <button id="cancel-button" class="danger hidden">Cancel</button>
-      </div>
       <p id="error-box" class="error hidden"></p>
     </section>
 
@@ -267,11 +276,12 @@
           <div id="tg-slot-chips"></div>
         </div>
         <div class="result-tabs">
-          <button class="result-tab active" data-restab="details">Details</button>
+          <button class="result-tab active" data-restab="gear">Your Top Gear</button>
           <button class="result-tab" data-restab="best">Best setup</button>
         </div>
+        <div id="tg-gear" class="hidden"></div>
         <div id="best-setup" class="hidden"></div>
-        <table id="topgear-table">
+        <table id="topgear-table" class="hidden">
           <thead>
             <tr><th>Item</th><th>Source</th><th class="num">DPS</th><th class="num">Change</th><th class="share-col">vs equipped</th></tr>
           </thead>
@@ -286,6 +296,16 @@
             <span class="dps-unit">DPS</span>
           </div>
           <p id="dps-meta" class="hint"></p>
+        </div>
+
+        <div id="statweights-block" class="hidden">
+          <h2>Stat weights</h2>
+          <table id="statweights-table">
+            <thead>
+              <tr><th>Stat</th><th class="num">DPS per point</th><th class="share-col">Relative to top stat</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
         </div>
 
         <h2>Damage breakdown</h2>

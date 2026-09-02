@@ -236,6 +236,9 @@ export class SimQueue extends EventEmitter {
             // "equipped ilvl -> suggested ilvl" and the replaced item's name
             job.result.equipped = job.meta.gearBySlot ?? null;
           }
+          if (job.meta?.mode === 'statweights') {
+            job.result.statWeights = extractScaleFactors(json);
+          }
           this.#finish(job, 'done');
         } catch (e) {
           job.error = `Could not parse simc JSON output: ${e.message}`;
@@ -436,4 +439,31 @@ export function extractResult(json) {
     abilities,
     buffs,
   };
+}
+
+// simc's raw scale-factor keys, expanded to the labels the UI shows.
+const STAT_LABELS = {
+  Int: 'Intellect', Str: 'Strength', Agi: 'Agility', Stam: 'Stamina',
+  SP: 'Spell Power', AP: 'Attack Power', Crit: 'Critical Strike',
+  Haste: 'Haste', Mastery: 'Mastery', Vers: 'Versatility',
+  Weapon_dps: 'Weapon DPS', Weapon_offhand_dps: 'Off-hand Weapon DPS',
+  Armor: 'Armor', Bonus_armor: 'Bonus Armor', Dodge: 'Dodge', Parry: 'Parry',
+  Expertise: 'Expertise', Hit: 'Hit',
+};
+
+// Reduce simc's scale_factors block (per-point DPS gain per stat, from a
+// calculate_scale_factors=1 run) to a sorted, normalized table for the UI.
+export function extractScaleFactors(json) {
+  const player = json.sim?.players?.[0];
+  const sf = player?.scale_factors;
+  if (!sf) return null;
+  const rows = Object.entries(sf).map(([stat, value]) => ({
+    stat,
+    label: STAT_LABELS[stat] ?? stat,
+    value,
+  }));
+  rows.sort((a, b) => b.value - a.value);
+  const max = rows[0]?.value || 0;
+  for (const r of rows) r.normalized = max > 0 ? r.value / max : 0;
+  return rows;
 }

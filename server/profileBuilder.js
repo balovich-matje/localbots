@@ -60,7 +60,7 @@ function clamp(n, lo, hi, fallback) {
 
 // Strip any global directives from the pasted profile that would fight with our
 // UI-controlled settings (people sometimes paste full simc files, not just exports).
-const BLOCKED_LINE = /^\s*(iterations|target_error|fight_style|max_time|desired_targets|threads|json2|output|html|report_details|optimal_raid|ptr)\s*=/i;
+const BLOCKED_LINE = /^\s*(iterations|target_error|fight_style|max_time|desired_targets|threads|json2|output|html|report_details|optimal_raid|ptr|calculate_scale_factors)\s*=/i;
 
 export function sanitizeProfile(text) {
   return text
@@ -139,6 +139,13 @@ export function buildInput(profileText, options = {}) {
   return lines.join('\n') + '\n';
 }
 
+// Stat Weights: the same input as Quick Sim, plus simc's own scale-factor
+// pass (it reruns the sim once per stat with a small delta and reports the
+// DPS gained per point, under json.sim.players[0].scale_factors).
+export function buildStatWeightsInput(profileText, options = {}) {
+  return buildInput(profileText, options) + '\ncalculate_scale_factors=1\n';
+}
+
 function hasConsumableLine(text, key) {
   return new RegExp(`^\\s*${key}\\s*=`, 'm').test(text);
 }
@@ -154,6 +161,11 @@ function hasConsumableLine(text, key) {
 // fills both hands, so an off-hand cannot be tried next to one, and putting a
 // two-hander on someone holding an off-hand has to take that off-hand off --
 // simc equips both happily and would credit the two-hander with its stats.
+// A candidate item carrying redirected_base_stats= (the "Catalyzed" entries
+// the gear list synthesizes when the Catalyze toggle is on — see app.js's
+// catalystEntriesFor — or an already-catalyzed item straight from the export)
+// is flagged catalysed for the result row's badge, same as itemStats.js's
+// statSourceId reads that field for the item's own tooltip.
 export function buildTopGearInput(profileText, options, items, setCtx = null, gear = null) {
   const base = buildInput(profileText, options);
   const lines = [base];
@@ -182,6 +194,12 @@ export function buildTopGearInput(profileText, options, items, setCtx = null, ge
     return ((setCounts[replacedSet] ?? 0) - 1) < min && (setCounts[replacedSet] ?? 0) >= min;
   };
 
+  // One-handers and off-hands ticked at the same time also get simmed as a
+  // pair, since a real regear usually swaps both hands together rather than
+  // one at a time against whatever is currently equipped in the other.
+  const oneHandMains = [];
+  const offHands = [];
+
   for (const [index, item] of items.entries()) {
     const slotMatch = String(item.line ?? '').trim().match(/^([a-z_0-9]+)=(.*)$/);
     if (!slotMatch) continue;
@@ -199,6 +217,7 @@ export function buildTopGearInput(profileText, options, items, setCtx = null, ge
       rest += `,ilevel=${item.targetIlvl}`;
     }
     const isTwoHander = gear?.invTypeOf && itemId ? gear.invTypeOf(itemId) === TWO_HAND_INV : false;
+    const ilvl = upgraded ? item.targetIlvl : (item.ilvl ?? null);
     for (const placement of placementsFor(slotMatch[1])) {
       if (breaksSetMinimum(itemId, placement)) { skippedBySets++; continue; }
       if (placement === 'off_hand' && noOffHand(gear, specKey)) { skippedByHands++; continue; }
@@ -211,20 +230,53 @@ export function buildTopGearInput(profileText, options, items, setCtx = null, ge
       usedNames.add(name);
       lines.push(`profileset."${name}"=${placement}=${rest}`);
       if (offHandLost) lines.push(`profileset."${name}"+=off_hand=`);
+      const catalystFromId = Number(rest.match(/(?:^|,)redirected_base_stats=(\d+)/)?.[1]) || null;
       sets[name] = {
         group: index, // one group per source item, across its placements
         ...(offHandLost ? { offHandLost: true } : {}),
+        ...(catalystFromId
+          ? { catalysed: true, catalystFromId, catalystFromName: item.catalystFrom ?? null }
+          : {}),
         itemName: item.name ?? null,
         itemId,
         ...(item.track ? { track: item.track } : {}), // decoded, never guessed
-        ilvl: upgraded ? item.targetIlvl : (item.ilvl ?? null),
+        ilvl,
         origIlvl: item.ilvl ?? null,
         slot: slotMatch[1],
         placement,
         section: item.section ?? 'Bags',
       };
+      if (placement === 'main_hand' && !isTwoHander) {
+        oneHandMains.push({ itemName: item.name ?? null, itemId, rest, upgraded, ilvl: upgraded ? item.targetIlvl : (item.ilvl ?? null), origIlvl: item.ilvl ?? null, index, section: item.section ?? 'Bags' });
+      } else if (placement === 'off_hand') {
+        offHands.push({ itemName: item.name ?? null, itemId, rest, upgraded, ilvl: upgraded ? item.targetIlvl : (item.ilvl ?? null), origIlvl: item.ilvl ?? null, index, section: item.section ?? 'Bags' });
+      }
     }
   }
+
+  for (const mh of oneHandMains) {
+    for (const oh of offHands) {
+      if (breaksSetMinimum(mh.itemId, 'main_hand') || breaksSetMinimum(oh.itemId, 'off_hand')) { skippedBySets++; continue; }
+      let name = sanitizeSetName(`${mh.itemName ?? 'main hand'} + ${oh.itemName ?? 'off hand'} @weapons`);
+      let n = 2;
+      while (usedNames.has(name)) name = sanitizeSetName(`${mh.itemName} + ${oh.itemName} #${n++} @weapons`);
+      usedNames.add(name);
+      lines.push(`profileset."${name}"=main_hand=${mh.rest}`);
+      lines.push(`profileset."${name}"+=off_hand=${oh.rest}`);
+      sets[name] = {
+        group: `${mh.index}+${oh.index}`,
+        itemName: `${mh.itemName ?? '?'} + ${oh.itemName ?? '?'}`,
+        weaponPair: {
+          mainHand: { itemId: mh.itemId, itemName: mh.itemName, ilvl: mh.ilvl, origIlvl: mh.origIlvl },
+          offHand: { itemId: oh.itemId, itemName: oh.itemName, ilvl: oh.ilvl, origIlvl: oh.origIlvl },
+        },
+        slot: 'weapons',
+        placement: 'weapons',
+        section: mh.section === oh.section ? mh.section : 'Bags',
+      };
+    }
+  }
+
   return { input: lines.join('\n') + '\n', sets, skippedBySets, skippedByHands, skippedAsWorn };
 }
 

@@ -66,6 +66,10 @@ const TABLES = {
   ItemBonusTreeNode: ['ItemContext', 'ChildItemBonusTreeID', 'ChildItemBonusListGroupID',
     'MinMythicPlusLevel', 'MaxMythicPlusLevel', 'ParentItemBonusTreeID'],
   ItemBonusListGroupEntry: ['ItemBonusListGroupID', 'ItemBonusListID', 'SequenceValue'],
+  // An enchant_id's real name ("Enchant Chest - Mark of the Worldsoul") --
+  // simc's own tuning data has no such name, hence the raw id shown until
+  // this table exists in the cache.
+  SpellItemEnchantment: ['ID', 'Name_lang'],
 };
 
 // Tables added after the first release: an older cache without them still
@@ -75,15 +79,24 @@ const OPTIONAL_TABLES = new Set([
   'RandPropPoints', 'ItemDamageOneHand', 'ItemDamageTwoHand', 'ItemArmorTotal', 'ArmorLocation',
   'ItemSetSpell',
   'DungeonEncounter', 'ItemXBonusTree', 'ItemBonusTreeNode', 'ItemBonusListGroupEntry',
+  'SpellItemEnchantment',
 ]);
 
-// Per-patch file locations. The live patch keeps the original flat layout
-// (no migration for existing installs); other patches get a subdirectory.
-export function patchPaths(patchId = 'live', delveFile = null) {
-  const cacheDir = patchId === 'live' ? CACHE_DIR : join(CACHE_DIR, patchId);
+// wago.tools' locale codes for the game-data text (item/set/instance names)
+// baked into the cached CSVs -- 'en' (the default, no param) needs no entry.
+export const WAGO_LOCALES = { es: 'esMX' };
+
+// Per-patch file locations. The live patch in English keeps the original flat
+// layout (no migration for existing installs); a PTR patch and/or a non-English
+// locale each get their own subdirectory, so switching the language never
+// touches or invalidates the English cache.
+export function patchPaths(patchId = 'live', delveFile = null, locale = 'en') {
+  const localeSeg = locale && locale !== 'en' ? [locale] : [];
+  const cacheDir = patchId === 'live' && !localeSeg.length
+    ? CACHE_DIR : join(CACHE_DIR, ...(patchId === 'live' ? [] : [patchId]), ...localeSeg);
   return {
     cacheDir,
-    lootDbPath: patchId === 'live' ? LOOT_DB : join(cacheDir, 'lootdb.json'),
+    lootDbPath: patchId === 'live' && !localeSeg.length ? LOOT_DB : join(cacheDir, 'lootdb.json'),
     delvePath: join(DATA_DIR, delveFile ?? (patchId === 'live' ? 'delve-loot.json' : `delve-loot-${patchId}.json`)),
     probeCachePath: join(cacheDir, 'simc-known-items.json'),
   };
@@ -91,15 +104,21 @@ export function patchPaths(patchId = 'live', delveFile = null) {
 
 // opts.build pins the exact game build wago serves (never trust wago's
 // default — it sometimes points at a test build); opts.cacheDir selects the
-// patch; opts.bonusesChannel picks Raidbots' live vs ptr bonus map.
+// patch; opts.bonusesChannel picks Raidbots' live vs ptr bonus map; opts.locale
+// ('en' by default) picks which language the item/set/instance names come back
+// in -- everything else about a table (ids, stats, item levels) is
+// locale-independent, so only the *_lang columns actually change.
 export async function downloadTables(onProgress = () => {}, opts = {}) {
   const cacheDir = opts.cacheDir ?? CACHE_DIR;
-  const buildParam = opts.build ? `?build=${encodeURIComponent(opts.build)}` : '';
+  const buildParam = opts.build ? `build=${encodeURIComponent(opts.build)}` : '';
+  const wagoLocale = WAGO_LOCALES[opts.locale];
+  const localeParam = wagoLocale ? `locale=${wagoLocale}` : '';
+  const query = [buildParam, localeParam].filter(Boolean).join('&');
   mkdirSync(cacheDir, { recursive: true });
   const names = Object.keys(TABLES);
   for (const [i, table] of names.entries()) {
     onProgress({ table, index: i + 1, total: names.length });
-    const resp = await fetch(`https://wago.tools/db2/${table}/csv${buildParam}`, {
+    const resp = await fetch(`https://wago.tools/db2/${table}/csv${query ? `?${query}` : ''}`, {
       headers: { 'User-Agent': 'localbots (github.com/balovich-matje/localbots)' },
     });
     if (!resp.ok) throw new Error(`wago.tools ${table}: HTTP ${resp.status}`);
@@ -194,6 +213,35 @@ export function cacheStatus(cacheDir = CACHE_DIR, expectedBuild = null) {
 
 function loadTable(name, cacheDir = CACHE_DIR) {
   return parseCsv(readFileSync(join(cacheDir, `${name}.csv`), 'utf8'), TABLES[name]);
+}
+
+// WoW's inline markup in a *_lang string -- |A:atlas:w:h|a (an icon),
+// |cAARRGGBB...|r (a color run), |T...|t (a texture) -- none of which mean
+// anything outside the game client, so strip it down to the plain text.
+function stripWowMarkup(s) {
+  return String(s ?? '')
+    .replace(/\|[Aa]:[^|]*\|a/g, '')
+    .replace(/\|[Tt][^|]*\|t/g, '')
+    .replace(/\|c[0-9a-fA-F]{8}/g, '')
+    .replace(/\|r/g, '')
+    .trim();
+}
+
+// enchant_id -> its real name ("Enchant Chest - Mark of the Worldsoul"),
+// straight from the game client's own SpellItemEnchantment table -- simc's
+// tuning data has no such name, so without this the UI can only show the raw
+// id. There is no per-enchant icon to go with it: SpellItemEnchantment's own
+// IconFileDataID is 0 on every row (verified against the current cache), and
+// Raidbots' Top Gear report -- the reference for this UI -- draws from the
+// same emptiness, which is why every enchant there shares one fixed generic
+// scroll icon rather than a distinct one each; callers do the same (see
+// ENCHANT_ICON_URL in report.js and app.js). Optional table: missing (not
+// yet refreshed) just means an empty map, and callers fall back to the id.
+export function loadEnchantNames(cacheDir = CACHE_DIR) {
+  const path = join(cacheDir, 'SpellItemEnchantment.csv');
+  if (!existsSync(path)) return new Map();
+  const rows = parseCsv(readFileSync(path, 'utf8'), TABLES.SpellItemEnchantment);
+  return new Map(rows.map((r) => [Number(r.ID), stripWowMarkup(r.Name_lang)]).filter(([, name]) => name));
 }
 
 // Build (and persist) the joined loot database from the cached CSVs.

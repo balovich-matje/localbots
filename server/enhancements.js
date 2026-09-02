@@ -187,7 +187,7 @@ export function buildGemVariants(profileText, gemOptions, selection = null, ctx 
     const emitLines = isCurrent ? gemmedSlots : swapped;
     lines.push(...emitLines.map(([, line], i) => `profileset."${name}"${i > 0 ? '+' : ''}=${line}`));
     sets[name] = {
-      group, itemName: label, ilvl: null, slot: 'gems', placement: 'all sockets',
+      group, itemName: label, itemId: gem.id, ilvl: null, slot: 'gems', placement: 'all sockets',
       section: 'Gems', boss: 'Stat gems', sourceKind: 'gems',
       ...(changes.length ? { changes } : {}),
     };
@@ -223,7 +223,7 @@ export function buildDiamondVariants(profileText, diamondConfig, selection = nul
     const name = clean(`${label} [d${++group}]`).slice(0, 78);
     lines.push(`profileset."${name}"=${swapped}`);
     sets[name] = {
-      group, itemName: label, ilvl: null, slot: 'gems', placement: slot,
+      group, itemName: label, itemId: d.id, ilvl: null, slot: 'gems', placement: slot,
       section: 'Gems', boss: 'Diamonds', sourceKind: 'gems',
       changes: [{
         item: equippedNames?.[slot] ?? null, slot,

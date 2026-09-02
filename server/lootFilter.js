@@ -79,7 +79,7 @@ const DUAL_WIELD_1H = new Set([
 const DUAL_WIELD_2H = new Set(['warrior_fury']); // Titan's Grip
 
 // inventory type -> simc slot(s)
-const INV_SLOTS = {
+export const INV_SLOTS = {
   1: ['head'], 2: ['neck'], 3: ['shoulder'], 5: ['chest'], 20: ['chest'],
   6: ['waist'], 7: ['legs'], 8: ['feet'], 9: ['wrist'], 10: ['hands'],
   11: ['finger1', 'finger2'], 12: ['trinket1', 'trinket2'], 16: ['back'],

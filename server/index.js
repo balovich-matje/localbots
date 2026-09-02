@@ -2,21 +2,21 @@ import express from 'express';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildInput, buildTopGearInput, buildConsumableVariants, detectSpec } from './profileBuilder.js';
+import { buildInput, buildStatWeightsInput, buildTopGearInput, buildConsumableVariants, detectSpec } from './profileBuilder.js';
 import { buildEnchantVariants, buildGemVariants, buildDiamondVariants, buildFolioVariants, buildTrackUpgradeVariants, trackFor } from './enhancements.js';
 import { resolveEquipped, clearResolveCache } from './equippedResolver.js';
 import { SimQueue, findSimc, simcVersion } from './simRunner.js';
 import { parseGear, GEAR_SLOTS } from './gearParser.js';
-import { loadLootDb, buildLootDb, downloadTables, cacheStatus, loadItemSetMap, loadBonusUpgradeMap, loadSocketBonusIds, patchPaths } from './wagoData.js';
+import { loadLootDb, buildLootDb, downloadTables, cacheStatus, loadItemSetMap, loadBonusUpgradeMap, loadSocketBonusIds, loadEnchantNames, patchPaths } from './wagoData.js';
 import { buildSourceTree, buildDroptimizerInput, tierSetSummary, weaponSetup, seasonConfig as fullSeasonConfig } from './droptimizer.js';
 import { probeKnownItems, loadProbeCache } from './simcProbe.js';
-import { CLASS_IDS } from './lootFilter.js';
+import { CLASS_IDS, INV_SLOTS } from './lootFilter.js';
 import { saveHistoryEntry, listHistory, getHistoryEntry, deleteHistoryEntry } from './history.js';
 import { buildReportHtml, reportFilename } from './report.js';
 import { updateStatus } from './status.js';
 import { parseLoadouts, buildLoadoutVariants } from './talents.js';
 import { loadTraitData, decodeTalents, talentLayout, clearTraitCache } from './talentData.js';
-import { loadSetBonusNames } from './setBonus.js';
+import { loadSetBonusNames, loadCatalystSets } from './setBonus.js';
 import { detectSimcSource, startSimcUpdate } from './simcUpdater.js';
 import { invalidateStatus } from './status.js';
 import { fetchCharacter, buildProfile as buildArmoryProfile } from './armory.js';
@@ -163,7 +163,7 @@ app.delete('/api/history/:id', (req, res) => {
 
 // One self-contained HTML file for a finished sim, to hand to someone else.
 // Served as a download so the browser saves it instead of opening it.
-app.get('/api/history/:id/report', (req, res) => {
+app.get('/api/history/:id/report', async (req, res) => {
   const entry = getHistoryEntry(req.params.id);
   if (!entry) return res.status(404).json({ error: 'unknown history entry' });
   // icons come from the patch the sim was run against, so a PTR report still
@@ -181,10 +181,32 @@ app.get('/api/history/:id/report', (req, res) => {
   for (const list of Object.values(p.config?.consumableOptions ?? {})) {
     if (Array.isArray(list)) for (const o of list) consumableLabels[o.value] = o.label;
   }
+  // item quality, for the "Your Top Gear" paperdoll's rarity-coloured names --
+  // locale-independent, so always read from the base (English) patch's cache
+  p.itemTables ??= loadItemTables(p.paths.cacheDir);
+  const qualities = {};
+  if (p.itemTables) {
+    for (const id of reportItemIds(entry)) {
+      const q = p.itemTables.items.get(Number(id))?.quality;
+      if (q != null) qualities[id] = q;
+    }
+  }
+  // gems/diamonds carry a real item id, so if this language's data has been
+  // refreshed at least once, localizeSeasonConfig swaps in that name; enchant
+  // ids have no such lookup and always stay in the season config's language
+  const lang = String(req.query.lang ?? '');
+  let localePatch = p;
+  if (lang && lang !== 'en') {
+    const key = `${p.def.id}:${lang}`;
+    if (!localizedPatches.has(key)) localizedPatches.set(key, loadPatchData(p.def, lang));
+    localePatch = localizedPatches.get(key);
+  }
+  const { gemLabels, enchantLabels } = enchGemLabelsFrom(
+    localizeSeasonConfig(localePatch.config, localePatch), localePatch.enchantNames);
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Content-Disposition',
     `attachment; filename="${reportFilename(entry).replace(/"/g, '')}"`);
-  res.send(buildReportHtml(entry, { icons, consumableLabels }));
+  res.send(buildReportHtml(entry, { icons, consumableLabels, gemLabels, enchantLabels, qualities }));
 });
 
 // every item the report draws a tile for
@@ -192,7 +214,10 @@ function reportItemIds(entry) {
   const r = entry.result ?? {};
   const ids = new Set();
   for (const t of r.topgear ?? []) if (t.itemId) ids.add(Number(t.itemId));
-  for (const it of Object.values(r.equipped ?? {})) if (it?.id) ids.add(Number(it.id));
+  for (const it of Object.values(r.equipped ?? {})) {
+    if (it?.id) ids.add(Number(it.id));
+    for (const g of it?.gemIds ?? []) if (g) ids.add(Number(g)); // gems are real items too
+  }
   return ids;
 }
 
@@ -220,14 +245,23 @@ function expectedBuildFor(p) {
 }
 
 const patches = new Map();
-for (const def of PATCH_DEFS) {
-  const paths = patchPaths(def.id, def.delveFile);
+// Builds one patch's full state (config, wago cache, loot db, probe cache) at
+// a given language. `locale` only ever changes which subdirectory of
+// data/cache/ this reads from (see patchPaths) and which language a refresh
+// downloads next -- the simc math is identical in every language, only item/
+// set/instance *names* differ. English is the original, always-present
+// cache; a non-English `p` starts out exactly like a patch nobody has
+// refreshed yet (lootDb: null), so the existing "needsData" -> Refresh data
+// flow doubles as the first-time download for that language, no separate UI
+// needed.
+function loadPatchData(def, locale = 'en') {
+  const paths = patchPaths(def.id, def.delveFile, locale);
   let config = null;
   try { config = JSON.parse(readFileSync(join(ROOT, 'data', def.seasonFile), 'utf8')); } catch { /* missing = unavailable */ }
   let consumableDefaults = null;
   try { consumableDefaults = JSON.parse(readFileSync(join(ROOT, 'data', def.consumablesFile), 'utf8')); } catch { /* live defaults apply */ }
   const p = {
-    def, paths, config, consumableDefaults,
+    def, locale, paths, config, consumableDefaults,
     available: !!config && (!def.ptr || !!ptrVersion),
     reason: !config ? `missing data/${def.seasonFile}`
       : def.ptr && !ptrVersion ? 'this simc build has no PTR data' : null,
@@ -238,6 +272,7 @@ for (const def of PATCH_DEFS) {
     bonusUpgradeMap: loadBonusUpgradeMap(paths.cacheDir),
     iconMap: loadIconMap(paths.cacheDir),
     socketBonusIds: loadSocketBonusIds(paths.cacheDir),
+    enchantNames: loadEnchantNames(paths.cacheDir),
   };
   if (p.available) {
     const cs = cacheStatus(paths.cacheDir, expectedBuildFor(p));
@@ -252,12 +287,25 @@ for (const def of PATCH_DEFS) {
     }
     p.knownItems = p.lootDb ? loadProbeCache(patchVersion(p), p.lootDb.builtAt, paths.probeCachePath) : null;
   }
-  patches.set(def.id, p);
+  return p;
 }
+
+for (const def of PATCH_DEFS) patches.set(def.id, loadPatchData(def, 'en'));
+
+// Non-English patch data is built lazily, the first time it's asked for
+// (which is the first request made while the language switch is set to
+// something other than English) — no point paying the disk reads at boot
+// for a language nobody has selected yet.
+const localizedPatches = new Map(); // "<patchId>:<locale>" -> p, locale != 'en'
 
 const getPatch = (req) => {
   const id = req.body?.patch ?? req.query?.patch;
-  return patches.get(typeof id === 'string' ? id : DEFAULT_PATCH_ID) ?? patches.get(DEFAULT_PATCH_ID);
+  const base = patches.get(typeof id === 'string' ? id : DEFAULT_PATCH_ID) ?? patches.get(DEFAULT_PATCH_ID);
+  const lang = req.body?.lang ?? req.query?.lang;
+  if (typeof lang !== 'string' || lang === 'en') return base;
+  const key = `${base.def.id}:${lang}`;
+  if (!localizedPatches.has(key)) localizedPatches.set(key, loadPatchData(base.def, lang));
+  return localizedPatches.get(key);
 };
 
 app.get('/api/patches', (req, res) => {
@@ -269,9 +317,35 @@ app.get('/api/patches', (req, res) => {
   });
 });
 
+// Gems and Eversong Diamonds carry a real item id, so once a non-English
+// patch's data has been refreshed at least once, ItemSparse.csv (already
+// downloaded for the droptimizer/stat-tooltip machinery) has their name in
+// that language -- this swaps season.json's hand-written English label for
+// it wherever a real id is known. Enchant options have no such id (an
+// enchant_id is a SpellItemEnchantment row, not an item) and consumable
+// options only carry a simc value string, so both stay in English.
+function localizeSeasonConfig(config, p) {
+  if (!config || p.locale === 'en') return config;
+  p.itemTables ??= loadItemTables(p.paths.cacheDir);
+  const items = p.itemTables?.items;
+  if (!items) return config; // not refreshed in this language yet
+  const relabel = (id) => items.get(Number(id))?.name ?? null;
+  const out = { ...config };
+  if (Array.isArray(out.gemOptions)) {
+    out.gemOptions = out.gemOptions.map((g) => ({ ...g, label: relabel(g.id) ?? g.label }));
+  }
+  if (out.diamondOptions?.options) {
+    out.diamondOptions = {
+      ...out.diamondOptions,
+      options: out.diamondOptions.options.map((d) => ({ ...d, label: relabel(d.id) ?? d.label })),
+    };
+  }
+  return out;
+}
+
 app.get('/api/season', (req, res) => {
   const p = getPatch(req);
-  res.json(p.config ?? patches.get(DEFAULT_PATCH_ID).config);
+  res.json(localizeSeasonConfig(p.config, p) ?? patches.get(DEFAULT_PATCH_ID).config);
 });
 
 function uniqueLootItems(lootDb) {
@@ -290,6 +364,26 @@ function invTypeLookup(p) {
   p.itemTables ??= loadItemTables(p.paths.cacheDir);
   const items = p.itemTables?.items;
   return items ? (id) => items.get(Number(id))?.invType ?? null : null;
+}
+
+// { bySlot } mapping each catalyst-eligible slot (head/shoulder/chest/hands/
+// legs) to the character's class's real current tier piece for it — { id,
+// name } — so the gear list's "Catalyzed" section (app.js) can offer the
+// real item each ticked looted piece becomes. null when the class's tier set
+// (see setBonus.js) or item names aren't available (simc built from a
+// release archive, not from source).
+function buildCatalystCtx(profileText, p) {
+  const classId = CLASS_IDS[detectSpec(profileText).class];
+  const classSet = classId ? loadCatalystSets(simcPath, p.def.ptr)?.get(classId) : null;
+  if (!classSet) return null;
+  const invTypeOf = invTypeLookup(p);
+  if (!invTypeOf) return null;
+  const bySlot = {};
+  for (const id of classSet.itemIds) {
+    const slot = INV_SLOTS[invTypeOf(id)]?.[0];
+    if (slot) bySlot[slot] = { id, name: p.itemTables?.items?.get(id)?.name ?? null };
+  }
+  return Object.keys(bySlot).length ? { bySlot } : null;
 }
 
 function ensureProbe(p, profileText) {
@@ -343,7 +437,7 @@ function startDataRefresh(p) {
   rs.step = 'downloading';
   (async () => {
     await downloadTables((prog) => { rs.step = `downloading ${prog.table} (${prog.index}/${prog.total})`; },
-      { cacheDir: p.paths.cacheDir, build, bonusesChannel: p.def.ptr ? 'ptr' : 'live' });
+      { cacheDir: p.paths.cacheDir, build, bonusesChannel: p.def.ptr ? 'ptr' : 'live', locale: p.locale });
     rs.step = 'building loot database';
     p.lootDb = buildLootDb(p.config.droptimizer.mythicPlusDungeons, p.paths);
     rs.step = 'indexing item icons';
@@ -353,6 +447,7 @@ function startDataRefresh(p) {
     p.bonusUpgradeMap = loadBonusUpgradeMap(p.paths.cacheDir);
     p.iconMap = loadIconMap(p.paths.cacheDir);
     p.socketBonusIds = loadSocketBonusIds(p.paths.cacheDir);
+    p.enchantNames = loadEnchantNames(p.paths.cacheDir);
     p.knownItems = null; // probe cache is keyed on builtAt; it re-runs on next use
   })()
     .catch((err) => { rs.error = err.message; })
@@ -513,9 +608,31 @@ function gearBySlotFrom(profile) {
       id: Number(line.match(/(?:^|,)id=(\d+)/)?.[1]) || null,
       name: equippedNames?.[slot] ?? null,
       ilvl: equippedIlvls?.[slot] ?? null,
+      enchantId: Number(line.match(/,enchant_id=(\d+)/)?.[1]) || null,
+      gemIds: (line.match(/,gem_id=([\d/]+)/)?.[1] ?? '').split('/').filter((g) => g && g !== '0'),
     };
   }
   return out;
+}
+
+// gem #id / enchant #id -> the season's display name for it, for the report's
+// "Gear simmed" table -- built fresh from the current patch config so a
+// report always shows the season's current wording, not what was true when
+// the sim ran.
+function enchGemLabelsFrom(season, enchantNames = null) {
+  const gemLabels = {};
+  for (const g of season?.gemOptions ?? []) gemLabels[g.id] = g.label;
+  for (const d of season?.diamondOptions?.options ?? []) gemLabels[d.id] = d.label;
+  // the season config's own curated list covers only the handful of
+  // enchants worth simming against each other; the game client's real name
+  // (see wagoData.js's loadEnchantNames) covers every enchant_id anyone's
+  // gear could carry, so it wins whenever both exist
+  const enchantLabels = {};
+  for (const arr of Object.values(season?.enchantOptions ?? {})) {
+    if (Array.isArray(arr)) for (const e of arr) enchantLabels[e.id] = e.label;
+  }
+  if (enchantNames) for (const [id, name] of enchantNames) enchantLabels[id] = name;
+  return { gemLabels, enchantLabels };
 }
 
 // Item sets present in the character's equipped + bagged gear.
@@ -591,7 +708,10 @@ app.get('/api/items', (req, res) => {
         if (text) bonuses.push({ threshold: b.threshold, text });
       }
       if (bonuses.length) {
-        entry.set = { name: set.name, pieces: set.items.length, bonuses };
+        entry.set = {
+          name: set.name, pieces: set.items.length, bonuses,
+          items: set.items.map((sid) => ({ id: sid, name: p.itemTables.items.get(sid)?.name ?? null })),
+        };
       }
     }
     out[pair] = entry;
@@ -611,6 +731,22 @@ app.get('/api/icons', (req, res) => {
     if (f) out[id] = f;
   }
   res.json({ icons: out, ready: true });
+});
+
+// enchant_id -> its real name, for item hovercards. Falls back to nothing
+// (the caller shows the raw id) until this language's data has SpellItemEnchantment
+// cached -- same "Refresh data" flow as everything else wago-sourced.
+app.get('/api/enchant-names', (req, res) => {
+  const p = getPatch(req);
+  const map = p.enchantNames;
+  const out = {};
+  for (const raw of String(req.query.ids ?? '').split(',')) {
+    const id = Number(raw);
+    if (!id) continue;
+    const name = map?.get(id);
+    if (name) out[id] = name;
+  }
+  res.json({ names: out, ready: !!map?.size });
 });
 
 app.post('/api/armory', async (req, res) => {
@@ -640,6 +776,10 @@ app.post('/api/gear', async (req, res) => {
     itemSets: detectItemSets(equipped, items, p.itemSetMap ?? patches.get(DEFAULT_PATCH_ID).itemSetMap),
     loadouts: parseLoadouts(profile).loadouts.map((l) => ({ name: l.name, isActive: l.isActive })),
     talents: talentPayload(profile, p, customLoadouts),
+    // slot -> this class's real current tier piece, for the gear list's
+    // "Catalyzed" section (see buildCatalystCtx) — null slots mean the class's
+    // tier set (or this simc build's own generated data) isn't known.
+    catalystSlots: buildCatalystCtx(profile, p)?.bySlot ?? null,
   };
   if (resolveIlvls) {
     if (!p.available) {
@@ -715,7 +855,10 @@ app.post('/api/sim', async (req, res) => {
     ptr: p.def.ptr,
     ...(p.consumableDefaults ? { consumableDefaults: p.consumableDefaults } : {}),
   };
-  const season = p.config;
+  // gem/diamond option labels come back in this request's language when that
+  // language's data has been refreshed (see localizeSeasonConfig) -- this is
+  // what makes a "Stat gems -> ..." comparison row's name show up translated
+  const season = localizeSeasonConfig(p.config, p);
 
   if (mode === 'topgear') {
     const clean = validateItems(items);
@@ -744,7 +887,8 @@ app.post('/api/sim', async (req, res) => {
       specKey: detectSpec(profile).key,
       invTypeOf,
     };
-    let { input, sets, skippedBySets, skippedByHands } = buildTopGearInput(profile, simOpts, clean, setCtx, handCtx);
+    let { input, sets, skippedBySets, skippedByHands } =
+      buildTopGearInput(profile, simOpts, clean, setCtx, handCtx);
     // compare groups: `true` (or missing selection) means "all options";
     // an object with per-category arrays narrows what gets simmed
     const sel = (group) => (typeof compare[group] === 'object' && compare[group] !== null
@@ -816,6 +960,13 @@ app.post('/api/sim', async (req, res) => {
     return res.json({ jobId: job.id, profilesetCount, skippedUnknown });
   }
 
+  if (mode === 'statweights') {
+    const input = buildStatWeightsInput(profile, simOpts);
+    const job = queue.submit(input, { mode: 'statweights', spec, gearBySlot: gearBySlotFrom(profile) });
+    persistWhenDone(job, 'statweights', options ?? {}, p);
+    return res.json({ jobId: job.id });
+  }
+
   const input = buildInput(profile, simOpts);
   const job = queue.submit(input, { mode: 'quick', spec, gearBySlot: gearBySlotFrom(profile) });
   persistWhenDone(job, 'quick', options ?? {}, p);
@@ -839,6 +990,9 @@ function validateItems(items) {
       section: String(it?.section ?? 'Bags').slice(0, 60),
       slot: m[1],
       line,
+      // the looted item's name, for a "Catalyzed" row's tooltip (see the
+      // gear list's catalystEntriesFor) — display text only, never parsed
+      ...(it?.catalystFrom ? { catalystFrom: String(it.catalystFrom).slice(0, 120) } : {}),
     });
   }
   return out;
