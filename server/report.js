@@ -81,6 +81,19 @@ function comparisonTable(rows, icons) {
     </tr></thead><tbody>${body}</tbody></table>`;
 }
 
+function statWeightsTable(statWeights) {
+  if (!statWeights?.length) return '';
+  const max = Math.max(...statWeights.map((s) => s.value), 0.0001);
+  const body = statWeights.map((s) => `<tr>
+      <td>${esc(s.label)}</td>
+      <td class="num">${num(s.value)}</td>
+      <td class="pctcell">${bar(s.normalized.toFixed(2), (s.value / max) * 100)}</td>
+    </tr>`).join('');
+  return `<h2>Stat weights</h2>
+    <table><thead><tr><th>Stat</th><th class="num">DPS per point</th><th>Relative to top stat</th></tr></thead>
+    <tbody>${body}</tbody></table>`;
+}
+
 function abilityTable(abilities, playerName) {
   if (!abilities?.length) return '';
   const max = Math.max(...abilities.map((a) => a.share), 0.0001);
@@ -215,6 +228,7 @@ export function buildReportHtml(entry, { icons = null, consumableLabels = null, 
   </div>
 
   <div class="scroll">${comparisonTable(r.topgear, icons)}</div>
+  ${statWeightsTable(r.statWeights)}
   ${abilityTable(r.abilities, p.name)}
   ${buffTable(r.buffs)}
   ${consumableList(r.consumables, consumableLabels)}

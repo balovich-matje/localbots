@@ -700,7 +700,7 @@ $('preset-all-on').addEventListener('click', () => setAllBuffsConsumables(true))
 $('preset-all-off').addEventListener('click', () => setAllBuffsConsumables(false));
 
 // ---------- tabs ----------
-const SIM_LABELS = { quick: 'Sim it', topgear: 'Compare gear', droptimizer: 'Run droptimizer' };
+const SIM_LABELS = { quick: 'Sim it', topgear: 'Compare gear', droptimizer: 'Run droptimizer', statweights: 'Calc stat weights' };
 document.querySelectorAll('.tab').forEach((tab) => {
   tab.addEventListener('click', () => {
     mode = tab.dataset.mode;
@@ -1405,6 +1405,8 @@ async function startSim() {
       showError('Crafted gear is ticked but no stat combo is selected — tick at least one stat pair.');
       return;
     }
+  } else if (mode === 'statweights') {
+    payload.mode = 'statweights';
   }
 
   $('sim-button').disabled = true;
@@ -1592,6 +1594,17 @@ function renderResult(r) {
     </tr>`).join('');
   document.querySelector('#buffs-table tbody').innerHTML =
     buffRows || '<tr><td colspan="2">No notable buffs.</td></tr>';
+
+  $('statweights-block').classList.toggle('hidden', !r.statWeights?.length);
+  if (r.statWeights?.length) {
+    const maxWeight = Math.max(...r.statWeights.map((s) => s.value), 0.0001);
+    document.querySelector('#statweights-table tbody').innerHTML = r.statWeights.map((s) => `
+      <tr>
+        <td>${esc(s.label)}</td>
+        <td class="num">${s.value.toFixed(2)}</td>
+        <td>${shareBar(s.normalized * 100, (s.value / maxWeight) * 100)}</td>
+      </tr>`).join('');
+  }
 }
 
 let tgRows = [];

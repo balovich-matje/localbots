@@ -60,7 +60,7 @@ function clamp(n, lo, hi, fallback) {
 
 // Strip any global directives from the pasted profile that would fight with our
 // UI-controlled settings (people sometimes paste full simc files, not just exports).
-const BLOCKED_LINE = /^\s*(iterations|target_error|fight_style|max_time|desired_targets|threads|json2|output|html|report_details|optimal_raid|ptr)\s*=/i;
+const BLOCKED_LINE = /^\s*(iterations|target_error|fight_style|max_time|desired_targets|threads|json2|output|html|report_details|optimal_raid|ptr|calculate_scale_factors)\s*=/i;
 
 export function sanitizeProfile(text) {
   return text
@@ -137,6 +137,13 @@ export function buildInput(profileText, options = {}) {
   }
 
   return lines.join('\n') + '\n';
+}
+
+// Stat Weights: the same input as Quick Sim, plus simc's own scale-factor
+// pass (it reruns the sim once per stat with a small delta and reports the
+// DPS gained per point, under json.sim.players[0].scale_factors).
+export function buildStatWeightsInput(profileText, options = {}) {
+  return buildInput(profileText, options) + '\ncalculate_scale_factors=1\n';
 }
 
 function hasConsumableLine(text, key) {
