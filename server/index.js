@@ -2,7 +2,7 @@ import express from 'express';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildInput, buildTopGearInput, buildConsumableVariants, detectSpec } from './profileBuilder.js';
+import { buildInput, buildStatWeightsInput, buildTopGearInput, buildConsumableVariants, detectSpec } from './profileBuilder.js';
 import { buildEnchantVariants, buildGemVariants, buildDiamondVariants, buildFolioVariants, buildTrackUpgradeVariants, trackFor } from './enhancements.js';
 import { resolveEquipped, clearResolveCache } from './equippedResolver.js';
 import { SimQueue, findSimc, simcVersion } from './simRunner.js';
@@ -815,6 +815,13 @@ app.post('/api/sim', async (req, res) => {
     const job = queue.submit(input, { mode: 'droptimizer', spec, sets, gearBySlot: gearBySlotFrom(profile) });
     persistWhenDone(job, 'droptimizer', options ?? {}, p);
     return res.json({ jobId: job.id, profilesetCount, skippedUnknown });
+  }
+
+  if (mode === 'statweights') {
+    const input = buildStatWeightsInput(profile, simOpts);
+    const job = queue.submit(input, { mode: 'statweights', spec, gearBySlot: gearBySlotFrom(profile) });
+    persistWhenDone(job, 'statweights', options ?? {}, p);
+    return res.json({ jobId: job.id });
   }
 
   const input = buildInput(profile, simOpts);
