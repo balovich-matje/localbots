@@ -12,13 +12,21 @@ gear-upgrade ("Top Gear"), and full droptimizer reports.
 ## Commands
 
 ```bash
-npm install     # install deps (just express)
-npm start        # runs server/index.js, serves on http://localhost:4747
+npm install     # install deps (express, plus eslint for the lint script)
+npm start       # runs server/index.js, serves on http://localhost:4747
+npm run lint    # ESLint (no-undef / no-unused-vars) + the CSS custom-property check
 ```
 
-There is no build step, linter, or test suite configured — `public/` is served as static
-files as-is and `server/` runs directly under Node's native ESM (`"type": "module"`).
-Verify changes by running `npm start` and exercising the feature in a browser.
+There is no build step or test suite — `public/` is served as static files as-is and
+`server/` runs directly under Node's native ESM (`"type": "module"`). Verify changes by
+running `npm start` and exercising the feature in a browser.
+
+`npm run lint` catches the two things a browser cannot: `public/app.js` is loaded as a
+classic script, so a call to a function that was never defined throws a ReferenceError
+that a bare `catch` can swallow silently (this shipped once — a dead `api()` helper left
+the crest panel permanently blank with a clean console); and `var(--x)` for a custom
+property nobody defines falls back to the inherited value rather than failing, which
+looks like a deliberate colour.
 
 `simc` must be resolvable (on PATH, or via `SIMC_PATH` env var) or the server refuses to
 start (`server/index.js` calls `findSimc()` at boot). See README for installing simc
